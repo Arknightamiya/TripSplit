@@ -1,4 +1,3 @@
-```markdown
 # TripSplit
 
 TripSplit is a CS130 project web application for shared travel budgeting and fair expense splitting.
