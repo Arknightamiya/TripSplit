@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TripSplit</title>
+    <link rel="stylesheet" href="/web/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">CS130 Project Scaffold</p>
+        <h1>TripSplit</h1>
+        <p class="hero-copy">
+          A minimal starter shell for your project. One input, one button, and
+          just enough structure to grow from.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Quick Start</h2>
+        <form id="trip-form" class="input-row">
+          <input
+            id="trip-name"
+            name="name"
+            placeholder="Enter a trip name"
+            value="Big Bear Weekend"
+            required
+          />
+          <button type="submit">Add Trip</button>
+        </form>
+        <p id="status-text" class="hint">Connecting to the local API.</p>
+        <div id="trip-list" class="stack"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/web/app.js"></script>
+  </body>
+</html>

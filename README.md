@@ -106,14 +106,86 @@ All private trip APIs require authentication. Users who are not approved partici
 
 ## How to Run the Project
 
-This section will be updated after the frontend and backend are implemented.
+The repo now includes a lightweight runnable scaffold that matches the planned MVP architecture without requiring external dependencies yet.
 
-Planned local development flow:
+1. Make the startup script executable once:
 
-git clone https://github.com/Arknightamiya/TripSplit.git
+```bash
+chmod +x start.sh
+```
 
-cd TripSplit
+2. Start the app:
 
-Frontend setup will be added later.
+```bash
+./start.sh
+```
 
-Backend setup will be added later.
+3. Open:
+
+```text
+http://localhost:3000
+```
+
+You can also run:
+
+```bash
+npm test
+```
+
+to verify the settlement logic placeholder.
+
+## Project Structure
+
+The scaffold uses a mostly flat structure so the team can move quickly in CS130 while still leaving room to grow:
+
+```text
+TripSplit/
+├── package.json
+├── start.sh
+├── server/
+│   ├── index.js
+│   ├── router.js
+│   ├── settlement.js
+│   └── store.js
+├── shared/
+│   └── contracts.js
+├── web/
+│   ├── app.js
+│   ├── index.html
+│   └── styles.css
+└── tests/
+    └── settlement.test.js
+```
+
+## Architecture Notes
+
+- `server/`
+  - Runs a simple Node HTTP server now.
+  - Keeps routing, in-memory data, and settlement logic separated so the backend can later migrate cleanly to Express, controllers, services, and PostgreSQL models.
+
+- `web/`
+  - Provides an intentionally minimal frontend shell with a single input and button.
+  - Can later be replaced by a React app with the same REST endpoints.
+
+- `shared/`
+  - Stores API contracts and constants that both the frontend and backend can reference.
+
+- `tests/`
+  - Starts with the most important pure business logic: expense settlement and balance calculation.
+
+## Current Scaffold Scope
+
+The current scaffold intentionally keeps things small:
+
+- Backend persistence is in memory only
+- Authentication endpoints are placeholder/demo endpoints
+- Frontend is an intentionally tiny starter UI rather than full React
+- The REST route shape already follows the planned API direction from this README
+
+This gives the team a working baseline now, while keeping the path open for:
+
+- React frontend setup
+- Express middleware and controllers
+- PostgreSQL integration
+- JWT auth hardening
+- Broader unit and integration testing
