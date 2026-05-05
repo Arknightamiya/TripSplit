@@ -143,6 +143,7 @@ TripSplit/
 ├── package.json
 ├── start.sh
 ├── server/
+│   ├── db.js
 │   ├── index.js
 │   ├── router.js
 │   ├── settlement.js
@@ -161,7 +162,7 @@ TripSplit/
 
 - `server/`
   - Runs a simple Node HTTP server now.
-  - Keeps routing, in-memory data, and settlement logic separated so the backend can later migrate cleanly to Express, controllers, services, and PostgreSQL models.
+  - Keeps routing, a mock database hook, in-memory data, and settlement logic separated so the backend can later migrate cleanly to Express, controllers, services, and PostgreSQL models.
 
 - `web/`
   - Provides an intentionally minimal frontend shell with a single input and button.
@@ -178,6 +179,7 @@ TripSplit/
 The current scaffold intentionally keeps things small:
 
 - Backend persistence is in memory only
+- PostgreSQL hookup is a marked `TODO` stub in `server/db.js` and currently no-ops
 - Authentication endpoints are placeholder/demo endpoints
 - Frontend is an intentionally tiny starter UI rather than full React
 - The REST route shape already follows the planned API direction from this README

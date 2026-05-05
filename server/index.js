@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { connectDatabase } from "./db.js";
 import { handleApiRequest } from "./router.js";
 import { seedStore } from "./store.js";
 
@@ -18,6 +19,7 @@ const contentTypes = {
 };
 
 seedStore();
+const database = await connectDatabase();
 
 const server = createServer(async (req, res) => {
   try {
@@ -35,7 +37,9 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
+  const dbMode = database.enabled ? "connected" : "noop";
   console.log(`TripSplit running at http://localhost:${port}`);
+  console.log(`Database layer: ${dbMode}`);
 });
 
 async function serveStatic(req, res) {
