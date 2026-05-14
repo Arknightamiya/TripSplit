@@ -8,6 +8,16 @@ It is designed for small groups traveling together, such as friends, roommates, 
 
 Team Name: XZWSD
 
+## Current Integration Baseline
+
+The shared implementation baseline is documented in:
+
+- `docs/integration-baseline.md`
+- `docs/api-contract.md`
+- `database/schema.sql`
+- `docs/branch-plan.md`
+
+The API contract and PostgreSQL schema are the source of truth for feature branches. Frontend and backend work should use the same field names, response shapes, access-control assumptions, and database relationships defined there.
 
 ## Project Motivation
 

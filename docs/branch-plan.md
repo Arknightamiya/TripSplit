@@ -10,6 +10,8 @@ All substantive code changes should go through pull requests. Each pull request 
 
 The current scaffold uses plain JavaScript modules in `web/` and a simple Node backend in `server/`. Team members should build on the existing JavaScript templates unless the whole team agrees to a framework migration.
 
+Before implementing feature work, read `docs/integration-baseline.md`. The API contract in `docs/api-contract.md` and the PostgreSQL target schema in `database/schema.sql` are the shared source of truth for integration.
+
 ## Team Split
 
 ### FE 1: Auth Pages + Trip Dashboard
