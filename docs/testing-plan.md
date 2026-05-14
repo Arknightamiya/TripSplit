@@ -25,6 +25,18 @@ node --test
 - Empty expense list
 - Decimal rounding to 2 places
 - Delete expense and recalculate balances
+- Reject or ignore expenses whose payer is not a trip participant
+- Reject or ignore split participants who are not trip participants
+
+---
+
+### Budget Tests
+
+- Total budget summary
+- Per-person budget summary
+- Remaining budget while under budget
+- Over-budget amount after expenses exceed the budget
+- Budget recalculation after deleting an expense
 
 ---
 
@@ -39,6 +51,19 @@ node --test
 - Get balances
 - Delete expense
 - Re-check balances after deletion
+- Reject missing or invalid auth token on private trip APIs
+- Reject access by a user who is not an approved trip participant
+- Reject organizer-only actions from regular participants
+
+---
+
+### Schema / Data Integrity Tests
+
+- Expense payer must belong to the trip
+- Expense share participant must belong to the trip
+- Expense share trip must match the expense trip
+- Budget mode must match the required budget fields
+- Expense category and expense type must be from shared constants
 
 ---
 
@@ -53,3 +78,4 @@ node --test
 7. View final balances.
 8. Delete an expense.
 9. Confirm budget and balances update.
+10. Try accessing a trip as a non-participant and confirm the request is rejected.

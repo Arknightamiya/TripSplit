@@ -8,6 +8,8 @@ The `main` branch should always stay runnable and demo-ready. Team members shoul
 
 All substantive code changes should go through pull requests. Each pull request should be reviewed by at least one other team member before merging.
 
+The current scaffold uses plain JavaScript modules in `web/` and a simple Node backend in `server/`. Team members should build on the existing JavaScript templates unless the whole team agrees to a framework migration.
+
 ## Team Split
 
 ### FE 1: Auth Pages + Trip Dashboard
@@ -24,9 +26,11 @@ All substantive code changes should go through pull requests. Each pull request 
 
 **Main files likely affected:**
 
-- `web/`
-- Frontend API helper files
-- Shared frontend styling files
+- `web/app.js`
+- `web/forms.js`
+- `web/renderTrips.js`
+- auth UI files added under `web/`
+- trip dashboard UI files added under `web/`
 
 ---
 
@@ -44,9 +48,11 @@ All substantive code changes should go through pull requests. Each pull request 
 
 **Main files likely affected:**
 
-- `web/`
-- Frontend render files
-- Shared frontend styling files
+- `web/renderBudget.js`
+- `web/renderExpenses.js`
+- `web/renderBalances.js`
+- expense form and ledger files added under `web/`
+- balance summary files added under `web/`
 
 ---
 
@@ -69,6 +75,14 @@ All substantive code changes should go through pull requests. Each pull request 
 - `server/db.js`
 - `shared/contracts.js`
 
+**Route ownership:**
+
+- `/api/auth/*`
+- `/api/trips`
+- `/api/trips/:tripId`
+- `/api/trips/:tripId/participants`
+- `/api/trips/:tripId/budget`
+
 ---
 
 ### BE 2: Expense + Settlement APIs
@@ -89,6 +103,12 @@ All substantive code changes should go through pull requests. Each pull request 
 - `server/store.js`
 - `server/settlement.js`
 - `tests/settlement.test.js`
+
+**Route ownership:**
+
+- `/api/trips/:tripId/expenses`
+- `/api/trips/:tripId/expenses/:expenseId`
+- `/api/trips/:tripId/balances`
 
 ---
 
@@ -113,9 +133,21 @@ All substantive code changes should go through pull requests. Each pull request 
 - `shared/contracts.js`
 - `tests/`
 - `README.md`
+- `web/styles.css`
+- shared frontend API helpers such as `web/api.js`
 
 ## Integration Rule
 
 Before connecting frontend and backend code, the team should agree on the API request and response format in `docs/api-contract.md`.
 
 If two branches modify the same file, the branch owner should pull the latest `main` frequently and resolve conflicts early.
+
+Files expected to be shared hotspots:
+
+- `server/router.js`
+- `server/store.js`
+- `web/api.js`
+- `web/styles.css`
+- `shared/contracts.js`
+
+Before changing one of these shared files, check whether another teammate is already editing the same area. Prefer adding clearly separated functions or route sections instead of rewriting unrelated code.

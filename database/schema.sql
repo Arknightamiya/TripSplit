@@ -1,5 +1,5 @@
 -- TripSplit PostgreSQL Schema Draft
--- This file is a draft for the future PostgreSQL migration.
+-- This file is the shared database target for future PostgreSQL migration.
 -- The current project still uses the in-memory store in server/store.js.
 
 CREATE TABLE users (
@@ -19,14 +19,17 @@ CREATE TABLE trips (
   start_date DATE,
   end_date DATE,
   organizer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
 );
 
 CREATE TABLE trip_participants (
   trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL DEFAULT 'participant',
-  join_status TEXT NOT NULL DEFAULT 'approved',
+  role TEXT NOT NULL DEFAULT 'participant'
+    CHECK (role IN ('organizer', 'participant')),
+  join_status TEXT NOT NULL DEFAULT 'approved'
+    CHECK (join_status IN ('pending', 'approved', 'removed')),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (trip_id, user_id)
 );
@@ -34,44 +37,85 @@ CREATE TABLE trip_participants (
 CREATE TABLE budgets (
   trip_id INTEGER PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
   mode TEXT NOT NULL CHECK (mode IN ('total', 'per-person')),
-  amount NUMERIC(12, 2) NOT NULL CHECK (amount >= 0),
+  total_budget NUMERIC(12, 2) CHECK (total_budget >= 0),
+  per_person_budget NUMERIC(12, 2) CHECK (per_person_budget >= 0),
+  currency_code CHAR(3) NOT NULL DEFAULT 'USD',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (
+    (mode = 'total' AND total_budget IS NOT NULL AND per_person_budget IS NULL)
+    OR
+    (mode = 'per-person' AND total_budget IS NULL AND per_person_budget IS NOT NULL)
+  )
 );
 
 CREATE TABLE split_rules (
   id SERIAL PRIMARY KEY,
-  type TEXT NOT NULL,
+  type TEXT UNIQUE NOT NULL CHECK (type IN ('equal')),
   description TEXT
 );
+
+INSERT INTO split_rules (type, description)
+VALUES ('equal', 'Split equally among selected participants')
+ON CONFLICT (type) DO NOTHING;
 
 CREATE TABLE expenses (
   id SERIAL PRIMARY KEY,
   trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-  category TEXT NOT NULL,
-  expense_type TEXT NOT NULL DEFAULT 'shared',
-  payer_id INTEGER NOT NULL REFERENCES users(id),
-  split_rule_id INTEGER REFERENCES split_rules(id),
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  category TEXT NOT NULL CHECK (
+    category IN (
+      'lodging',
+      'food',
+      'transportation',
+      'tickets',
+      'drinks',
+      'emergency',
+      'other'
+    )
+  ),
+  expense_type TEXT NOT NULL DEFAULT 'shared'
+    CHECK (expense_type IN ('shared', 'personal_advance')),
+  payer_id INTEGER NOT NULL,
+  split_rule_id INTEGER NOT NULL REFERENCES split_rules(id),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (id, trip_id),
+  FOREIGN KEY (trip_id, payer_id)
+    REFERENCES trip_participants(trip_id, user_id)
 );
 
 CREATE TABLE expense_shares (
-  expense_id INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
-  participant_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expense_id INTEGER NOT NULL,
+  trip_id INTEGER NOT NULL,
+  participant_id INTEGER NOT NULL,
   share_amount NUMERIC(12, 2) NOT NULL CHECK (share_amount >= 0),
-  PRIMARY KEY (expense_id, participant_id)
+  PRIMARY KEY (expense_id, participant_id),
+  FOREIGN KEY (expense_id, trip_id)
+    REFERENCES expenses(id, trip_id)
+    ON DELETE CASCADE,
+  FOREIGN KEY (trip_id, participant_id)
+    REFERENCES trip_participants(trip_id, user_id)
+    ON DELETE CASCADE
 );
 
 -- Balance summaries can be calculated dynamically from expenses and expense_shares.
 -- This table is optional for a future cached summary design.
 CREATE TABLE balance_summaries (
-  trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-  participant_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  trip_id INTEGER NOT NULL,
+  participant_id INTEGER NOT NULL,
   actual_paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
   fair_share_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
   net_balance NUMERIC(12, 2) NOT NULL DEFAULT 0,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (trip_id, participant_id)
+  PRIMARY KEY (trip_id, participant_id),
+  FOREIGN KEY (trip_id, participant_id)
+    REFERENCES trip_participants(trip_id, user_id)
+    ON DELETE CASCADE
 );
+
+CREATE INDEX idx_trips_organizer_id ON trips(organizer_id);
+CREATE INDEX idx_expenses_trip_id ON expenses(trip_id);
+CREATE INDEX idx_expenses_payer_id ON expenses(payer_id);
+CREATE INDEX idx_expense_shares_trip_id ON expense_shares(trip_id);
+CREATE INDEX idx_expense_shares_participant_id ON expense_shares(participant_id);

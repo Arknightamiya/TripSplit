@@ -11,3 +11,9 @@ export const EXPENSE_CATEGORIES = [
 ];
 
 export const BUDGET_MODES = ["total", "per-person"];
+
+export const EXPENSE_TYPES = ["shared", "personal_advance"];
+
+export const SPLIT_RULES = ["equal"];
+
+export const AUTH_HEADER = "Authorization";
