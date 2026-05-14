@@ -13,11 +13,14 @@ Team Name: XZWSD
 The shared implementation baseline is documented in:
 
 - `docs/integration-baseline.md`
+- `docs/reference-architecture-notes.md`
 - `docs/api-contract.md`
 - `database/schema.sql`
 - `docs/branch-plan.md`
 
 The API contract and PostgreSQL schema are the source of truth for feature branches. Frontend and backend work should use the same field names, response shapes, access-control assumptions, and database relationships defined there.
+
+The reference architecture notes summarize reusable structure lessons from the prior BruinDating project, including central API helpers, auth state, protected routes, backend domain separation, shared theme discipline, and environment configuration.
 
 ## Project Motivation
 
@@ -161,6 +164,7 @@ TripSplit/
 ├── shared/
 │   └── contracts.js
 ├── web/
+│   ├── api.js
 │   ├── app.js
 │   ├── index.html
 │   └── styles.css

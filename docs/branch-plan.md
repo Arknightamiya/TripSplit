@@ -12,6 +12,8 @@ The current scaffold uses plain JavaScript modules in `web/` and a simple Node b
 
 Before implementing feature work, read `docs/integration-baseline.md`. The API contract in `docs/api-contract.md` and the PostgreSQL target schema in `database/schema.sql` are the shared source of truth for integration.
 
+Also read `docs/reference-architecture-notes.md` for the architecture patterns borrowed from the prior BruinDating project. Borrow the structure discipline, not the dating-app features or exact stack.
+
 ## Team Split
 
 ### FE 1: Auth Pages + Trip Dashboard
@@ -31,6 +33,7 @@ Before implementing feature work, read `docs/integration-baseline.md`. The API c
 - `web/app.js`
 - `web/forms.js`
 - `web/renderTrips.js`
+- `web/api.js`
 - auth UI files added under `web/`
 - trip dashboard UI files added under `web/`
 
@@ -50,6 +53,7 @@ Before implementing feature work, read `docs/integration-baseline.md`. The API c
 
 **Main files likely affected:**
 
+- `web/api.js`
 - `web/renderBudget.js`
 - `web/renderExpenses.js`
 - `web/renderBalances.js`
@@ -153,3 +157,13 @@ Files expected to be shared hotspots:
 - `shared/contracts.js`
 
 Before changing one of these shared files, check whether another teammate is already editing the same area. Prefer adding clearly separated functions or route sections instead of rewriting unrelated code.
+
+## Shared Architecture Rules
+
+- Frontend modules should call `web/api.js` instead of hardcoding `fetch` endpoints in render or form files.
+- Endpoint paths, auth header names, token storage keys, and shared enum values should come from `shared/contracts.js`.
+- Backend route work should keep auth, trip, participant, budget, expense, and balance logic separated by route sections or modules.
+- Settlement logic should stay testable outside HTTP routing.
+- Pull requests that change shared request/response shapes must update `docs/api-contract.md`.
+- Pull requests that change database relationships must update `database/schema.sql`.
+- Pull requests that change shared styling assumptions must coordinate through `web/styles.css`.

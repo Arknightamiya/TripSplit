@@ -11,6 +11,7 @@ The most important shared files are:
 - `docs/api-contract.md`
 - `database/schema.sql`
 - `shared/contracts.js`
+- `docs/reference-architecture-notes.md`
 
 Frontend and backend work should follow these files first. If a feature branch needs to change an API field, response shape, database relationship, or shared constant, update these shared files first or coordinate with the integrator before implementation.
 
@@ -79,13 +80,30 @@ These rules are important because settlement and access control both depend on t
 `shared/contracts.js` now includes shared constants for:
 
 - API base path
+- route builders
 - expense categories
 - budget modes
 - expense types
 - split rules
 - auth header name
+- auth token storage key
 
 Frontend and backend code should import or mirror these constants instead of inventing new strings.
+
+### Reference Architecture Lessons
+
+`docs/reference-architecture-notes.md` records the useful architecture patterns reviewed from the prior BruinDating project.
+
+The main borrowed ideas are:
+
+- central frontend API client
+- central auth state and protected route pattern
+- backend domain separation
+- explicit response-shape boundary
+- shared theme discipline
+- environment variable discipline
+
+The team should not copy BruinDating's stack or dating-app features. TripSplit's target stack remains React, Express, PostgreSQL, and JWT.
 
 ## Branch Baseline
 
@@ -107,6 +125,7 @@ Each team member can now start from their assigned branch without creating a new
 - BE 1 should implement auth/JWT/access control and trip/participant/budget APIs according to the contract.
 - BE 2 should implement expense APIs, expense shares, settlement recalculation, balance APIs, and delete expense behavior according to the contract and schema.
 - The integrator should review changes to shared files, schema, API helpers, tests, and styling before merge.
+- Pull or merge work should update shared contract, schema, constants, theme, and integration notes whenever those shared assumptions change.
 
 ## Validation Completed
 
