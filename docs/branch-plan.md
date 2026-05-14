@@ -8,7 +8,7 @@ The `main` branch should always stay runnable and demo-ready. Team members shoul
 
 All substantive code changes should go through pull requests. Each pull request should be reviewed by at least one other team member before merging.
 
-The current scaffold uses plain JavaScript modules in `web/` and a simple Node backend in `server/`. Team members should build on the existing JavaScript templates unless the whole team agrees to a framework migration.
+The current scaffold uses plain JavaScript modules in `web/` and an Express backend in `server/`. Team members should build on the existing JavaScript templates unless the whole team agrees to a framework migration.
 
 Before implementing feature work, read `docs/integration-baseline.md`. The API contract in `docs/api-contract.md` and the PostgreSQL target schema in `database/schema.sql` are the shared source of truth for integration.
 
@@ -76,9 +76,13 @@ Also read `docs/reference-architecture-notes.md` for the architecture patterns b
 
 **Main files likely affected:**
 
-- `server/router.js`
-- `server/store.js`
-- `server/db.js`
+- `server/routes/auth.js`
+- `server/routes/trips.js`
+- `server/services/auth.js`
+- `server/services/trips.js`
+- `server/middleware/auth.js`
+- `server/db/pool.js`
+- `server/store.js` until PostgreSQL persistence replaces it
 - `shared/contracts.js`
 
 **Route ownership:**
@@ -105,10 +109,13 @@ Also read `docs/reference-architecture-notes.md` for the architecture patterns b
 
 **Main files likely affected:**
 
-- `server/router.js`
-- `server/store.js`
+- `server/routes/expenses.js`
+- `server/routes/balances.js`
+- `server/services/expenses.js`
 - `server/settlement.js`
+- `server/store.js` until PostgreSQL persistence replaces it
 - `tests/settlement.test.js`
+- `tests/api.test.js`
 
 **Route ownership:**
 
@@ -150,7 +157,9 @@ If two branches modify the same file, the branch owner should pull the latest `m
 
 Files expected to be shared hotspots:
 
-- `server/router.js`
+- `server/app.js`
+- `server/routes/`
+- `server/services/`
 - `server/store.js`
 - `web/api.js`
 - `web/styles.css`
@@ -162,7 +171,7 @@ Before changing one of these shared files, check whether another teammate is alr
 
 - Frontend modules should call `web/api.js` instead of hardcoding `fetch` endpoints in render or form files.
 - Endpoint paths, auth header names, token storage keys, and shared enum values should come from `shared/contracts.js`.
-- Backend route work should keep auth, trip, participant, budget, expense, and balance logic separated by route sections or modules.
+- Backend route work should keep auth, trip, participant, budget, expense, and balance logic separated by Express route and service modules.
 - Settlement logic should stay testable outside HTTP routing.
 - Pull requests that change shared request/response shapes must update `docs/api-contract.md`.
 - Pull requests that change database relationships must update `database/schema.sql`.

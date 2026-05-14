@@ -28,6 +28,25 @@ export async function apiRequest(path, options = {}) {
   return payload;
 }
 
+export async function ensureDemoAuth() {
+  if (getStoredAuthToken()) {
+    return;
+  }
+
+  const { token } = await login({
+    email: "alex@example.com",
+    password: "demo-password"
+  });
+  storeAuthToken(token);
+}
+
+export async function login({ email, password }) {
+  return apiRequest(API_ROUTES.authLogin, {
+    method: "POST",
+    body: { email, password }
+  });
+}
+
 export async function fetchHealth(){
       return apiRequest(API_ROUTES.health);
 }
@@ -43,12 +62,16 @@ export async function postTrip(name){
     });
 }
 
-function getStoredAuthToken() {
+export function getStoredAuthToken() {
   try {
     return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
   } catch {
     return null;
   }
+}
+
+export function storeAuthToken(token) {
+  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
 }
 
 function prepareBody(body, headers) {

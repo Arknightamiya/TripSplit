@@ -22,6 +22,8 @@ The API contract and PostgreSQL schema are the source of truth for feature branc
 
 The reference architecture notes summarize reusable structure lessons from the prior BruinDating project, including central API helpers, auth state, protected routes, backend domain separation, shared theme discipline, and environment configuration.
 
+The backend starter now uses Express routes, middleware, services, JWT auth, and a PostgreSQL pool boundary. Persistence is still in memory until the backend feature branches replace the store internals with PostgreSQL queries.
+
 ## Project Motivation
 
 Group travel often creates financial confusion. Before a trip, travelers may agree on a total budget or a per-person budget. During the trip, different people may pay for hotels, food, transportation, tickets, drinks, or emergency purchases.
@@ -119,7 +121,7 @@ All private trip APIs require authentication. Users who are not approved partici
 
 ## How to Run the Project
 
-The repo now includes a lightweight runnable scaffold that matches the planned MVP architecture without requiring external dependencies yet.
+The repo includes a lightweight runnable scaffold that matches the planned MVP architecture.
 
 1. Make the startup script executable once:
 
@@ -156,9 +158,14 @@ TripSplit/
 ├── package.json
 ├── start.sh
 ├── server/
+│   ├── app.js
 │   ├── db.js
+│   ├── db/
+│   │   └── pool.js
 │   ├── index.js
-│   ├── router.js
+│   ├── middleware/
+│   ├── routes/
+│   ├── services/
 │   ├── settlement.js
 │   └── store.js
 ├── shared/
@@ -175,8 +182,8 @@ TripSplit/
 ## Architecture Notes
 
 - `server/`
-  - Runs a simple Node HTTP server now.
-  - Keeps routing, a mock database hook, in-memory data, and settlement logic separated so the backend can later migrate cleanly to Express, controllers, services, and PostgreSQL models.
+  - Runs an Express backend now.
+  - Keeps app creation, routes, middleware, services, database boundary, in-memory data, and settlement logic separated so backend branches can migrate service internals cleanly to PostgreSQL.
 
 - `web/`
   - Provides an intentionally minimal frontend shell with a single input and button.
@@ -186,22 +193,21 @@ TripSplit/
   - Stores API contracts and constants that both the frontend and backend can reference.
 
 - `tests/`
-  - Starts with the most important pure business logic: expense settlement and balance calculation.
+  - Covers settlement logic and key API workflows such as auth, private trip access, trip creation, expense shares, and balance recalculation.
 
 ## Current Scaffold Scope
 
 The current scaffold intentionally keeps things small:
 
 - Backend persistence is in memory only
-- PostgreSQL hookup is a marked `TODO` stub in `server/db.js` and currently no-ops
-- Authentication endpoints are placeholder/demo endpoints
+- PostgreSQL hookup exists as a pool boundary in `server/db/pool.js`; it no-ops until `DATABASE_URL` is set and services start using it
+- Authentication uses starter JWT behavior with seeded demo users
 - Frontend is an intentionally tiny starter UI rather than full React
 - The REST route shape already follows the planned API direction from this README
 
 This gives the team a working baseline now, while keeping the path open for:
 
 - React frontend setup
-- Express middleware and controllers
 - PostgreSQL integration
 - JWT auth hardening
 - Broader unit and integration testing

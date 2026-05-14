@@ -1,0 +1,66 @@
+import {
+  addExpense,
+  addParticipant,
+  createTrip,
+  createUser,
+  findUserByEmail,
+  getTripById,
+  setBudget
+} from "../store.js";
+import { hashPassword } from "./auth.js";
+
+export function seedStore() {
+  if (findUserByEmail("alex@example.com")) {
+    return;
+  }
+
+  const organizer = createUser({
+    name: "Alex Organizer",
+    email: "alex@example.com",
+    passwordHash: hashPassword("demo-password")
+  });
+  const sam = createUser({
+    name: "Sam Traveler",
+    email: "sam@example.com",
+    passwordHash: hashPassword("demo-password")
+  });
+  const jordan = createUser({
+    name: "Jordan Budgeter",
+    email: "jordan@example.com",
+    passwordHash: hashPassword("demo-password")
+  });
+
+  const trip = createTrip({
+    name: "San Diego Weekend",
+    destination: "San Diego",
+    startDate: "2026-06-05",
+    endDate: "2026-06-07",
+    organizerId: organizer.id
+  });
+
+  addParticipant(trip.id, { userId: sam.id });
+  addParticipant(trip.id, { userId: jordan.id });
+
+  const hydratedTrip = getTripById(trip.id);
+  setBudget(trip.id, { mode: "total", totalBudget: 900 });
+
+  addExpense(trip.id, {
+    title: "Hotel",
+    amount: 450,
+    category: "lodging",
+    expenseType: "shared",
+    payerId: organizer.id,
+    splitRule: "equal",
+    includedParticipantIds: hydratedTrip.participantIds
+  });
+
+  addExpense(trip.id, {
+    title: "Dinner",
+    amount: 90,
+    category: "food",
+    expenseType: "shared",
+    payerId: sam.id,
+    splitRule: "equal",
+    includedParticipantIds: hydratedTrip.participantIds
+  });
+}

@@ -98,6 +98,7 @@ Use these rules during pull, merge, and PR review:
 
 Based on this review, TripSplit now has:
 
+- An Express backend app split into routes, middleware, services, and a database pool boundary.
 - Shared route builders in `shared/contracts.js`.
 - A shared auth token storage key in `shared/contracts.js`.
 - A small `web/api.js` request wrapper that applies JSON headers and bearer tokens consistently.

@@ -20,21 +20,33 @@ export function calculateBalances(trip) {
       payer.actualPaid = roundCurrency(payer.actualPaid + expense.amount);
     }
 
-    const splitCount = expense.includedParticipantIds.length || 1;
-    const fairShare = expense.amount / splitCount;
+    const expenseShares = expense.expenseShares?.length
+      ? expense.expenseShares
+      : createEqualShares(expense);
 
-    for (const participantId of expense.includedParticipantIds) {
-      const entry = balances.get(participantId);
+    for (const share of expenseShares) {
+      const entry = balances.get(share.participantId);
       if (!entry) {
         continue;
       }
 
-      entry.fairShare = roundCurrency(entry.fairShare + fairShare);
+      entry.fairShare = roundCurrency(entry.fairShare + share.shareAmount);
     }
   }
 
   return Array.from(balances.values()).map((entry) => ({
     ...entry,
     netBalance: roundCurrency(entry.actualPaid - entry.fairShare)
+  }));
+}
+
+function createEqualShares(expense) {
+  const includedParticipantIds = expense.includedParticipantIds || [];
+  const splitCount = includedParticipantIds.length || 1;
+  const fairShare = expense.amount / splitCount;
+
+  return includedParticipantIds.map((participantId) => ({
+    participantId,
+    shareAmount: fairShare
   }));
 }

@@ -1,4 +1,4 @@
-import { fetchHealth, fetchTrips } from "./api.js";
+import { ensureDemoAuth, fetchHealth, fetchTrips } from "./api.js";
 import { setupTripForm } from "./forms.js";
 import { renderTrips } from "./renderTrips.js";
 
@@ -20,8 +20,8 @@ async function loadStatus() {
 
 async function loadTrips() {
   await loadStatus();
+  await ensureDemoAuth();
 
-  
   const { trips } = await fetchTrips();
   renderTrips(trips, tripList);
 }

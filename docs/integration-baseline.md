@@ -17,6 +17,20 @@ Frontend and backend work should follow these files first. If a feature branch n
 
 ## What Was Standardized
 
+### Backend Framework
+
+The backend starter has been migrated from a single Node HTTP router to an Express structure:
+
+- `server/app.js` creates the Express app.
+- `server/index.js` starts the app and loads environment configuration.
+- `server/routes/` owns HTTP route definitions.
+- `server/middleware/` owns auth, CORS, and error handling.
+- `server/services/` owns auth, trip, expense, balance, and seed logic.
+- `server/db/pool.js` is the PostgreSQL pool boundary.
+- `server/store.js` remains the temporary in-memory data layer until BE branches replace it with PostgreSQL-backed implementations.
+
+Private trip APIs now require bearer JWTs in the starter backend, matching `docs/api-contract.md`.
+
 ### API Contract
 
 `docs/api-contract.md` now defines the agreed request and response format for:
@@ -132,6 +146,7 @@ Each team member can now start from their assigned branch without creating a new
 After the baseline update:
 
 - `npm test` passed.
+- Express API workflow tests passed.
 - JavaScript syntax checks passed.
 - whitespace checks passed.
 - local PDFs in `file/` and local `.DS_Store` files were not committed.

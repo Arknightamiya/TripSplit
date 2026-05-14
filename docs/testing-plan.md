@@ -14,6 +14,11 @@ The test script is defined in `package.json` as:
 node --test
 ```
 
+Current automated coverage includes:
+
+- settlement unit tests in `tests/settlement.test.js`
+- Express API workflow tests in `tests/api.test.js`
+
 ---
 
 ## Priority Tests

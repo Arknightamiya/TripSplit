@@ -1,3 +1,9 @@
+import {
+  BUDGET_MODES,
+  EXPENSE_CATEGORIES,
+  EXPENSE_TYPES,
+  SPLIT_RULES
+} from "../shared/contracts.js";
 import { calculateBalances } from "./settlement.js";
 
 const state = {
@@ -5,6 +11,359 @@ const state = {
   users: [],
   trips: []
 };
+
+export function resetStore() {
+  state.nextId = 1;
+  state.users = [];
+  state.trips = [];
+}
+
+export function listUsers() {
+  return clone(state.users.map(toSafeUser));
+}
+
+export function createUser({ name, email, passwordHash }) {
+  const user = {
+    id: createId("user"),
+    name: normalizeText(name) || "Unnamed User",
+    email: normalizeEmail(email),
+    passwordHash
+  };
+
+  state.users.push(user);
+  return clone(toSafeUser(user));
+}
+
+export function findUserById(userId) {
+  const user = state.users.find((entry) => entry.id === userId);
+  return user ? clone(user) : null;
+}
+
+export function findUserByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  const user = state.users.find((entry) => entry.email === normalizedEmail);
+  return user ? clone(user) : null;
+}
+
+export function listTripSummariesForUser(userId) {
+  return state.trips
+    .filter((trip) => isApprovedParticipant(trip.id, userId))
+    .map((trip) => summarizeTrip(trip));
+}
+
+export function createTrip({ name, destination, startDate, endDate, organizerId }) {
+  const trip = {
+    id: createId("trip"),
+    name: normalizeText(name) || "Untitled Trip",
+    destination: normalizeText(destination) || "TBD",
+    startDate: startDate || null,
+    endDate: endDate || null,
+    organizerId,
+    participants: [
+      {
+        userId: organizerId,
+        role: "organizer",
+        joinStatus: "approved"
+      }
+    ],
+    budget: null,
+    expenses: []
+  };
+
+  state.trips.push(trip);
+  return hydrateTrip(trip);
+}
+
+export function getTripById(tripId) {
+  const trip = getTripRecord(tripId);
+  return trip ? hydrateTrip(trip) : null;
+}
+
+export function getTripRecord(tripId) {
+  return state.trips.find((entry) => entry.id === tripId) || null;
+}
+
+export function addParticipant(tripId, { userId, role = "participant" }) {
+  const trip = getTripRecord(tripId);
+  if (!trip) {
+    return null;
+  }
+
+  const existing = trip.participants.find((entry) => entry.userId === userId);
+  if (existing) {
+    existing.role = existing.role === "organizer" ? "organizer" : role;
+    existing.joinStatus = "approved";
+    return hydrateTrip(trip);
+  }
+
+  trip.participants.push({
+    userId,
+    role,
+    joinStatus: "approved"
+  });
+
+  return hydrateTrip(trip);
+}
+
+export function setBudget(tripId, budgetInput) {
+  const trip = getTripRecord(tripId);
+  if (!trip) {
+    return null;
+  }
+
+  const mode = budgetInput.mode;
+  const totalBudget = budgetInput.totalBudget ?? budgetInput.amount ?? null;
+  const perPersonBudget = budgetInput.perPersonBudget ?? budgetInput.amount ?? null;
+
+  trip.budget = {
+    mode,
+    totalBudget: mode === "total" ? roundCurrency(Number(totalBudget)) : null,
+    perPersonBudget:
+      mode === "per-person" ? roundCurrency(Number(perPersonBudget)) : null
+  };
+
+  return getBudgetSummary(trip);
+}
+
+export function addExpense(tripId, expenseInput) {
+  const trip = getTripRecord(tripId);
+  if (!trip) {
+    return null;
+  }
+
+  const includedParticipantIds = expenseInput.includedParticipantIds?.length
+    ? [...expenseInput.includedParticipantIds]
+    : approvedParticipantIds(trip);
+  const amount = roundCurrency(Number(expenseInput.amount));
+  const expenseShares = createExpenseShares(amount, includedParticipantIds);
+
+  const expense = {
+    id: createId("expense"),
+    tripId,
+    title: normalizeText(expenseInput.title) || "Untitled Expense",
+    amount,
+    category: expenseInput.category,
+    expenseType: expenseInput.expenseType || expenseInput.type,
+    payerId: expenseInput.payerId,
+    splitRule: expenseInput.splitRule || "equal",
+    includedParticipantIds,
+    expenseShares,
+    createdAt: new Date().toISOString()
+  };
+
+  trip.expenses.push(expense);
+  return clone(expense);
+}
+
+export function deleteExpense(tripId, expenseId) {
+  const trip = getTripRecord(tripId);
+  if (!trip) {
+    return null;
+  }
+
+  const index = trip.expenses.findIndex((expense) => expense.id === expenseId);
+  if (index === -1) {
+    return false;
+  }
+
+  const [deletedExpense] = trip.expenses.splice(index, 1);
+  return clone(deletedExpense);
+}
+
+export function getExpense(tripId, expenseId) {
+  const trip = getTripRecord(tripId);
+  const expense = trip?.expenses.find((entry) => entry.id === expenseId);
+  return expense ? clone(expense) : null;
+}
+
+export function getBudgetSummaryByTripId(tripId) {
+  const trip = getTripRecord(tripId);
+  return trip ? getBudgetSummary(trip) : null;
+}
+
+export function getBalances(tripId, { includeParticipant = false } = {}) {
+  const trip = getTripRecord(tripId);
+  if (!trip) {
+    return null;
+  }
+
+  const hydratedTrip = hydrateTrip(trip);
+  const balances = calculateBalances({
+    participantIds: approvedParticipantIds(trip),
+    expenses: trip.expenses
+  }).map((entry) => {
+    if (!includeParticipant) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      participant: hydratedTrip.participants.find(
+        (participant) => participant.id === entry.participantId
+      )
+    };
+  });
+
+  return clone({
+    tripId,
+    balances
+  });
+}
+
+export function isApprovedParticipant(tripId, userId) {
+  const trip = getTripRecord(tripId);
+  return Boolean(
+    trip?.participants.some(
+      (participant) =>
+        participant.userId === userId && participant.joinStatus === "approved"
+    )
+  );
+}
+
+export function isOrganizer(tripId, userId) {
+  const trip = getTripRecord(tripId);
+  return Boolean(
+    trip?.participants.some(
+      (participant) =>
+        participant.userId === userId &&
+        participant.role === "organizer" &&
+        participant.joinStatus === "approved"
+    )
+  );
+}
+
+export function approvedParticipantIdsForTrip(tripId) {
+  const trip = getTripRecord(tripId);
+  return trip ? approvedParticipantIds(trip) : [];
+}
+
+export function isValidBudgetInput(input) {
+  if (!BUDGET_MODES.includes(input.mode)) {
+    return false;
+  }
+
+  if (input.mode === "total") {
+    return Number(input.totalBudget ?? input.amount) > 0;
+  }
+
+  return Number(input.perPersonBudget ?? input.amount) > 0;
+}
+
+export function isValidExpenseInput(input) {
+  const category = input.category;
+  const expenseType = input.expenseType || input.type;
+  const splitRule = input.splitRule || "equal";
+
+  return (
+    Number(input.amount) > 0 &&
+    EXPENSE_CATEGORIES.includes(category) &&
+    EXPENSE_TYPES.includes(expenseType) &&
+    SPLIT_RULES.includes(splitRule)
+  );
+}
+
+function summarizeTrip(trip) {
+  return clone({
+    id: trip.id,
+    name: trip.name,
+    destination: trip.destination,
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    organizerId: trip.organizerId,
+    participantCount: approvedParticipantIds(trip).length,
+    expenseCount: trip.expenses.length,
+    budgetSummary: getBudgetSummary(trip)
+  });
+}
+
+function hydrateTrip(trip) {
+  const participants = trip.participants
+    .map((participant) => {
+      const user = state.users.find((entry) => entry.id === participant.userId);
+      if (!user) {
+        return null;
+      }
+
+      return {
+        ...toSafeUser(user),
+        role: participant.role,
+        joinStatus: participant.joinStatus
+      };
+    })
+    .filter(Boolean);
+
+  return clone({
+    id: trip.id,
+    name: trip.name,
+    destination: trip.destination,
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    organizerId: trip.organizerId,
+    participantIds: participants.map((participant) => participant.id),
+    participants,
+    budgetSummary: getBudgetSummary(trip),
+    expenses: trip.expenses
+  });
+}
+
+function getBudgetSummary(trip) {
+  if (!trip.budget) {
+    return null;
+  }
+
+  const participantCount = approvedParticipantIds(trip).length;
+  const totalSpent = roundCurrency(
+    trip.expenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
+  );
+  const totalBudget =
+    trip.budget.mode === "per-person"
+      ? roundCurrency(trip.budget.perPersonBudget * participantCount)
+      : trip.budget.totalBudget;
+  const remainingBudget = roundCurrency(Math.max(totalBudget - totalSpent, 0));
+  const overBudgetAmount = roundCurrency(Math.max(totalSpent - totalBudget, 0));
+
+  return clone({
+    mode: trip.budget.mode,
+    totalBudget,
+    perPersonBudget: trip.budget.perPersonBudget,
+    participantCount,
+    totalSpent,
+    remainingBudget,
+    overBudgetAmount
+  });
+}
+
+function createExpenseShares(amount, includedParticipantIds) {
+  const splitCount = includedParticipantIds.length || 1;
+  const shareAmount = roundCurrency(amount / splitCount);
+
+  return includedParticipantIds.map((participantId) => ({
+    participantId,
+    shareAmount
+  }));
+}
+
+function approvedParticipantIds(trip) {
+  return trip.participants
+    .filter((participant) => participant.joinStatus === "approved")
+    .map((participant) => participant.userId);
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function toSafeUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email
+  };
+}
 
 function createId(prefix) {
   const id = `${prefix}_${state.nextId}`;
@@ -16,228 +375,6 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-export function seedStore() {
-  if (state.users.length || state.trips.length) {
-    return;
-  }
-
-  const organizer = createUser({
-    name: "Alex Organizer",
-    email: "alex@example.com",
-    password: "demo-password"
-  });
-  const sam = createUser({
-    name: "Sam Traveler",
-    email: "sam@example.com",
-    password: "demo-password"
-  });
-  const jordan = createUser({
-    name: "Jordan Budgeter",
-    email: "jordan@example.com",
-    password: "demo-password"
-  });
-
-  const trip = createTrip({
-    name: "San Diego Weekend",
-    destination: "San Diego",
-    startDate: "2026-06-05",
-    endDate: "2026-06-07",
-    organizerId: organizer.id
-  });
-
-  addParticipant(trip.id, { userId: sam.id });
-  addParticipant(trip.id, { userId: jordan.id });
-  const hydratedTrip = getTripById(trip.id);
-
-  setBudget(trip.id, { mode: "total", amount: 900 });
-
-  addExpense(trip.id, {
-    title: "Hotel",
-    amount: 450,
-    category: "lodging",
-    type: "shared",
-    payerId: organizer.id,
-    includedParticipantIds: hydratedTrip.participantIds
-  });
-
-  addExpense(trip.id, {
-    title: "Dinner",
-    amount: 90,
-    category: "food",
-    type: "shared",
-    payerId: sam.id,
-    includedParticipantIds: hydratedTrip.participantIds
-  });
-}
-
-export function createUser({ name, email, password }) {
-  const user = {
-    id: createId("user"),
-    name,
-    email,
-    password
-  };
-
-  state.users.push(user);
-  return clone(user);
-}
-
-export function authenticateUser({ email, password }) {
-  const user = state.users.find((entry) => entry.email === email && entry.password === password);
-  return user ? clone(user) : null;
-}
-
-export function listTrips() {
-  return state.trips.map((trip) => ({
-    id: trip.id,
-    name: trip.name,
-    destination: trip.destination,
-    startDate: trip.startDate,
-    endDate: trip.endDate,
-    participantCount: trip.participantIds.length,
-    expenseCount: trip.expenses.length,
-    budget: clone(trip.budget)
-  }));
-}
-
-export function createTrip({ name, destination, startDate, endDate, organizerId }) {
-  const finalName = name?.trim() || "Untitled Trip";
-  const finalDestination = destination?.trim() || "TBD";
-  const finalStartDate = startDate || null;
-  const finalEndDate = endDate || null;
-  const finalOrganizerId = organizerId || state.users[0]?.id || createUser({
-    name: "Default Organizer",
-    email: "organizer@example.com",
-    password: "demo-password"
-  }).id;
-
-  const trip = {
-    id: createId("trip"),
-    name: finalName,
-    destination: finalDestination,
-    startDate: finalStartDate,
-    endDate: finalEndDate,
-    organizerId: finalOrganizerId,
-    participantIds: [finalOrganizerId],
-    budget: null,
-    expenses: []
-  };
-
-  state.trips.push(trip);
-  return clone(trip);
-}
-
-export function addParticipant(tripId, { userId, name, email }) {
-  const trip = state.trips.find((entry) => entry.id === tripId);
-  if (!trip) {
-    return null;
-  }
-
-  let participantId = userId;
-
-  if (!participantId) {
-    const user = createUser({
-      name,
-      email,
-      password: "invited-user"
-    });
-    participantId = user.id;
-  }
-
-  if (!trip.participantIds.includes(participantId)) {
-    trip.participantIds.push(participantId);
-  }
-
-  return getTripById(tripId);
-}
-
-export function getTripById(tripId) {
-  const trip = state.trips.find((entry) => entry.id === tripId);
-  if (!trip) {
-    return null;
-  }
-
-  return hydrateTrip(trip);
-}
-
-export function setBudget(tripId, budget) {
-  const trip = state.trips.find((entry) => entry.id === tripId);
-  if (!trip) {
-    return null;
-  }
-
-  trip.budget = {
-    mode: budget.mode,
-    amount: Number(budget.amount)
-  };
-
-  return getTripById(tripId);
-}
-
-export function addExpense(tripId, expenseInput) {
-  const trip = state.trips.find((entry) => entry.id === tripId);
-  if (!trip) {
-    return null;
-  }
-
-  const expense = {
-    id: createId("expense"),
-    title: expenseInput.title,
-    amount: Number(expenseInput.amount),
-    category: expenseInput.category,
-    type: expenseInput.type,
-    payerId: expenseInput.payerId,
-    includedParticipantIds: expenseInput.includedParticipantIds,
-    createdAt: new Date().toISOString()
-  };
-
-  trip.expenses.push(expense);
-  return getTripById(tripId);
-}
-
-export function deleteExpense(tripId, expenseId) {
-  const trip = state.trips.find((entry) => entry.id === tripId);
-  if (!trip) {
-    return null;
-  }
-
-  const nextExpenses = trip.expenses.filter((expense) => expense.id !== expenseId);
-  const deleted = nextExpenses.length !== trip.expenses.length;
-  trip.expenses = nextExpenses;
-
-  return deleted ? getTripById(tripId) : false;
-}
-
-export function getBalances(tripId) {
-  const trip = state.trips.find((entry) => entry.id === tripId);
-  if (!trip) {
-    return null;
-  }
-
-  const hydratedTrip = hydrateTrip(trip);
-  const balances = calculateBalances(trip).map((entry) => ({
-    ...entry,
-    participant: hydratedTrip.participants.find((participant) => participant.id === entry.participantId)
-  }));
-
-  return {
-    tripId,
-    balances
-  };
-}
-
-function hydrateTrip(trip) {
-  const participants = trip.participantIds
-    .map((participantId) => state.users.find((user) => user.id === participantId))
-    .filter(Boolean)
-    .map((user) => ({
-      id: user.id,
-      name: user.name,
-      email: user.email
-    }));
-
-  return clone({
-    ...trip,
-    participants
-  });
+function roundCurrency(value) {
+  return Number(value.toFixed(2));
 }

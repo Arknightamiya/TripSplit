@@ -2,7 +2,7 @@
 
 This document defines the agreed request and response formats between the frontend and backend.
 
-The current scaffold still uses a simple Node server and in-memory store. Feature branches should implement toward this contract so frontend and backend work can integrate without redesigning endpoints later.
+The current backend scaffold uses Express routes and services with an in-memory store. Feature branches should implement toward this contract so frontend and backend work can integrate without redesigning endpoints later. PostgreSQL should replace the service/store internals without changing these response shapes.
 
 ## API Base
 
