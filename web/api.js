@@ -28,16 +28,32 @@ export async function apiRequest(path, options = {}) {
   return payload;
 }
 
+const CURRENT_USER_STORAGE_KEY = "tripsplit.currentUser";
+
 export async function ensureDemoAuth() {
-  if (getStoredAuthToken()) {
+  if (getStoredAuthToken() && getStoredCurrentUser()) {
     return;
   }
 
-  const { token } = await login({
+  const { token, user } = await login({
     email: "alex@example.com",
     password: "demo-password"
   });
   storeAuthToken(token);
+  storeCurrentUser(user);
+}
+
+export function getStoredCurrentUser() {
+  try {
+    const raw = window.localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function storeCurrentUser(user) {
+  window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
 }
 
 export async function login({ email, password }) {
@@ -60,6 +76,34 @@ export async function postTrip(name){
         method: "POST",
         body: { name }
     });
+}
+
+export async function fetchTrip(tripId) {
+  return apiRequest(API_ROUTES.trip(tripId));
+}
+
+export async function postBudget(tripId, payload) {
+  return apiRequest(API_ROUTES.budget(tripId), {
+    method: "POST",
+    body: payload
+  });
+}
+
+export async function postExpense(tripId, payload) {
+  return apiRequest(API_ROUTES.expenses(tripId), {
+    method: "POST",
+    body: payload
+  });
+}
+
+export async function deleteExpense(tripId, expenseId) {
+  return apiRequest(API_ROUTES.expense(tripId, expenseId), {
+    method: "DELETE"
+  });
+}
+
+export async function fetchBalances(tripId) {
+  return apiRequest(API_ROUTES.balances(tripId));
 }
 
 export function getStoredAuthToken() {
