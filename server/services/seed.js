@@ -9,7 +9,11 @@ import {
 } from "../store.js";
 import { hashPassword } from "./auth.js";
 
-export function seedStore() {
+export async function seedStore() {
+  if (process.env.DATABASE_URL) {
+    return;
+  }
+
   if (findUserByEmail("alex@example.com")) {
     return;
   }

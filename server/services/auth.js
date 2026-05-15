@@ -4,19 +4,25 @@ import {
   findUserByEmail,
   findUserById
 } from "../store.js";
+import {
+  createUserRecord,
+  findUserRecordByEmail,
+  findUserRecordById,
+  isUserRepositoryEnabled
+} from "../repositories/users.js";
 import { badRequest, conflict, unauthorized } from "../utils/errors.js";
 import { requireFields } from "../validators/request.js";
 
 const TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-export function registerUser(input = {}) {
+export async function registerUser(input = {}) {
   requireFields(input, ["name", "email", "password"]);
 
-  if (findUserByEmail(input.email)) {
+  if (await findAuthUserByEmail(input.email)) {
     throw conflict("An account with this email already exists");
   }
 
-  const user = createUser({
+  const user = await createAuthUser({
     name: input.name,
     email: input.email,
     passwordHash: hashPassword(input.password)
@@ -28,10 +34,10 @@ export function registerUser(input = {}) {
   };
 }
 
-export function loginUser(input = {}) {
+export async function loginUser(input = {}) {
   requireFields(input, ["email", "password"]);
 
-  const userRecord = findUserByEmail(input.email);
+  const userRecord = await findAuthUserByEmail(input.email);
   if (!userRecord || !verifyPassword(input.password, userRecord.passwordHash)) {
     throw unauthorized("Invalid credentials");
   }
@@ -42,9 +48,9 @@ export function loginUser(input = {}) {
   };
 }
 
-export function getUserFromToken(token) {
+export async function getUserFromToken(token) {
   const payload = verifyToken(token);
-  const user = findUserById(payload.sub);
+  const user = await findAuthUserById(payload.sub);
 
   if (!user) {
     throw unauthorized("Token user no longer exists");
@@ -136,6 +142,30 @@ function base64UrlJson(value) {
 
 function getJwtSecret() {
   return process.env.JWT_SECRET || "tripsplit-local-development-secret";
+}
+
+async function createAuthUser({ name, email, passwordHash }) {
+  if (isUserRepositoryEnabled()) {
+    return createUserRecord({ name, email, passwordHash });
+  }
+
+  return createUser({ name, email, passwordHash });
+}
+
+async function findAuthUserByEmail(email) {
+  if (isUserRepositoryEnabled()) {
+    return findUserRecordByEmail(email);
+  }
+
+  return findUserByEmail(email);
+}
+
+async function findAuthUserById(userId) {
+  if (isUserRepositoryEnabled()) {
+    return findUserRecordById(userId);
+  }
+
+  return findUserById(userId);
 }
 
 function toSafeUser(user) {

@@ -7,9 +7,9 @@ import { resetStore } from "../server/store.js";
 
 let app;
 
-beforeEach(() => {
+beforeEach(async () => {
   resetStore();
-  seedStore();
+  await seedStore();
   app = createApp();
 });
 
@@ -35,6 +35,44 @@ test("login returns JWT and lists trips for the authenticated participant", asyn
   assert.equal(response.body.trips[0].budgetSummary.totalBudget, 900);
 });
 
+test("register returns a JWT and starts with no private trips", async () => {
+  const response = await request("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Taylor New",
+      email: "taylor@example.com",
+      password: "demo-password"
+    }
+  });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.user.email, "taylor@example.com");
+  assert.equal(response.body.token.split(".").length, 3);
+
+  const tripsResponse = await request("/api/trips", {
+    headers: authHeaders(response.body.token)
+  });
+
+  assert.equal(tripsResponse.status, 200);
+  assert.deepEqual(tripsResponse.body.trips, []);
+});
+
+test("duplicate registration is rejected", async () => {
+  const response = await request("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Alex Duplicate",
+      email: "alex@example.com",
+      password: "demo-password"
+    }
+  });
+
+  assert.equal(response.status, 409);
+  assert.deepEqual(response.body, {
+    error: "An account with this email already exists"
+  });
+});
+
 test("trip creation uses the token user as organizer", async () => {
   const { token, user } = await loginAsDemoUser();
 
@@ -51,6 +89,109 @@ test("trip creation uses the token user as organizer", async () => {
   assert.equal(response.status, 201);
   assert.equal(response.body.trip.organizerId, user.id);
   assert.deepEqual(response.body.trip.participantIds, [user.id]);
+});
+
+test("non-participant cannot view private trip details", async () => {
+  const organizer = await loginAsDemoUser();
+  const tripId = await createTrip(organizer.token);
+  const outsider = await registerUser({
+    name: "Outsider",
+    email: "outsider@example.com"
+  });
+
+  const response = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(outsider.token)
+  });
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(response.body, {
+    error: "You are not an approved participant on this trip"
+  });
+});
+
+test("organizer can add participants by email", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const response = await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      name: "Riley Traveler",
+      email: "riley@example.com",
+      role: "participant"
+    }
+  });
+
+  assert.equal(response.status, 200);
+  const participant = response.body.trip.participants.find(
+    (entry) => entry.email === "riley@example.com"
+  );
+  assert.equal(participant.role, "participant");
+  assert.equal(participant.joinStatus, "approved");
+});
+
+test("regular participants cannot add participants or set budgets", async () => {
+  const { token } = await loginAsDemoUser({
+    email: "sam@example.com",
+    password: "demo-password"
+  });
+  const tripId = "trip_4";
+
+  const addParticipantResponse = await request(
+    `/api/trips/${tripId}/participants`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: {
+        name: "Blocked Guest",
+        email: "blocked@example.com"
+      }
+    }
+  );
+  const budgetResponse = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "total",
+      totalBudget: 1000
+    }
+  });
+
+  assert.equal(addParticipantResponse.status, 403);
+  assert.equal(budgetResponse.status, 403);
+  assert.deepEqual(budgetResponse.body, {
+    error: "Only an organizer can perform this action"
+  });
+});
+
+test("organizer can set total and per-person budgets", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const totalBudgetResponse = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "total",
+      totalBudget: 1200
+    }
+  });
+  const perPersonBudgetResponse = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "per-person",
+      perPersonBudget: 400
+    }
+  });
+
+  assert.equal(totalBudgetResponse.status, 200);
+  assert.equal(totalBudgetResponse.body.budgetSummary.totalBudget, 1200);
+  assert.equal(totalBudgetResponse.body.budgetSummary.perPersonBudget, null);
+  assert.equal(perPersonBudgetResponse.status, 200);
+  assert.equal(perPersonBudgetResponse.body.budgetSummary.totalBudget, 400);
+  assert.equal(perPersonBudgetResponse.body.budgetSummary.perPersonBudget, 400);
 });
 
 test("expense API creates equal shares and recalculates balances", async () => {
@@ -78,16 +219,37 @@ test("expense API creates equal shares and recalculates balances", async () => {
   assert.equal(response.body.balances[0].netBalance, 0);
 });
 
-async function loginAsDemoUser() {
+async function loginAsDemoUser({
+  email = "alex@example.com",
+  password = "demo-password"
+} = {}) {
   const response = await request("/api/auth/login", {
     method: "POST",
     body: {
-      email: "alex@example.com",
-      password: "demo-password"
+      email,
+      password
     }
   });
 
   assert.equal(response.status, 200);
+  return response.body;
+}
+
+async function registerUser({
+  name,
+  email,
+  password = "demo-password"
+}) {
+  const response = await request("/api/auth/register", {
+    method: "POST",
+    body: {
+      name,
+      email,
+      password
+    }
+  });
+
+  assert.equal(response.status, 201);
   return response.body;
 }
 
