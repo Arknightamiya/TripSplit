@@ -12,13 +12,15 @@
         <p class="eyebrow">CS130 Project Scaffold</p>
         <h1>TripSplit</h1>
         <p class="hero-copy">
-          A minimal starter shell for your project. One input, one button, and
-          just enough structure to grow from.
+          Plan group trips, track shared spending, and settle balances fairly.
         </p>
       </section>
 
       <section class="panel">
-        <h2>Quick Start</h2>
+        <div class="panel-header">
+          <h2>Your Trips</h2>
+          <span id="status-text" class="hint">Connecting to the local API.</span>
+        </div>
         <form id="trip-form" class="input-row">
           <input
             id="trip-name"
@@ -29,8 +31,25 @@
           />
           <button type="submit">Add Trip</button>
         </form>
-        <p id="status-text" class="hint">Connecting to the local API.</p>
         <div id="trip-list" class="stack"></div>
+      </section>
+
+      <section id="trip-detail" class="trip-detail" hidden>
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow" id="detail-eyebrow">Trip</p>
+              <h2 id="detail-title">Trip Detail</h2>
+              <p class="hint" id="detail-meta"></p>
+            </div>
+            <button type="button" id="detail-close" class="button-ghost">Close</button>
+          </div>
+          <div id="detail-participants" class="chip-row"></div>
+        </div>
+
+        <div id="budget-panel" class="panel"></div>
+        <div id="expenses-panel" class="panel"></div>
+        <div id="balances-panel" class="panel"></div>
       </section>
     </main>
 
