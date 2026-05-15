@@ -422,13 +422,11 @@ Expected result: response contains `organizerId` from the token user.
 
 ## Next BE1 Work
 
-Follow-up slice notes:
+The next BE1 slices are:
 
-- `docs/be1-trip-access-notes.md`
+1. PostgreSQL-backed trip creation and `trip_participants`.
+2. PostgreSQL-backed trip list/detail access control.
+3. PostgreSQL-backed participant management.
+4. PostgreSQL-backed budget persistence.
 
-The remaining BE1 slices after trip persistence/access are:
-
-1. PostgreSQL-backed participant management.
-2. PostgreSQL-backed budget persistence.
-
-With slices 4 and 5 implemented on the follow-up branch, BE2 can rely on the intended PostgreSQL users, trips, and trip participants contract for independent expense development once the branch is reviewed and merged.
+After slices 4 and 5 are complete, BE2 can rely on real PostgreSQL users, trips, and trip participants for independent expense development.
