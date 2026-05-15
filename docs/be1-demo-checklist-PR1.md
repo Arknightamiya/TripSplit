@@ -1,10 +1,20 @@
 # BE1 PR 1 Demo And Test Notes
 
-This is the first BE1 pull request for TripSplit.
+This checklist is for the first BE1 demo scope in the current BE1 development branch.
 
-PR: `backend/be1-auth-trip-budget-api` into `main`
+Current BE1 branch:
 
-Draft PR: https://github.com/Arknightamiya/TripSplit/pull/2
+```text
+backend/be1-trip-access-persistence
+```
+
+Historical PR1 branch:
+
+```text
+backend/be1-auth-trip-budget-api
+```
+
+PR1 has already been merged into `main`; the current BE1 branch includes that PR1 work plus the later PR2 work. For the TA demo, use this document to present only slices 1-3.
 
 ## Completed In This PR
 
@@ -242,6 +252,31 @@ test("expense API creates equal shares and recalculates balances", async () => {
   assert.equal(response.body.balances[0].netBalance, 0);
 });
 ```
+
+## Before The TA Demo
+
+Use the current BE1 branch that contains the full BE1 work-in-progress, then present only this PR1 checklist for slices 1-3:
+
+```bash
+git switch backend/be1-trip-access-persistence
+git pull --ff-only origin backend/be1-trip-access-persistence
+npm install
+npm test
+```
+
+Open this file for the PR1 demo:
+
+```text
+docs/be1-demo-checklist-PR1.md
+```
+
+For this demo, only present the PR1 scope:
+
+- Slice 1: BE1 behavior baseline and demo coverage
+- Slice 2: PostgreSQL local setup support
+- Slice 3: PostgreSQL-backed auth/user persistence path
+
+Do not present slices 4-5 in this demo. Those belong to the second BE1 demo checklist.
 
 ## Test Result
 

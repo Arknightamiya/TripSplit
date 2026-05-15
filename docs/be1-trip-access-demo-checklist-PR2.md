@@ -2,19 +2,13 @@
 
 This is the second BE1 demo/checklist for TA review.
 
-Branch:
+Current BE1 branch:
 
 ```text
 backend/be1-trip-access-persistence
 ```
 
-This branch is stacked on top of the first BE1 PR branch:
-
-```text
-backend/be1-auth-trip-budget-api
-```
-
-The first BE1 PR covers slices 1-3. This second demo covers slices 4-5.
+This same branch contains both the merged PR1 scope and the PR2 work. PR1 covers slices 1-3; this second demo document covers slices 4-5.
 
 ## Completed In This Demo
 
