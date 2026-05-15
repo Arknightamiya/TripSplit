@@ -12,18 +12,45 @@ import {
   listTripSummariesForUser,
   setBudget
 } from "../store.js";
+import {
+  createTripRecord,
+  findTripRecordById,
+  isTripRepositoryEnabled,
+  listTripSummaryRecordsForUser,
+  tripRecordExists,
+  userIsApprovedParticipantRecord,
+  userIsOrganizerRecord
+} from "../repositories/trips.js";
 import { hashPassword } from "./auth.js";
 import { badRequest, conflict, forbidden, notFound } from "../utils/errors.js";
 import { requireFields } from "../validators/request.js";
 
-export function listTripsForUser(userId) {
+export async function listTripsForUser(userId) {
+  if (isTripRepositoryEnabled()) {
+    return {
+      trips: await listTripSummaryRecordsForUser(userId)
+    };
+  }
+
   return {
     trips: listTripSummariesForUser(userId)
   };
 }
 
-export function createTripForUser(userId, input = {}) {
+export async function createTripForUser(userId, input = {}) {
   requireFields(input, ["name"]);
+
+  if (isTripRepositoryEnabled()) {
+    return {
+      trip: await createTripRecord({
+        name: input.name,
+        destination: input.destination,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        organizerId: userId
+      })
+    };
+  }
 
   return {
     trip: createTrip({
@@ -36,16 +63,22 @@ export function createTripForUser(userId, input = {}) {
   };
 }
 
-export function getTripForUser(userId, tripId) {
-  ensureApprovedParticipant(userId, tripId);
+export async function getTripForUser(userId, tripId) {
+  await ensureApprovedParticipant(userId, tripId);
 
   return {
-    trip: getTripById(tripId)
+    trip: isTripRepositoryEnabled()
+      ? await findTripRecordById(tripId)
+      : getTripById(tripId)
   };
 }
 
-export function addParticipantToTrip(userId, tripId, input = {}) {
-  ensureOrganizer(userId, tripId);
+export async function addParticipantToTrip(userId, tripId, input = {}) {
+  await ensureOrganizer(userId, tripId);
+
+  if (isTripRepositoryEnabled()) {
+    throw badRequest("PostgreSQL participant management is not implemented yet");
+  }
 
   const participantUser = resolveParticipantUser(input);
   const trip = getTripRecord(tripId);
@@ -68,8 +101,12 @@ export function addParticipantToTrip(userId, tripId, input = {}) {
   };
 }
 
-export function setTripBudget(userId, tripId, input = {}) {
-  ensureOrganizer(userId, tripId);
+export async function setTripBudget(userId, tripId, input = {}) {
+  await ensureOrganizer(userId, tripId);
+
+  if (isTripRepositoryEnabled()) {
+    throw badRequest("PostgreSQL budget persistence is not implemented yet");
+  }
 
   if (!isValidBudgetInput(input)) {
     throw badRequest("Invalid budget input");
@@ -81,7 +118,19 @@ export function setTripBudget(userId, tripId, input = {}) {
   };
 }
 
-export function ensureApprovedParticipant(userId, tripId) {
+export async function ensureApprovedParticipant(userId, tripId) {
+  if (isTripRepositoryEnabled()) {
+    if (!(await tripRecordExists(tripId))) {
+      throw notFound("Trip not found");
+    }
+
+    if (!(await userIsApprovedParticipantRecord(userId, tripId))) {
+      throw forbidden("You are not an approved participant on this trip");
+    }
+
+    return findTripRecordById(tripId);
+  }
+
   const trip = getTripRecord(tripId);
 
   if (!trip) {
@@ -95,8 +144,16 @@ export function ensureApprovedParticipant(userId, tripId) {
   return trip;
 }
 
-export function ensureOrganizer(userId, tripId) {
-  ensureApprovedParticipant(userId, tripId);
+export async function ensureOrganizer(userId, tripId) {
+  await ensureApprovedParticipant(userId, tripId);
+
+  if (isTripRepositoryEnabled()) {
+    if (!(await userIsOrganizerRecord(userId, tripId))) {
+      throw forbidden("Only an organizer can perform this action");
+    }
+
+    return;
+  }
 
   if (!isOrganizer(tripId, userId)) {
     throw forbidden("Only an organizer can perform this action");

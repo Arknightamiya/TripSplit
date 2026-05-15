@@ -10,22 +10,22 @@ export function createExpensesRouter() {
 
   router.use(requireAuth);
 
-  router.post("/", (req, res, next) => {
+  router.post("/", async (req, res, next) => {
     try {
       res
         .status(201)
-        .json(createExpenseForTrip(req.user.id, req.params.tripId, req.body));
+        .json(await createExpenseForTrip(req.user.id, req.params.tripId, req.body));
     } catch (error) {
       next(error);
     }
   });
 
-  router.delete("/:expenseId", (req, res, next) => {
+  router.delete("/:expenseId", async (req, res, next) => {
     try {
       res
         .status(200)
         .json(
-          deleteExpenseFromTrip(
+          await deleteExpenseFromTrip(
             req.user.id,
             req.params.tripId,
             req.params.expenseId

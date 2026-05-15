@@ -12,8 +12,8 @@ import { badRequest, forbidden, notFound } from "../utils/errors.js";
 import { requireFields } from "../validators/request.js";
 import { ensureApprovedParticipant } from "./trips.js";
 
-export function createExpenseForTrip(userId, tripId, input = {}) {
-  ensureApprovedParticipant(userId, tripId);
+export async function createExpenseForTrip(userId, tripId, input = {}) {
+  await ensureApprovedParticipant(userId, tripId);
   requireFields(input, ["title", "amount", "category", "payerId"]);
 
   if (!isValidExpenseInput(input)) {
@@ -44,8 +44,8 @@ export function createExpenseForTrip(userId, tripId, input = {}) {
   };
 }
 
-export function deleteExpenseFromTrip(userId, tripId, expenseId) {
-  ensureApprovedParticipant(userId, tripId);
+export async function deleteExpenseFromTrip(userId, tripId, expenseId) {
+  await ensureApprovedParticipant(userId, tripId);
 
   const expense = getExpense(tripId, expenseId);
   if (!expense) {
@@ -65,8 +65,8 @@ export function deleteExpenseFromTrip(userId, tripId, expenseId) {
   };
 }
 
-export function getBalancesForTrip(userId, tripId) {
-  ensureApprovedParticipant(userId, tripId);
+export async function getBalancesForTrip(userId, tripId) {
+  await ensureApprovedParticipant(userId, tripId);
 
   return getBalances(tripId, {
     includeParticipant: true
