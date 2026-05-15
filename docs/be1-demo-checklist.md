@@ -53,6 +53,37 @@ Current BE1-relevant tests cover:
 - regular participant cannot add participants or set budgets
 - organizer can set total and per-person budgets
 
+## Local PostgreSQL Setup
+
+BE1 uses `database/schema.sql` as the source of truth for PostgreSQL.
+
+Create a local database:
+
+```bash
+createdb tripsplit
+```
+
+Create a local `.env` file:
+
+```env
+DATABASE_URL=postgresql://YOUR_LOCAL_USERNAME@localhost:5432/tripsplit
+JWT_SECRET=local-dev-secret
+PORT=3000
+CORS_ORIGIN=http://localhost:3000
+```
+
+Apply the schema:
+
+```bash
+npm run db:schema
+```
+
+Check the connection:
+
+```bash
+npm run db:check
+```
+
 ## Manual Demo Commands
 
 Start the app:
