@@ -13,43 +13,45 @@ export function createTripsRouter() {
 
   router.use(requireAuth);
 
-  router.get("/", (req, res, next) => {
+  router.get("/", async (req, res, next) => {
     try {
-      res.status(200).json(listTripsForUser(req.user.id));
+      res.status(200).json(await listTripsForUser(req.user.id));
     } catch (error) {
       next(error);
     }
   });
 
-  router.post("/", (req, res, next) => {
+  router.post("/", async (req, res, next) => {
     try {
-      res.status(201).json(createTripForUser(req.user.id, req.body));
+      res.status(201).json(await createTripForUser(req.user.id, req.body));
     } catch (error) {
       next(error);
     }
   });
 
-  router.get("/:tripId", (req, res, next) => {
+  router.get("/:tripId", async (req, res, next) => {
     try {
-      res.status(200).json(getTripForUser(req.user.id, req.params.tripId));
+      res.status(200).json(await getTripForUser(req.user.id, req.params.tripId));
     } catch (error) {
       next(error);
     }
   });
 
-  router.post("/:tripId/participants", (req, res, next) => {
+  router.post("/:tripId/participants", async (req, res, next) => {
     try {
       res
         .status(200)
-        .json(addParticipantToTrip(req.user.id, req.params.tripId, req.body));
+        .json(await addParticipantToTrip(req.user.id, req.params.tripId, req.body));
     } catch (error) {
       next(error);
     }
   });
 
-  router.post("/:tripId/budget", (req, res, next) => {
+  router.post("/:tripId/budget", async (req, res, next) => {
     try {
-      res.status(200).json(setTripBudget(req.user.id, req.params.tripId, req.body));
+      res
+        .status(200)
+        .json(await setTripBudget(req.user.id, req.params.tripId, req.body));
     } catch (error) {
       next(error);
     }

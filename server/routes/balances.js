@@ -7,9 +7,9 @@ export function createBalancesRouter() {
 
   router.use(requireAuth);
 
-  router.get("/", (req, res, next) => {
+  router.get("/", async (req, res, next) => {
     try {
-      res.status(200).json(getBalancesForTrip(req.user.id, req.params.tripId));
+      res.status(200).json(await getBalancesForTrip(req.user.id, req.params.tripId));
     } catch (error) {
       next(error);
     }
