@@ -5,8 +5,8 @@ import { seedStore } from "./services/seed.js";
 
 const port = Number(process.env.PORT || 3000);
 
-seedStore();
 const database = connectDatabase();
+await seedStore();
 const app = createApp();
 
 const server = app.listen(port, () => {

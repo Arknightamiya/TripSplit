@@ -53,6 +53,18 @@ Current BE1-relevant tests cover:
 - regular participant cannot add participants or set budgets
 - organizer can set total and per-person budgets
 
+## PostgreSQL Auth Status
+
+Auth now supports PostgreSQL-backed users when `DATABASE_URL` is configured:
+
+- `POST /api/auth/register` inserts into `users`
+- `POST /api/auth/login` reads from `users`
+- duplicate email checks use the database
+- password hashes are stored in `users.password_hash`
+- JWT response shape stays `{ user, token }`
+
+When `DATABASE_URL` is not configured, the app keeps using the in-memory store so local tests and demos can still run quickly.
+
 ## Local PostgreSQL Setup
 
 BE1 uses `database/schema.sql` as the source of truth for PostgreSQL.

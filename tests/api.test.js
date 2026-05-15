@@ -7,9 +7,9 @@ import { resetStore } from "../server/store.js";
 
 let app;
 
-beforeEach(() => {
+beforeEach(async () => {
   resetStore();
-  seedStore();
+  await seedStore();
   app = createApp();
 });
 

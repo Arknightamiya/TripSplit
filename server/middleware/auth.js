@@ -2,7 +2,7 @@ import { AUTH_HEADER } from "../../shared/contracts.js";
 import { getUserFromToken } from "../services/auth.js";
 import { unauthorized } from "../utils/errors.js";
 
-export function requireAuth(req, _res, next) {
+export async function requireAuth(req, _res, next) {
   try {
     const header = req.get(AUTH_HEADER);
 
@@ -11,7 +11,7 @@ export function requireAuth(req, _res, next) {
     }
 
     const token = header.slice("Bearer ".length).trim();
-    req.user = getUserFromToken(token);
+    req.user = await getUserFromToken(token);
     next();
   } catch (error) {
     next(error);
