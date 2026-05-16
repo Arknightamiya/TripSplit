@@ -141,6 +141,5 @@ vite.config.ts.timestamp-*
 # macOS
 .DS_Store
 
-# Local Codex/agent workspace files
-.codex/
-.codex-cache/
+# Local Docker PostgreSQL data
+.tripsplit-postgres-data/

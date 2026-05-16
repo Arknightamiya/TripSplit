@@ -2,7 +2,7 @@
 -- This file is the shared database target for future PostgreSQL migration.
 -- The current project still uses the in-memory store in server/store.js.
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE users (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE trips (
+CREATE TABLE IF NOT EXISTS trips (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   destination TEXT,
@@ -23,7 +23,7 @@ CREATE TABLE trips (
   CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
 );
 
-CREATE TABLE trip_participants (
+CREATE TABLE IF NOT EXISTS trip_participants (
   trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role TEXT NOT NULL DEFAULT 'participant'
@@ -34,7 +34,7 @@ CREATE TABLE trip_participants (
   PRIMARY KEY (trip_id, user_id)
 );
 
-CREATE TABLE budgets (
+CREATE TABLE IF NOT EXISTS budgets (
   trip_id INTEGER PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
   mode TEXT NOT NULL CHECK (mode IN ('total', 'per-person')),
   total_budget NUMERIC(12, 2) CHECK (total_budget >= 0),
@@ -49,7 +49,7 @@ CREATE TABLE budgets (
   )
 );
 
-CREATE TABLE split_rules (
+CREATE TABLE IF NOT EXISTS split_rules (
   id SERIAL PRIMARY KEY,
   type TEXT UNIQUE NOT NULL CHECK (type IN ('equal')),
   description TEXT
@@ -59,7 +59,7 @@ INSERT INTO split_rules (type, description)
 VALUES ('equal', 'Split equally among selected participants')
 ON CONFLICT (type) DO NOTHING;
 
-CREATE TABLE expenses (
+CREATE TABLE IF NOT EXISTS expenses (
   id SERIAL PRIMARY KEY,
   trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
@@ -85,7 +85,7 @@ CREATE TABLE expenses (
     REFERENCES trip_participants(trip_id, user_id)
 );
 
-CREATE TABLE expense_shares (
+CREATE TABLE IF NOT EXISTS expense_shares (
   expense_id INTEGER NOT NULL,
   trip_id INTEGER NOT NULL,
   participant_id INTEGER NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE expense_shares (
 
 -- Balance summaries can be calculated dynamically from expenses and expense_shares.
 -- This table is optional for a future cached summary design.
-CREATE TABLE balance_summaries (
+CREATE TABLE IF NOT EXISTS balance_summaries (
   trip_id INTEGER NOT NULL,
   participant_id INTEGER NOT NULL,
   actual_paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
@@ -114,8 +114,8 @@ CREATE TABLE balance_summaries (
     ON DELETE CASCADE
 );
 
-CREATE INDEX idx_trips_organizer_id ON trips(organizer_id);
-CREATE INDEX idx_expenses_trip_id ON expenses(trip_id);
-CREATE INDEX idx_expenses_payer_id ON expenses(payer_id);
-CREATE INDEX idx_expense_shares_trip_id ON expense_shares(trip_id);
-CREATE INDEX idx_expense_shares_participant_id ON expense_shares(participant_id);
+CREATE INDEX IF NOT EXISTS idx_trips_organizer_id ON trips(organizer_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_trip_id ON expenses(trip_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_payer_id ON expenses(payer_id);
+CREATE INDEX IF NOT EXISTS idx_expense_shares_trip_id ON expense_shares(trip_id);
+CREATE INDEX IF NOT EXISTS idx_expense_shares_participant_id ON expense_shares(participant_id);

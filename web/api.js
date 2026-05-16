@@ -31,10 +31,6 @@ export async function apiRequest(path, options = {}) {
 const CURRENT_USER_STORAGE_KEY = "tripsplit.currentUser";
 
 export async function ensureDemoAuth() {
-  if (getStoredAuthToken() && getStoredCurrentUser()) {
-    return;
-  }
-
   const { token, user } = await login({
     email: "alex@example.com",
     password: "demo-password"

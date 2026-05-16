@@ -121,6 +121,35 @@ export async function findExpenseRecord(tripId, expenseId) {
   return mapExpenseRow(result.rows[0], shares);
 }
 
+export async function listExpenseRecordsForTrip(tripId) {
+  const result = await getDatabase().query(
+    `
+      SELECT
+        e.id,
+        e.trip_id,
+        e.title,
+        e.amount,
+        e.category,
+        e.expense_type,
+        e.payer_id,
+        sr.type AS split_rule,
+        e.created_at
+      FROM expenses e
+      JOIN split_rules sr ON sr.id = e.split_rule_id
+      WHERE e.trip_id = $1
+      ORDER BY e.created_at ASC, e.id ASC
+    `,
+    [tripId]
+  );
+
+  return Promise.all(
+    result.rows.map(async (row) => {
+      const shares = await listExpenseShareRecords(row.id);
+      return mapExpenseRow(row, shares);
+    })
+  );
+}
+
 export async function deleteExpenseRecord(tripId, expenseId) {
   const expense = await findExpenseRecord(tripId, expenseId);
   if (!expense) {

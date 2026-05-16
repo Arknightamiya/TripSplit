@@ -31,6 +31,10 @@ export async function findUserRecordByEmail(email) {
 }
 
 export async function findUserRecordById(userId) {
+  if (!isNumericId(userId)) {
+    return null;
+  }
+
   const result = await getDatabase().query(
     `
       SELECT id, name, email, password_hash
@@ -54,4 +58,8 @@ function mapUserRow(row) {
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function isNumericId(value) {
+  return /^\d+$/.test(String(value || ""));
 }
