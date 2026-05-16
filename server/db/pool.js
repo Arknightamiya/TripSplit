@@ -11,6 +11,9 @@ const noopDatabase = {
       rows: []
     };
   },
+  async transaction(callback) {
+    return callback(this);
+  },
   async close() {}
 };
 
@@ -33,6 +36,25 @@ export function connectDatabase() {
     driver: "postgresql",
     query(text, params) {
       return pool.query(text, params);
+    },
+    async transaction(callback) {
+      const client = await pool.connect();
+
+      try {
+        await client.query("BEGIN");
+        const result = await callback({
+          query(text, params) {
+            return client.query(text, params);
+          }
+        });
+        await client.query("COMMIT");
+        return result;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     },
     close() {
       database = undefined;

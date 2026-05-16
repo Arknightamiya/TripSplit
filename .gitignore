@@ -138,4 +138,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-echo ".DS_Store" >> .gitignore.DS_Store
+# macOS
+.DS_Store
+
+# Local Codex/agent workspace files
+.codex/
+.codex-cache/
