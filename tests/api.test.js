@@ -219,6 +219,212 @@ test("expense API creates equal shares and recalculates balances", async () => {
   assert.equal(response.body.balances[0].netBalance, 0);
 });
 
+test("expense API creates one equal share per included participant", async () => {
+  const { token } = await loginAsDemoUser();
+
+  const response = await request("/api/trips/trip_4/expenses", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Museum Tickets",
+      amount: 99,
+      category: "tickets",
+      expenseType: "shared",
+      payerId: "user_1",
+      splitRule: "equal",
+      includedParticipantIds: ["user_1", "user_2", "user_3"]
+    }
+  });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(response.body.expense.expenseShares, [
+    {
+      participantId: "user_1",
+      shareAmount: 33
+    },
+    {
+      participantId: "user_2",
+      shareAmount: 33
+    },
+    {
+      participantId: "user_3",
+      shareAmount: 33
+    }
+  ]);
+  assert.equal(response.body.budgetSummary.totalSpent, 639);
+});
+
+test("expense API rejects payer who is not an approved trip participant", async () => {
+  const { token } = await loginAsDemoUser();
+  const outsider = await registerUser({
+    name: "Payer Outsider",
+    email: "payer-outsider@example.com"
+  });
+
+  const response = await request("/api/trips/trip_4/expenses", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Blocked Expense",
+      amount: 24,
+      category: "food",
+      expenseType: "shared",
+      payerId: outsider.user.id,
+      splitRule: "equal",
+      includedParticipantIds: ["user_1"]
+    }
+  });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    error: "Expense payer must be an approved trip participant"
+  });
+});
+
+test("expense API rejects split participants who are not approved on the trip", async () => {
+  const { token } = await loginAsDemoUser();
+  const outsider = await registerUser({
+    name: "Split Outsider",
+    email: "split-outsider@example.com"
+  });
+
+  const response = await request("/api/trips/trip_4/expenses", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Blocked Split",
+      amount: 24,
+      category: "food",
+      expenseType: "shared",
+      payerId: "user_1",
+      splitRule: "equal",
+      includedParticipantIds: ["user_1", outsider.user.id]
+    }
+  });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    error: "Expense split participant must be an approved trip participant"
+  });
+});
+
+test("balance API calculates participant totals from expenses and shares", async () => {
+  const { token } = await loginAsDemoUser();
+
+  const response = await request("/api/trips/trip_4/balances", {
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    response.body.balances.map((balance) => ({
+      participantId: balance.participantId,
+      actualPaid: balance.actualPaid,
+      fairShare: balance.fairShare,
+      netBalance: balance.netBalance,
+      participantName: balance.participant.name
+    })),
+    [
+      {
+        participantId: "user_1",
+        actualPaid: 450,
+        fairShare: 180,
+        netBalance: 270,
+        participantName: "Alex Organizer"
+      },
+      {
+        participantId: "user_2",
+        actualPaid: 90,
+        fairShare: 180,
+        netBalance: -90,
+        participantName: "Sam Traveler"
+      },
+      {
+        participantId: "user_3",
+        actualPaid: 0,
+        fairShare: 180,
+        netBalance: -180,
+        participantName: "Jordan Budgeter"
+      }
+    ]
+  );
+});
+
+test("organizer can delete an expense and recalculate budget and balances", async () => {
+  const { token } = await loginAsDemoUser();
+
+  const response = await request("/api/trips/trip_4/expenses/expense_5", {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.deletedExpenseId, "expense_5");
+  assert.equal(response.body.budgetSummary.totalSpent, 90);
+  assert.equal(response.body.budgetSummary.remainingBudget, 810);
+  assert.deepEqual(
+    response.body.balances.map((balance) => ({
+      participantId: balance.participantId,
+      actualPaid: balance.actualPaid,
+      fairShare: balance.fairShare,
+      netBalance: balance.netBalance
+    })),
+    [
+      {
+        participantId: "user_1",
+        actualPaid: 0,
+        fairShare: 30,
+        netBalance: -30
+      },
+      {
+        participantId: "user_2",
+        actualPaid: 90,
+        fairShare: 30,
+        netBalance: 60
+      },
+      {
+        participantId: "user_3",
+        actualPaid: 0,
+        fairShare: 30,
+        netBalance: -30
+      }
+    ]
+  );
+});
+
+test("expense payer can delete their own expense", async () => {
+  const { token } = await loginAsDemoUser({
+    email: "sam@example.com",
+    password: "demo-password"
+  });
+
+  const response = await request("/api/trips/trip_4/expenses/expense_6", {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.deletedExpenseId, "expense_6");
+  assert.equal(response.body.budgetSummary.totalSpent, 450);
+});
+
+test("regular participants cannot delete another participant's expense", async () => {
+  const { token } = await loginAsDemoUser({
+    email: "jordan@example.com",
+    password: "demo-password"
+  });
+
+  const response = await request("/api/trips/trip_4/expenses/expense_5", {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(response.body, {
+    error: "Only the expense payer or trip organizer can delete this expense"
+  });
+});
+
 async function loginAsDemoUser({
   email = "alex@example.com",
   password = "demo-password"

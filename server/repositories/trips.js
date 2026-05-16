@@ -1,4 +1,5 @@
 import { getDatabase } from "../db/pool.js";
+import { listExpenseRecordsForTrip } from "./expenses.js";
 
 export function isTripRepositoryEnabled() {
   return getDatabase().enabled;
@@ -118,7 +119,14 @@ export async function findTripRecordById(tripId) {
     (participant) => participant.joinStatus === "approved"
   ).length;
 
-  return mapTripDetailRow(tripResult.rows[0], participants, participantCount);
+  const expenses = await listExpenseRecordsForTrip(tripId);
+
+  return mapTripDetailRow(
+    tripResult.rows[0],
+    participants,
+    participantCount,
+    expenses
+  );
 }
 
 export async function tripRecordExists(tripId) {
@@ -208,7 +216,7 @@ function mapTripSummaryRow(row) {
   };
 }
 
-function mapTripDetailRow(row, participants, participantCount) {
+function mapTripDetailRow(row, participants, participantCount, expenses = []) {
   const totalSpent = toCurrencyNumber(row.total_spent);
 
   return {
@@ -223,7 +231,7 @@ function mapTripDetailRow(row, participants, participantCount) {
       .map((participant) => participant.id),
     participants,
     budgetSummary: buildBudgetSummary(row, participantCount, totalSpent),
-    expenses: []
+    expenses
   };
 }
 
