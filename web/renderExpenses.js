@@ -70,13 +70,15 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
 function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
   const payer = approved.find((p) => p.id === expense.payerId);
   const canDelete = isOrganizer || expense.payerId === currentUserId;
-  const splitCount = expense.includedParticipantIds.length;
+  const splitParticipants = expense.includedParticipantIds
+    .map((participantId) => approved.find((p) => p.id === participantId)?.name || "unknown")
+    .join(", ");
   return `
     <div class="expense-row">
       <div>
         <div class="expense-title">${escapeHtml(expense.title)}</div>
         <div class="expense-sub">
-          ${escapeHtml(expense.category)} · paid by ${escapeHtml(payer?.name || "unknown")} · split ${splitCount}-ways
+          ${escapeHtml(expense.category)} · paid by ${escapeHtml(payer?.name || "unknown")} · split between ${escapeHtml(splitParticipants || "unknown")}
         </div>
       </div>
       <div class="expense-amount">${formatMoney(expense.amount)}</div>
