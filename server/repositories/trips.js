@@ -62,6 +62,34 @@ export async function addParticipantRecord(tripId, { userId, role }) {
   return findTripRecordById(tripId);
 }
 
+export async function setBudgetRecord(tripId, budgetInput) {
+  const mode = budgetInput.mode;
+  const totalBudget =
+    mode === "total"
+      ? roundCurrency(Number(budgetInput.totalBudget ?? budgetInput.amount))
+      : null;
+  const perPersonBudget =
+    mode === "per-person"
+      ? roundCurrency(Number(budgetInput.perPersonBudget ?? budgetInput.amount))
+      : null;
+
+  await getDatabase().query(
+    `
+      INSERT INTO budgets (trip_id, mode, total_budget, per_person_budget)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (trip_id)
+      DO UPDATE SET
+        mode = EXCLUDED.mode,
+        total_budget = EXCLUDED.total_budget,
+        per_person_budget = EXCLUDED.per_person_budget,
+        updated_at = CURRENT_TIMESTAMP
+    `,
+    [tripId, mode, totalBudget, perPersonBudget]
+  );
+
+  return (await findTripRecordById(tripId))?.budgetSummary ?? null;
+}
+
 export async function listTripSummaryRecordsForUser(userId) {
   const result = await getDatabase().query(
     `

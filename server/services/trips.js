@@ -18,6 +18,7 @@ import {
   findTripRecordById,
   isTripRepositoryEnabled,
   listTripSummaryRecordsForUser,
+  setBudgetRecord,
   tripRecordExists,
   userIsApprovedParticipantRecord,
   userIsOrganizerRecord
@@ -124,12 +125,15 @@ export async function addParticipantToTrip(userId, tripId, input = {}) {
 export async function setTripBudget(userId, tripId, input = {}) {
   await ensureOrganizer(userId, tripId);
 
-  if (isTripRepositoryEnabled()) {
-    throw badRequest("PostgreSQL budget persistence is not implemented yet");
-  }
-
   if (!isValidBudgetInput(input)) {
     throw badRequest("Invalid budget input");
+  }
+
+  if (isTripRepositoryEnabled()) {
+    return {
+      tripId,
+      budgetSummary: await setBudgetRecord(tripId, input)
+    };
   }
 
   return {

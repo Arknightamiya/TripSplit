@@ -248,6 +248,25 @@ test("organizer can set total and per-person budgets", async () => {
   assert.equal(perPersonBudgetResponse.body.budgetSummary.perPersonBudget, 400);
 });
 
+test("budget API rejects invalid budget input", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const response = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "weekly",
+      totalBudget: 1200
+    }
+  });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    error: "Invalid budget input"
+  });
+});
+
 test("expense API creates equal shares and recalculates balances", async () => {
   const { token, user } = await loginAsDemoUser();
   const tripId = await createTrip(token);
