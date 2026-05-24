@@ -43,6 +43,25 @@ export async function createTripRecord({
   }
 }
 
+export async function addParticipantRecord(tripId, { userId, role }) {
+  await getDatabase().query(
+    `
+      INSERT INTO trip_participants (trip_id, user_id, role, join_status)
+      VALUES ($1, $2, $3, 'approved')
+      ON CONFLICT (trip_id, user_id)
+      DO UPDATE SET
+        role = CASE
+          WHEN trip_participants.role = 'organizer' THEN 'organizer'
+          ELSE EXCLUDED.role
+        END,
+        join_status = 'approved'
+    `,
+    [tripId, userId, role]
+  );
+
+  return findTripRecordById(tripId);
+}
+
 export async function listTripSummaryRecordsForUser(userId) {
   const result = await getDatabase().query(
     `
