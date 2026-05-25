@@ -22,15 +22,15 @@ export async function registerUser(input = {}) {
     throw conflict("An account with this email already exists");
   }
 
-  const user = await createAuthUser({
+  const userRecord = await createAuthUser({
     name: input.name,
     email: input.email,
     passwordHash: hashPassword(input.password)
   });
 
   return {
-    user,
-    token: signToken({ sub: user.id })
+    user: toSafeUser(userRecord),
+    token: signToken({ sub: userRecord.id })
   };
 }
 

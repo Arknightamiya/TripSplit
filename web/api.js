@@ -31,10 +31,22 @@ export async function apiRequest(path, options = {}) {
 const CURRENT_USER_STORAGE_KEY = "tripsplit.currentUser";
 
 export async function ensureDemoAuth() {
-  const { token, user } = await login({
+  const credentials = {
     email: "alex@example.com",
     password: "demo-password"
-  });
+  };
+  let authResult;
+
+  try {
+    authResult = await login(credentials);
+  } catch (error) {
+    authResult = await register({
+      name: "Alex Organizer",
+      ...credentials
+    });
+  }
+
+  const { token, user } = authResult;
   storeAuthToken(token);
   storeCurrentUser(user);
 }
@@ -56,6 +68,13 @@ export async function login({ email, password }) {
   return apiRequest(API_ROUTES.authLogin, {
     method: "POST",
     body: { email, password }
+  });
+}
+
+export async function register({ name, email, password }) {
+  return apiRequest(API_ROUTES.authRegister, {
+    method: "POST",
+    body: { name, email, password }
   });
 }
 

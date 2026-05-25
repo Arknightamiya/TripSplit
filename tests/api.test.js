@@ -47,6 +47,7 @@ test("register returns a JWT and starts with no private trips", async () => {
 
   assert.equal(response.status, 201);
   assert.equal(response.body.user.email, "taylor@example.com");
+  assert.equal(response.body.user.passwordHash, undefined);
   assert.equal(response.body.token.split(".").length, 3);
 
   const tripsResponse = await request("/api/trips", {
