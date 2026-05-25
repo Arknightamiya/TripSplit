@@ -14,16 +14,25 @@ import {
 } from "../store.js";
 import {
   createTripRecord,
+  addParticipantRecord,
   findTripRecordById,
   isTripRepositoryEnabled,
   listTripSummaryRecordsForUser,
+  setBudgetRecord,
   tripRecordExists,
   userIsApprovedParticipantRecord,
   userIsOrganizerRecord
 } from "../repositories/trips.js";
+import {
+  createUserRecord,
+  findUserRecordByEmail,
+  findUserRecordById
+} from "../repositories/users.js";
 import { hashPassword } from "./auth.js";
 import { badRequest, conflict, forbidden, notFound } from "../utils/errors.js";
 import { requireFields } from "../validators/request.js";
+
+const PARTICIPANT_ROLES = ["organizer", "participant"];
 
 export async function listTripsForUser(userId) {
   if (isTripRepositoryEnabled()) {
@@ -75,9 +84,21 @@ export async function getTripForUser(userId, tripId) {
 
 export async function addParticipantToTrip(userId, tripId, input = {}) {
   await ensureOrganizer(userId, tripId);
+  const role = normalizeParticipantRole(input.role);
 
   if (isTripRepositoryEnabled()) {
-    throw badRequest("PostgreSQL participant management is not implemented yet");
+    const participantUser = await resolveParticipantUserRecord(input);
+
+    if (await userIsApprovedParticipantRecord(participantUser.id, tripId)) {
+      throw conflict("Participant already exists on this trip");
+    }
+
+    return {
+      trip: await addParticipantRecord(tripId, {
+        userId: participantUser.id,
+        role
+      })
+    };
   }
 
   const participantUser = resolveParticipantUser(input);
@@ -96,7 +117,7 @@ export async function addParticipantToTrip(userId, tripId, input = {}) {
   return {
     trip: addParticipant(tripId, {
       userId: participantUser.id,
-      role: input.role || "participant"
+      role
     })
   };
 }
@@ -104,12 +125,15 @@ export async function addParticipantToTrip(userId, tripId, input = {}) {
 export async function setTripBudget(userId, tripId, input = {}) {
   await ensureOrganizer(userId, tripId);
 
-  if (isTripRepositoryEnabled()) {
-    throw badRequest("PostgreSQL budget persistence is not implemented yet");
-  }
-
   if (!isValidBudgetInput(input)) {
     throw badRequest("Invalid budget input");
+  }
+
+  if (isTripRepositoryEnabled()) {
+    return {
+      tripId,
+      budgetSummary: await setBudgetRecord(tripId, input)
+    };
   }
 
   return {
@@ -183,4 +207,37 @@ function resolveParticipantUser(input) {
     email: input.email,
     passwordHash: hashPassword("invited-user")
   });
+}
+
+async function resolveParticipantUserRecord(input) {
+  if (input.userId) {
+    const user = await findUserRecordById(input.userId);
+
+    if (!user) {
+      throw notFound("User not found");
+    }
+
+    return user;
+  }
+
+  requireFields(input, ["name", "email"]);
+
+  const existingUser = await findUserRecordByEmail(input.email);
+  if (existingUser) {
+    return existingUser;
+  }
+
+  return createUserRecord({
+    name: input.name,
+    email: input.email,
+    passwordHash: hashPassword("invited-user")
+  });
+}
+
+function normalizeParticipantRole(role = "participant") {
+  if (!PARTICIPANT_ROLES.includes(role)) {
+    throw badRequest("Invalid participant role");
+  }
+
+  return role;
 }

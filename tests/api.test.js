@@ -131,6 +131,60 @@ test("organizer can add participants by email", async () => {
   assert.equal(participant.joinStatus, "approved");
 });
 
+test("organizer can add an existing user by id", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+  const riley = await registerUser({
+    name: "Riley Existing",
+    email: "riley-existing@example.com"
+  });
+
+  const response = await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      userId: riley.user.id,
+      role: "participant"
+    }
+  });
+
+  assert.equal(response.status, 200);
+  const participant = response.body.trip.participants.find(
+    (entry) => entry.id === riley.user.id
+  );
+  assert.equal(participant.email, "riley-existing@example.com");
+  assert.equal(participant.role, "participant");
+  assert.equal(participant.joinStatus, "approved");
+});
+
+test("organizer cannot add a duplicate approved participant", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      name: "Riley Duplicate",
+      email: "riley-duplicate@example.com"
+    }
+  });
+
+  const response = await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      name: "Riley Duplicate",
+      email: "riley-duplicate@example.com"
+    }
+  });
+
+  assert.equal(response.status, 409);
+  assert.deepEqual(response.body, {
+    error: "Participant already exists on this trip"
+  });
+});
+
 test("regular participants cannot add participants or set budgets", async () => {
   const { token } = await loginAsDemoUser({
     email: "sam@example.com",
@@ -192,6 +246,25 @@ test("organizer can set total and per-person budgets", async () => {
   assert.equal(perPersonBudgetResponse.status, 200);
   assert.equal(perPersonBudgetResponse.body.budgetSummary.totalBudget, 400);
   assert.equal(perPersonBudgetResponse.body.budgetSummary.perPersonBudget, 400);
+});
+
+test("budget API rejects invalid budget input", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const response = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "weekly",
+      totalBudget: 1200
+    }
+  });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    error: "Invalid budget input"
+  });
 });
 
 test("expense API creates equal shares and recalculates balances", async () => {
