@@ -85,19 +85,25 @@ function closeDetail() {
 }
 
 function openDeleteTripDialog() {
+  const tripId = detailDelete.dataset.tripId || activeTripId;
   setDeleteTripError("");
+  deleteTripDialog.dataset.tripId = tripId || "";
   deleteTripDialog.hidden = false;
 }
 
 function closeDeleteTripDialog() {
   deleteTripDialog.hidden = true;
+  deleteTripDialog.dataset.tripId = "";
   setDeleteTripError("");
 }
 
 async function confirmDeleteTrip() {
-  if (!activeTripId) return;
+  const tripId = deleteTripDialog.dataset.tripId || activeTripId;
+  if (!tripId) {
+    setDeleteTripError("No trip selected to delete.");
+    return;
+  }
 
-  const tripId = activeTripId;
   setDeleteTripError("");
   deleteTripYes.disabled = true;
   deleteTripYes.textContent = "Deleting...";
@@ -140,6 +146,7 @@ async function refreshDetail() {
 
   const isOrganizer = trip.organizerId === currentUser?.id;
   detailDelete.hidden = !isOrganizer;
+  detailDelete.dataset.tripId = String(trip.id);
   renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips });
   renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips });
   renderBalances(balancesPanel, { balances, trip, currentUserId: currentUser?.id });

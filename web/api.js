@@ -98,7 +98,12 @@ export async function fetchTrip(tripId) {
 }
 
 export async function deleteTrip(tripId) {
-  return apiRequest(API_ROUTES.trip(tripId), {
+  const normalizedTripId = String(tripId || "").trim();
+  if (!normalizedTripId) {
+    throw new Error("No trip selected to delete.");
+  }
+
+  return apiRequest(API_ROUTES.trip(normalizedTripId), {
     method: "DELETE"
   });
 }
