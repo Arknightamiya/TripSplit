@@ -90,6 +90,23 @@ export async function setBudgetRecord(tripId, budgetInput) {
   return (await findTripRecordById(tripId))?.budgetSummary ?? null;
 }
 
+export async function deleteTripRecord(tripId) {
+  const trip = await findTripRecordById(tripId);
+  if (!trip) {
+    return null;
+  }
+
+  await getDatabase().query(
+    `
+      DELETE FROM trips
+      WHERE id = $1
+    `,
+    [tripId]
+  );
+
+  return trip;
+}
+
 export async function listTripSummaryRecordsForUser(userId) {
   const result = await getDatabase().query(
     `

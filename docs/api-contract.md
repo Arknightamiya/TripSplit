@@ -30,7 +30,7 @@ Authorization: Bearer <token>
 
 The backend must identify the current user from the token. The frontend must not send `organizerId` or any other field pretending to identify the logged-in user.
 
-Private trip data can only be viewed or changed by approved participants in that trip. Organizer-only actions, such as changing the budget or managing participants, must verify that the token user is the trip organizer or has an approved organizer role.
+Private trip data can only be viewed or changed by approved participants in that trip. Organizer-only actions, such as changing the budget, managing participants, or deleting a trip, must verify that the token user is the trip organizer or has an approved organizer role.
 
 Standard error response:
 
@@ -341,6 +341,30 @@ Errors:
 - trip not found
 - unauthorized request
 - authenticated user is not an approved participant
+
+### DELETE `/api/trips/:tripId`
+
+Headers:
+
+```http
+Authorization: Bearer <token>
+```
+
+Response:
+
+```json
+{
+  "deletedTripId": "trip_4"
+}
+```
+
+Only the trip organizer can delete a trip. Deleting a trip also removes the related participants, budget, expenses, expense shares, and balance data.
+
+Errors:
+
+- trip not found
+- unauthorized request
+- authenticated user is not the trip organizer
 
 ## Participant APIs
 

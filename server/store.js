@@ -170,6 +170,16 @@ export function deleteExpense(tripId, expenseId) {
   return clone(deletedExpense);
 }
 
+export function deleteTrip(tripId) {
+  const index = state.trips.findIndex((trip) => trip.id === tripId);
+  if (index === -1) {
+    return null;
+  }
+
+  const [deletedTrip] = state.trips.splice(index, 1);
+  return hydrateTrip(deletedTrip);
+}
+
 export function getExpense(tripId, expenseId) {
   const trip = getTripRecord(tripId);
   const expense = trip?.expenses.find((entry) => entry.id === expenseId);

@@ -110,6 +110,43 @@ test("non-participant cannot view private trip details", async () => {
   });
 });
 
+test("organizer can delete a trip", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const deleteResponse = await request(`/api/trips/${tripId}`, {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+  const listResponse = await request("/api/trips", {
+    headers: authHeaders(token)
+  });
+
+  assert.equal(deleteResponse.status, 200);
+  assert.deepEqual(deleteResponse.body, {
+    deletedTripId: tripId
+  });
+  assert.equal(listResponse.status, 200);
+  assert.equal(listResponse.body.trips.some((trip) => trip.id === tripId), false);
+});
+
+test("regular participants cannot delete a trip", async () => {
+  const { token } = await loginAsDemoUser({
+    email: "sam@example.com",
+    password: "demo-password"
+  });
+
+  const response = await request("/api/trips/trip_4", {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(response.body, {
+    error: "Only an organizer can perform this action"
+  });
+});
+
 test("organizer can add participants by email", async () => {
   const { token } = await loginAsDemoUser();
   const tripId = await createTrip(token);

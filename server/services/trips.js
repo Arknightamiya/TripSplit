@@ -2,6 +2,7 @@ import {
   addParticipant,
   createTrip,
   createUser,
+  deleteTrip,
   findUserByEmail,
   findUserById,
   getTripById,
@@ -15,6 +16,7 @@ import {
 import {
   createTripRecord,
   addParticipantRecord,
+  deleteTripRecord,
   findTripRecordById,
   isTripRepositoryEnabled,
   listTripSummaryRecordsForUser,
@@ -79,6 +81,22 @@ export async function getTripForUser(userId, tripId) {
     trip: isTripRepositoryEnabled()
       ? await findTripRecordById(tripId)
       : getTripById(tripId)
+  };
+}
+
+export async function deleteTripForUser(userId, tripId) {
+  await ensureOrganizer(userId, tripId);
+
+  const deletedTrip = isTripRepositoryEnabled()
+    ? await deleteTripRecord(tripId)
+    : deleteTrip(tripId);
+
+  if (!deletedTrip) {
+    throw notFound("Trip not found");
+  }
+
+  return {
+    deletedTripId: String(deletedTrip.id)
   };
 }
 

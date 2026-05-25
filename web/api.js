@@ -97,6 +97,12 @@ export async function fetchTrip(tripId) {
   return apiRequest(API_ROUTES.trip(tripId));
 }
 
+export async function deleteTrip(tripId) {
+  return apiRequest(API_ROUTES.trip(tripId), {
+    method: "DELETE"
+  });
+}
+
 export async function postBudget(tripId, payload) {
   return apiRequest(API_ROUTES.budget(tripId), {
     method: "POST",

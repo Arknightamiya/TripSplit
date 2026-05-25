@@ -1,4 +1,5 @@
 import {
+  deleteTrip,
   ensureDemoAuth,
   fetchBalances,
   fetchHealth,
@@ -21,6 +22,10 @@ const detailEyebrow = document.querySelector("#detail-eyebrow");
 const detailMeta = document.querySelector("#detail-meta");
 const detailParticipants = document.querySelector("#detail-participants");
 const detailClose = document.querySelector("#detail-close");
+const detailDelete = document.querySelector("#detail-delete");
+const deleteTripDialog = document.querySelector("#delete-trip-dialog");
+const deleteTripYes = document.querySelector("#delete-trip-yes");
+const deleteTripNo = document.querySelector("#delete-trip-no");
 const budgetPanel = document.querySelector("#budget-panel");
 const expensesPanel = document.querySelector("#expenses-panel");
 const balancesPanel = document.querySelector("#balances-panel");
@@ -29,6 +34,14 @@ let activeTripId = null;
 
 setupTripForm(tripForm, loadTrips);
 detailClose.addEventListener("click", closeDetail);
+detailDelete.addEventListener("click", openDeleteTripDialog);
+deleteTripNo.addEventListener("click", closeDeleteTripDialog);
+deleteTripDialog.addEventListener("click", (event) => {
+  if (event.target === deleteTripDialog) {
+    closeDeleteTripDialog();
+  }
+});
+deleteTripYes.addEventListener("click", confirmDeleteTrip);
 
 bootstrap();
 
@@ -66,7 +79,31 @@ async function openTrip(tripId) {
 function closeDetail() {
   activeTripId = null;
   detailSection.hidden = true;
+  closeDeleteTripDialog();
   document.querySelectorAll(".trip-card.is-active").forEach((c) => c.classList.remove("is-active"));
+}
+
+function openDeleteTripDialog() {
+  deleteTripDialog.hidden = false;
+}
+
+function closeDeleteTripDialog() {
+  deleteTripDialog.hidden = true;
+}
+
+async function confirmDeleteTrip() {
+  if (!activeTripId) return;
+
+  deleteTripYes.disabled = true;
+  try {
+    await deleteTrip(activeTripId);
+    activeTripId = null;
+    closeDeleteTripDialog();
+    detailSection.hidden = true;
+    await loadTrips();
+  } finally {
+    deleteTripYes.disabled = false;
+  }
 }
 
 async function refreshDetail() {
@@ -88,6 +125,7 @@ async function refreshDetail() {
     .join("");
 
   const isOrganizer = trip.organizerId === currentUser?.id;
+  detailDelete.hidden = !isOrganizer;
   renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips });
   renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips });
   renderBalances(balancesPanel, { balances, trip, currentUserId: currentUser?.id });
