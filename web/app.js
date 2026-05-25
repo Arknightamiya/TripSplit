@@ -26,6 +26,7 @@ const detailDelete = document.querySelector("#detail-delete");
 const deleteTripDialog = document.querySelector("#delete-trip-dialog");
 const deleteTripYes = document.querySelector("#delete-trip-yes");
 const deleteTripNo = document.querySelector("#delete-trip-no");
+const deleteTripError = document.querySelector("#delete-trip-error");
 const budgetPanel = document.querySelector("#budget-panel");
 const expensesPanel = document.querySelector("#expenses-panel");
 const balancesPanel = document.querySelector("#balances-panel");
@@ -84,26 +85,39 @@ function closeDetail() {
 }
 
 function openDeleteTripDialog() {
+  setDeleteTripError("");
   deleteTripDialog.hidden = false;
 }
 
 function closeDeleteTripDialog() {
   deleteTripDialog.hidden = true;
+  setDeleteTripError("");
 }
 
 async function confirmDeleteTrip() {
   if (!activeTripId) return;
 
+  const tripId = activeTripId;
+  setDeleteTripError("");
   deleteTripYes.disabled = true;
+  deleteTripYes.textContent = "Deleting...";
   try {
-    await deleteTrip(activeTripId);
+    await deleteTrip(tripId);
     activeTripId = null;
     closeDeleteTripDialog();
     detailSection.hidden = true;
     await loadTrips();
+  } catch (error) {
+    setDeleteTripError(error.message || "Unable to delete this trip.");
   } finally {
     deleteTripYes.disabled = false;
+    deleteTripYes.textContent = "Yes, delete";
   }
+}
+
+function setDeleteTripError(message) {
+  deleteTripError.textContent = message;
+  deleteTripError.hidden = !message;
 }
 
 async function refreshDetail() {

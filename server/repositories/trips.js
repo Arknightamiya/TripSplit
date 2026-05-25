@@ -96,13 +96,14 @@ export async function deleteTripRecord(tripId) {
     return null;
   }
 
-  await getDatabase().query(
-    `
-      DELETE FROM trips
-      WHERE id = $1
-    `,
-    [tripId]
-  );
+  await getDatabase().transaction(async (client) => {
+    await client.query("DELETE FROM balance_summaries WHERE trip_id = $1", [tripId]);
+    await client.query("DELETE FROM expense_shares WHERE trip_id = $1", [tripId]);
+    await client.query("DELETE FROM expenses WHERE trip_id = $1", [tripId]);
+    await client.query("DELETE FROM budgets WHERE trip_id = $1", [tripId]);
+    await client.query("DELETE FROM trip_participants WHERE trip_id = $1", [tripId]);
+    await client.query("DELETE FROM trips WHERE id = $1", [tripId]);
+  });
 
   return trip;
 }
