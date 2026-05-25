@@ -43,6 +43,7 @@ deleteTripDialog.addEventListener("click", (event) => {
   }
 });
 deleteTripYes.addEventListener("click", confirmDeleteTrip);
+document.addEventListener("keydown", handleDeleteTripShortcut);
 
 bootstrap();
 
@@ -119,6 +120,23 @@ async function confirmDeleteTrip() {
     deleteTripYes.disabled = false;
     deleteTripYes.textContent = "Yes, delete";
   }
+}
+
+function handleDeleteTripShortcut(event) {
+  if (
+    deleteTripDialog.hidden ||
+    event.code !== "Space" ||
+    event.repeat ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    deleteTripYes.disabled
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  confirmDeleteTrip();
 }
 
 function setDeleteTripError(message) {
