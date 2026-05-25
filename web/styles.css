@@ -196,6 +196,25 @@ input {
   background: rgba(176, 48, 48, 0.08);
 }
 
+.button-prominent {
+  background: #b03030;
+  color: white;
+  border-color: #b03030;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  font-size: 1rem;
+}
+
+.button-prominent:hover {
+  background: #922626;
+}
+
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -390,6 +409,41 @@ label.field input {
   justify-content: flex-end;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(29, 42, 45, 0.42);
+  backdrop-filter: blur(4px);
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal {
+  width: min(420px, 100%);
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow);
+}
+
+.modal h2 {
+  margin-bottom: 0.5rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
 @media (max-width: 640px) {
   .page {
     width: min(100% - 1rem, 100%);
@@ -402,6 +456,17 @@ label.field input {
 
   .input-row {
     grid-template-columns: 1fr;
+  }
+
+  .detail-actions,
+  .modal-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .detail-actions button,
+  .modal-actions button {
+    flex: 1;
   }
 
   .expense-row {

@@ -1,4 +1,5 @@
 import {
+  deleteTrip,
   ensureDemoAuth,
   fetchBalances,
   fetchHealth,
@@ -21,6 +22,11 @@ const detailEyebrow = document.querySelector("#detail-eyebrow");
 const detailMeta = document.querySelector("#detail-meta");
 const detailParticipants = document.querySelector("#detail-participants");
 const detailClose = document.querySelector("#detail-close");
+const detailDelete = document.querySelector("#detail-delete");
+const deleteTripDialog = document.querySelector("#delete-trip-dialog");
+const deleteTripYes = document.querySelector("#delete-trip-yes");
+const deleteTripNo = document.querySelector("#delete-trip-no");
+const deleteTripError = document.querySelector("#delete-trip-error");
 const budgetPanel = document.querySelector("#budget-panel");
 const expensesPanel = document.querySelector("#expenses-panel");
 const balancesPanel = document.querySelector("#balances-panel");
@@ -29,6 +35,15 @@ let activeTripId = null;
 
 setupTripForm(tripForm, loadTrips);
 detailClose.addEventListener("click", closeDetail);
+detailDelete.addEventListener("click", openDeleteTripDialog);
+deleteTripNo.addEventListener("click", closeDeleteTripDialog);
+deleteTripDialog.addEventListener("click", (event) => {
+  if (event.target === deleteTripDialog) {
+    closeDeleteTripDialog();
+  }
+});
+deleteTripYes.addEventListener("click", confirmDeleteTrip);
+document.addEventListener("keydown", handleDeleteTripShortcut);
 
 bootstrap();
 
@@ -66,7 +81,67 @@ async function openTrip(tripId) {
 function closeDetail() {
   activeTripId = null;
   detailSection.hidden = true;
+  closeDeleteTripDialog();
   document.querySelectorAll(".trip-card.is-active").forEach((c) => c.classList.remove("is-active"));
+}
+
+function openDeleteTripDialog() {
+  const tripId = detailDelete.dataset.tripId || activeTripId;
+  setDeleteTripError("");
+  deleteTripDialog.dataset.tripId = tripId || "";
+  deleteTripDialog.hidden = false;
+}
+
+function closeDeleteTripDialog() {
+  deleteTripDialog.hidden = true;
+  deleteTripDialog.dataset.tripId = "";
+  setDeleteTripError("");
+}
+
+async function confirmDeleteTrip() {
+  const tripId = deleteTripDialog.dataset.tripId || activeTripId;
+  if (!tripId) {
+    setDeleteTripError("No trip selected to delete.");
+    return;
+  }
+
+  setDeleteTripError("");
+  deleteTripYes.disabled = true;
+  deleteTripYes.textContent = "Deleting...";
+  try {
+    await deleteTrip(tripId);
+    activeTripId = null;
+    closeDeleteTripDialog();
+    detailSection.hidden = true;
+    await loadTrips();
+  } catch (error) {
+    setDeleteTripError(error.message || "Unable to delete this trip.");
+  } finally {
+    deleteTripYes.disabled = false;
+    deleteTripYes.textContent = "Yes, delete";
+  }
+}
+
+function handleDeleteTripShortcut(event) {
+  if (
+    deleteTripDialog.hidden ||
+    event.code !== "Space" ||
+    event.repeat ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    deleteTripYes.disabled
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  confirmDeleteTrip();
+}
+
+function setDeleteTripError(message) {
+  deleteTripError.textContent = message;
+  deleteTripError.hidden = !message;
 }
 
 async function refreshDetail() {
@@ -88,6 +163,8 @@ async function refreshDetail() {
     .join("");
 
   const isOrganizer = trip.organizerId === currentUser?.id;
+  detailDelete.hidden = !isOrganizer;
+  detailDelete.dataset.tripId = String(trip.id);
   renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips });
   renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips });
   renderBalances(balancesPanel, { balances, trip, currentUserId: currentUser?.id });

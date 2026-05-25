@@ -3,6 +3,7 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   addParticipantToTrip,
   createTripForUser,
+  deleteTripForUser,
   getTripForUser,
   listTripsForUser,
   setTripBudget
@@ -32,6 +33,14 @@ export function createTripsRouter() {
   router.get("/:tripId", async (req, res, next) => {
     try {
       res.status(200).json(await getTripForUser(req.user.id, req.params.tripId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:tripId", async (req, res, next) => {
+    try {
+      res.status(200).json(await deleteTripForUser(req.user.id, req.params.tripId));
     } catch (error) {
       next(error);
     }

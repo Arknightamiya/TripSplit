@@ -42,7 +42,12 @@
               <h2 id="detail-title">Trip Detail</h2>
               <p class="hint" id="detail-meta"></p>
             </div>
-            <button type="button" id="detail-close" class="button-ghost">Close</button>
+            <div class="detail-actions">
+              <button type="button" id="detail-delete" class="button-danger button-prominent" hidden>
+                Delete
+              </button>
+              <button type="button" id="detail-close" class="button-ghost">Close</button>
+            </div>
           </div>
           <div id="detail-participants" class="chip-row"></div>
         </div>
@@ -52,6 +57,22 @@
         <div id="balances-panel" class="panel"></div>
       </section>
     </main>
+
+    <div id="delete-trip-dialog" class="modal-overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-trip-title">
+        <h2 id="delete-trip-title">Delete this trip?</h2>
+        <p class="hint">
+          This will permanently delete the trip, participants, budget, expenses, and balances.
+        </p>
+        <p id="delete-trip-error" class="form-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button type="button" id="delete-trip-no" class="button-ghost">No</button>
+          <button type="button" id="delete-trip-yes" class="button-danger button-prominent">
+            Yes, delete
+          </button>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="/web/app.js"></script>
   </body>

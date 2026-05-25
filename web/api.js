@@ -31,10 +31,22 @@ export async function apiRequest(path, options = {}) {
 const CURRENT_USER_STORAGE_KEY = "tripsplit.currentUser";
 
 export async function ensureDemoAuth() {
-  const { token, user } = await login({
+  const credentials = {
     email: "alex@example.com",
     password: "demo-password"
-  });
+  };
+  let authResult;
+
+  try {
+    authResult = await login(credentials);
+  } catch (error) {
+    authResult = await register({
+      name: "Alex Organizer",
+      ...credentials
+    });
+  }
+
+  const { token, user } = authResult;
   storeAuthToken(token);
   storeCurrentUser(user);
 }
@@ -59,6 +71,13 @@ export async function login({ email, password }) {
   });
 }
 
+export async function register({ name, email, password }) {
+  return apiRequest(API_ROUTES.authRegister, {
+    method: "POST",
+    body: { name, email, password }
+  });
+}
+
 export async function fetchHealth(){
       return apiRequest(API_ROUTES.health);
 }
@@ -76,6 +95,17 @@ export async function postTrip(name){
 
 export async function fetchTrip(tripId) {
   return apiRequest(API_ROUTES.trip(tripId));
+}
+
+export async function deleteTrip(tripId) {
+  const normalizedTripId = String(tripId || "").trim();
+  if (!normalizedTripId) {
+    throw new Error("No trip selected to delete.");
+  }
+
+  return apiRequest(API_ROUTES.trip(normalizedTripId), {
+    method: "DELETE"
+  });
 }
 
 export async function postBudget(tripId, payload) {

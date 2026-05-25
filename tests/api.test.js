@@ -47,6 +47,7 @@ test("register returns a JWT and starts with no private trips", async () => {
 
   assert.equal(response.status, 201);
   assert.equal(response.body.user.email, "taylor@example.com");
+  assert.equal(response.body.user.passwordHash, undefined);
   assert.equal(response.body.token.split(".").length, 3);
 
   const tripsResponse = await request("/api/trips", {
@@ -106,6 +107,43 @@ test("non-participant cannot view private trip details", async () => {
   assert.equal(response.status, 403);
   assert.deepEqual(response.body, {
     error: "You are not an approved participant on this trip"
+  });
+});
+
+test("organizer can delete a trip", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const deleteResponse = await request(`/api/trips/${tripId}`, {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+  const listResponse = await request("/api/trips", {
+    headers: authHeaders(token)
+  });
+
+  assert.equal(deleteResponse.status, 200);
+  assert.deepEqual(deleteResponse.body, {
+    deletedTripId: tripId
+  });
+  assert.equal(listResponse.status, 200);
+  assert.equal(listResponse.body.trips.some((trip) => trip.id === tripId), false);
+});
+
+test("regular participants cannot delete a trip", async () => {
+  const { token } = await loginAsDemoUser({
+    email: "sam@example.com",
+    password: "demo-password"
+  });
+
+  const response = await request("/api/trips/trip_4", {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(response.body, {
+    error: "Only an organizer can perform this action"
   });
 });
 
