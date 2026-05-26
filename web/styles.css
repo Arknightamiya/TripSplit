@@ -1,16 +1,16 @@
 :root {
-  --bg: #fff0f5;
-  --surface: rgba(255, 250, 252, 0.88);
-  --surface-strong: #fffafd;
-  --text: #30212a;
-  --muted: #806a75;
-  --accent: #c45a83;
-  --accent-strong: #a93f6b;
-  --accent-soft: #fde5ef;
-  --border: rgba(124, 67, 91, 0.14);
-  --shadow: 0 22px 56px rgba(154, 82, 112, 0.16);
-  --danger: #b0304f;
-  --danger-strong: #90233c;
+  --bg: #fff7fa;
+  --surface: #ffffff;
+  --surface-strong: #ffffff;
+  --text: #262626;
+  --muted: #737373;
+  --accent: #e45d8f;
+  --accent-strong: #c13584;
+  --accent-soft: #fff0f5;
+  --border: #e9dce2;
+  --shadow: 0 8px 28px rgba(38, 38, 38, 0.08);
+  --danger: #d62955;
+  --danger-strong: #b91f45;
 }
 
 * {
@@ -20,13 +20,10 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  line-height: 1.45;
   color: var(--text);
-  background:
-    radial-gradient(circle at 12% 10%, rgba(255, 142, 180, 0.32), transparent 27%),
-    radial-gradient(circle at 84% 16%, rgba(255, 204, 224, 0.55), transparent 24%),
-    radial-gradient(circle at 55% 90%, rgba(255, 222, 236, 0.68), transparent 34%),
-    linear-gradient(155deg, #fff7f9 0%, #fff0f5 48%, #ffe9f2 100%);
+  background: var(--bg);
 }
 
 button,
@@ -42,9 +39,10 @@ input {
 
 .hero {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0 0 1.5rem;
+  gap: 1.25rem;
+  padding: 0 0 1.25rem;
 }
 
 .auth-view[hidden],
@@ -80,11 +78,12 @@ input {
   gap: 0.35rem;
   padding: 0.35rem;
   border: 1px solid var(--border);
-  border-radius: 16px;
-  background: rgba(255, 245, 249, 0.72);
+  border-radius: 8px;
+  background: var(--accent-soft);
 }
 
 .auth-tab {
+  border-radius: 6px;
   background: transparent;
   color: var(--muted);
   box-shadow: none;
@@ -149,9 +148,9 @@ input {
   gap: 0.75rem;
   padding: 0.65rem;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 12px 30px rgba(154, 82, 112, 0.12);
+  box-shadow: var(--shadow);
 }
 
 .user-menu div {
@@ -165,7 +164,7 @@ input {
 
 .eyebrow {
   margin: 0 0 0.5rem;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--muted);
   font-size: 0.78rem;
@@ -179,8 +178,9 @@ p {
 
 h1 {
   margin-bottom: 0.5rem;
-  font-size: clamp(2.6rem, 8vw, 4.8rem);
-  line-height: 0.95;
+  font-size: clamp(2.6rem, 7vw, 4.5rem);
+  line-height: 1;
+  font-weight: 800;
 }
 
 .hero-copy {
@@ -191,11 +191,10 @@ h1 {
 
 .panel {
   margin-top: 1rem;
-  padding: 1.25rem;
+  padding: 1.35rem;
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 8px;
   background: var(--surface);
-  backdrop-filter: blur(14px);
   box-shadow: var(--shadow);
 }
 
@@ -219,7 +218,7 @@ h1 {
   gap: 0.2rem;
   padding: 0.95rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--surface-strong);
   text-align: left;
 }
@@ -237,7 +236,7 @@ button:hover {
 
 button {
   border: 0;
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 0.8rem 1rem;
   background: var(--accent);
   color: white;
@@ -249,8 +248,8 @@ input {
   width: 100%;
   padding: 0.85rem 0.95rem;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  background: rgba(255, 250, 252, 0.9);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 input::placeholder {
@@ -316,7 +315,7 @@ input::placeholder {
   color: var(--danger);
   border: 1px solid var(--border);
   padding: 0.35rem 0.6rem;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 0.8rem;
 }
 
@@ -329,7 +328,7 @@ input::placeholder {
   color: white;
   border-color: var(--danger);
   padding: 0.8rem 1rem;
-  border-radius: 14px;
+  border-radius: 8px;
   font-size: 1rem;
 }
 
@@ -355,7 +354,7 @@ input::placeholder {
   align-items: center;
   gap: 0.35rem;
   padding: 0.25rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 0.8rem;
@@ -367,7 +366,7 @@ input::placeholder {
   background: var(--accent);
   color: white;
   padding: 0.05rem 0.4rem;
-  border-radius: 999px;
+  border-radius: 6px;
 }
 
 .budget-grid {
@@ -380,7 +379,7 @@ input::placeholder {
 .budget-stat {
   padding: 0.7rem 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--surface-strong);
   display: grid;
   gap: 0.15rem;
@@ -390,7 +389,7 @@ input::placeholder {
   font-size: 0.72rem;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
 }
 
 .budget-stat-value {
@@ -425,8 +424,8 @@ label.field input {
   width: 100%;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  background: var(--surface);
   color: var(--text);
   font-size: 0.95rem;
 }
@@ -443,8 +442,8 @@ label.field input {
   gap: 0.35rem;
   padding: 0.4rem 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 250, 252, 0.72);
+  border-radius: 8px;
+  background: var(--surface);
   cursor: pointer;
   font-size: 0.85rem;
   white-space: nowrap;
@@ -462,8 +461,8 @@ label.field input {
   gap: 0.35rem;
   padding: 0.3rem 0.6rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 250, 252, 0.76);
+  border-radius: 8px;
+  background: var(--surface);
   cursor: pointer;
   font-size: 0.85rem;
 }
@@ -481,7 +480,7 @@ label.field input {
   align-items: center;
   padding: 0.7rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--surface-strong);
 }
 
@@ -517,7 +516,7 @@ label.field input {
 .balance-table th {
   font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
   color: var(--muted);
   font-weight: 600;
 }
@@ -544,7 +543,7 @@ label.field input {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(92, 53, 69, 0.32);
+  background: rgba(38, 38, 38, 0.28);
   backdrop-filter: blur(4px);
 }
 
@@ -556,7 +555,7 @@ label.field input {
   width: min(420px, 100%);
   padding: 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--surface-strong);
   box-shadow: var(--shadow);
 }
