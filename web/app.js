@@ -75,6 +75,10 @@ async function bootstrap() {
 }
 
 async function loadStatus() {
+  if (!statusText) {
+    return;
+  }
+
   try {
     const data = await fetchHealth();
     statusText.textContent = data.ok ? `${data.service} is running.` : "The API is offline.";

@@ -32,14 +32,14 @@ input {
 .page {
   width: min(1100px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 3rem 0 4rem;
+  padding: 1.5rem 0 4rem;
 }
 
 .hero {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 0 2rem;
+  padding: 0 0 1.5rem;
 }
 
 .auth-view[hidden],
@@ -246,6 +246,10 @@ input {
   border: 1px solid var(--border);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.85);
+}
+
+input::placeholder {
+  color: rgba(92, 109, 113, 0.68);
 }
 
 .hint,
