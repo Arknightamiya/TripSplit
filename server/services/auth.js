@@ -2,12 +2,14 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 import {
   createUser,
   findUserByEmail,
-  findUserById
+  findUserById,
+  findUserByName
 } from "../store.js";
 import {
   createUserRecord,
   findUserRecordByEmail,
   findUserRecordById,
+  findUserRecordByName,
   isUserRepositoryEnabled
 } from "../repositories/users.js";
 import { badRequest, conflict, unauthorized } from "../utils/errors.js";
@@ -20,6 +22,9 @@ export async function registerUser(input = {}) {
 
   if (await findAuthUserByEmail(input.email)) {
     throw conflict("An account with this email already exists");
+  }
+  if (await findAuthUserByName(input.name)) {
+    throw conflict("An account with this username already exists");
   }
 
   const userRecord = await createAuthUser({
@@ -172,7 +177,10 @@ async function findAuthUserByIdentifier(identifier) {
     return findAuthUserByEmail(normalizedIdentifier);
   }
 
-  return findAuthUserById(normalizedIdentifier);
+  return (
+    await findAuthUserById(normalizedIdentifier) ||
+    await findAuthUserByName(normalizedIdentifier)
+  );
 }
 
 async function findAuthUserById(userId) {
@@ -181,6 +189,14 @@ async function findAuthUserById(userId) {
   }
 
   return findUserById(userId);
+}
+
+async function findAuthUserByName(name) {
+  if (isUserRepositoryEnabled()) {
+    return findUserRecordByName(name);
+  }
+
+  return findUserByName(name);
 }
 
 function toSafeUser(user) {

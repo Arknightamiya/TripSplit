@@ -186,7 +186,7 @@ Request:
 }
 ```
 
-`identifier` can be either the user's email address or user ID. The backend still accepts `email` for backward compatibility.
+`identifier` can be either the user's username or email address. The backend still accepts `email` for backward compatibility.
 
 Response:
 
