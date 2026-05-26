@@ -8,53 +8,129 @@
   </head>
   <body>
     <main class="page">
-      <section class="hero">
-        <p class="eyebrow">CS130 Project Scaffold</p>
-        <h1>TripSplit</h1>
-        <p class="hero-copy">
-          Plan group trips, track shared spending, and settle balances fairly.
-        </p>
-      </section>
+      <section id="auth-view" class="auth-view">
+        <div class="auth-layout">
+          <section class="auth-brand">
+            <p class="eyebrow">TripSplit</p>
+            <h1>Sign in to plan trips together.</h1>
+            <p class="hero-copy">
+              Use your own account to create trips, track shared spending, and keep your data in the cloud database.
+            </p>
+          </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Your Trips</h2>
-          <span id="status-text" class="hint">Connecting to the local API.</span>
+          <section class="panel auth-panel" aria-label="Account access">
+            <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
+              <button type="button" class="auth-tab is-active" data-auth-mode="login">Log in</button>
+              <button type="button" class="auth-tab" data-auth-mode="register">Register</button>
+            </div>
+
+            <form id="login-form" class="auth-form">
+              <label class="field">
+                Email
+                <input name="email" type="email" autocomplete="email" required />
+              </label>
+              <label class="field">
+                Password
+                <input name="password" type="password" autocomplete="current-password" required />
+              </label>
+              <p id="login-error" class="form-error" role="alert" hidden></p>
+              <button type="submit" class="auth-submit">Log in</button>
+            </form>
+
+            <form id="register-form" class="auth-form" hidden>
+              <label class="field">
+                Username
+                <input name="name" autocomplete="name" required />
+              </label>
+              <label class="field">
+                Email
+                <input name="email" type="email" autocomplete="email" required />
+              </label>
+              <label class="field">
+                Password
+                <input
+                  name="password"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="8"
+                  required
+                />
+              </label>
+              <label class="field">
+                Confirm password
+                <input
+                  name="confirmPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="8"
+                  required
+                />
+              </label>
+              <p id="register-error" class="form-error" role="alert" hidden></p>
+              <button type="submit" class="auth-submit">Create account</button>
+            </form>
+          </section>
         </div>
-        <form id="trip-form" class="input-row">
-          <input
-            id="trip-name"
-            name="name"
-            placeholder="Enter a trip name"
-            value="Big Bear Weekend"
-            required
-          />
-          <button type="submit">Add Trip</button>
-        </form>
-        <div id="trip-list" class="stack"></div>
       </section>
 
-      <section id="trip-detail" class="trip-detail" hidden>
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow" id="detail-eyebrow">Trip</p>
-              <h2 id="detail-title">Trip Detail</h2>
-              <p class="hint" id="detail-meta"></p>
-            </div>
-            <div class="detail-actions">
-              <button type="button" id="detail-delete" class="button-danger button-prominent" hidden>
-                Delete
-              </button>
-              <button type="button" id="detail-close" class="button-ghost">Close</button>
-            </div>
+      <section id="app-view" class="app-view" hidden>
+        <section class="hero">
+          <div>
+            <p class="eyebrow">CS130 Project Scaffold</p>
+            <h1>TripSplit</h1>
+            <p class="hero-copy">
+              Plan group trips, track shared spending, and settle balances fairly.
+            </p>
           </div>
-          <div id="detail-participants" class="chip-row"></div>
-        </div>
+          <div class="user-menu">
+            <div>
+              <span id="current-user-name">Signed in</span>
+              <span id="current-user-email" class="hint"></span>
+            </div>
+            <button type="button" id="logout-button" class="button-ghost">Log out</button>
+          </div>
+        </section>
 
-        <div id="budget-panel" class="panel"></div>
-        <div id="expenses-panel" class="panel"></div>
-        <div id="balances-panel" class="panel"></div>
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Your Trips</h2>
+            <span id="status-text" class="hint">Connecting to the local API.</span>
+          </div>
+          <form id="trip-form" class="input-row">
+            <input
+              id="trip-name"
+              name="name"
+              placeholder="Enter a trip name"
+              value="Big Bear Weekend"
+              required
+            />
+            <button type="submit">Add Trip</button>
+          </form>
+          <div id="trip-list" class="stack"></div>
+        </section>
+
+        <section id="trip-detail" class="trip-detail" hidden>
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow" id="detail-eyebrow">Trip</p>
+                <h2 id="detail-title">Trip Detail</h2>
+                <p class="hint" id="detail-meta"></p>
+              </div>
+              <div class="detail-actions">
+                <button type="button" id="detail-delete" class="button-danger button-prominent" hidden>
+                  Delete
+                </button>
+                <button type="button" id="detail-close" class="button-ghost">Close</button>
+              </div>
+            </div>
+            <div id="detail-participants" class="chip-row"></div>
+          </div>
+
+          <div id="budget-panel" class="panel"></div>
+          <div id="expenses-panel" class="panel"></div>
+          <div id="balances-panel" class="panel"></div>
+        </section>
       </section>
     </main>
 

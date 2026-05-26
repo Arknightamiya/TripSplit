@@ -1,11 +1,14 @@
 import {
+  clearAuthSession,
   deleteTrip,
-  ensureDemoAuth,
   fetchBalances,
   fetchHealth,
   fetchTrip,
   fetchTrips,
-  getStoredCurrentUser
+  getStoredCurrentUser,
+  login,
+  register,
+  storeAuthSession
 } from "./api.js";
 import { setupTripForm } from "./forms.js";
 import { renderBalances } from "./renderBalances.js";
@@ -13,6 +16,16 @@ import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
 import { escapeHtml, pluralize, renderTrips } from "./renderTrips.js";
 
+const authView = document.querySelector("#auth-view");
+const appView = document.querySelector("#app-view");
+const authTabs = document.querySelectorAll("[data-auth-mode]");
+const loginForm = document.querySelector("#login-form");
+const registerForm = document.querySelector("#register-form");
+const loginError = document.querySelector("#login-error");
+const registerError = document.querySelector("#register-error");
+const currentUserName = document.querySelector("#current-user-name");
+const currentUserEmail = document.querySelector("#current-user-email");
+const logoutButton = document.querySelector("#logout-button");
 const statusText = document.querySelector("#status-text");
 const tripList = document.querySelector("#trip-list");
 const tripForm = document.querySelector("#trip-form");
@@ -33,6 +46,12 @@ const balancesPanel = document.querySelector("#balances-panel");
 
 let activeTripId = null;
 
+authTabs.forEach((tab) => {
+  tab.addEventListener("click", () => showAuthMode(tab.dataset.authMode));
+});
+loginForm.addEventListener("submit", handleLogin);
+registerForm.addEventListener("submit", handleRegister);
+logoutButton.addEventListener("click", handleLogout);
 setupTripForm(tripForm, loadTrips);
 detailClose.addEventListener("click", closeDetail);
 detailDelete.addEventListener("click", openDeleteTripDialog);
@@ -49,13 +68,117 @@ bootstrap();
 
 async function bootstrap() {
   await loadStatus();
-  await ensureDemoAuth();
-  await loadTrips();
+  showAuthView();
 }
 
 async function loadStatus() {
-  const data = await fetchHealth();
-  statusText.textContent = data.ok ? `${data.service} is running.` : "The API is offline.";
+  try {
+    const data = await fetchHealth();
+    statusText.textContent = data.ok ? `${data.service} is running.` : "The API is offline.";
+  } catch {
+    statusText.textContent = "The API is offline.";
+  }
+}
+
+function showAuthView() {
+  clearAuthSession();
+  activeTripId = null;
+  authView.hidden = false;
+  appView.hidden = true;
+  detailSection.hidden = true;
+  tripList.innerHTML = "";
+  showAuthMode("login");
+}
+
+function showAppView(user) {
+  currentUserName.textContent = user.name;
+  currentUserEmail.textContent = user.email;
+  authView.hidden = true;
+  appView.hidden = false;
+}
+
+function showAuthMode(mode) {
+  const isRegister = mode === "register";
+
+  loginForm.hidden = isRegister;
+  registerForm.hidden = !isRegister;
+  setFormError(loginError, "");
+  setFormError(registerError, "");
+
+  authTabs.forEach((tab) => {
+    const isActive = tab.dataset.authMode === mode;
+    tab.classList.toggle("is-active", isActive);
+    tab.setAttribute("aria-selected", String(isActive));
+  });
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const formData = new FormData(loginForm);
+
+  await submitAuthForm({
+    form: loginForm,
+    errorNode: loginError,
+    submitText: "Log in",
+    loadingText: "Logging in...",
+    action: () => login({
+      email: String(formData.get("email") || "").trim(),
+      password: String(formData.get("password") || "")
+    })
+  });
+}
+
+async function handleRegister(event) {
+  event.preventDefault();
+  const formData = new FormData(registerForm);
+  const password = String(formData.get("password") || "");
+  const confirmPassword = String(formData.get("confirmPassword") || "");
+
+  if (password !== confirmPassword) {
+    setFormError(registerError, "Passwords do not match.");
+    return;
+  }
+
+  await submitAuthForm({
+    form: registerForm,
+    errorNode: registerError,
+    submitText: "Create account",
+    loadingText: "Creating account...",
+    action: () => register({
+      name: String(formData.get("name") || "").trim(),
+      email: String(formData.get("email") || "").trim(),
+      password
+    })
+  });
+}
+
+async function submitAuthForm({ form, errorNode, submitText, loadingText, action }) {
+  const submitButton = form.querySelector("button[type='submit']");
+  setFormError(errorNode, "");
+  submitButton.disabled = true;
+  submitButton.textContent = loadingText;
+
+  try {
+    const authResult = await action();
+    storeAuthSession(authResult);
+    showAppView(authResult.user);
+    await loadTrips();
+  } catch (error) {
+    setFormError(errorNode, error.message || "Unable to authenticate.");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = submitText;
+  }
+}
+
+function handleLogout() {
+  clearAuthSession();
+  showAuthView();
+}
+
+function setFormError(node, message) {
+  node.textContent = message;
+  node.hidden = !message;
 }
 
 async function loadTrips() {
