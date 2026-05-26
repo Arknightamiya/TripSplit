@@ -2,12 +2,14 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 import {
   createUser,
   findUserByEmail,
-  findUserById
+  findUserById,
+  findUserByName
 } from "../store.js";
 import {
   createUserRecord,
   findUserRecordByEmail,
   findUserRecordById,
+  findUserRecordByName,
   isUserRepositoryEnabled
 } from "../repositories/users.js";
 import { badRequest, conflict, unauthorized } from "../utils/errors.js";
@@ -20,6 +22,9 @@ export async function registerUser(input = {}) {
 
   if (await findAuthUserByEmail(input.email)) {
     throw conflict("An account with this email already exists");
+  }
+  if (await findAuthUserByName(input.name)) {
+    throw conflict("An account with this username already exists");
   }
 
   const userRecord = await createAuthUser({
@@ -35,9 +40,14 @@ export async function registerUser(input = {}) {
 }
 
 export async function loginUser(input = {}) {
-  requireFields(input, ["email", "password"]);
+  requireFields(input, ["password"]);
 
-  const userRecord = await findAuthUserByEmail(input.email);
+  const identifier = input.identifier ?? input.email;
+  if (!identifier) {
+    throw badRequest("Missing required field: identifier");
+  }
+
+  const userRecord = await findAuthUserByIdentifier(identifier);
   if (!userRecord || !verifyPassword(input.password, userRecord.passwordHash)) {
     throw unauthorized("Invalid credentials");
   }
@@ -160,12 +170,33 @@ async function findAuthUserByEmail(email) {
   return findUserByEmail(email);
 }
 
+async function findAuthUserByIdentifier(identifier) {
+  const normalizedIdentifier = String(identifier || "").trim();
+
+  if (normalizedIdentifier.includes("@")) {
+    return findAuthUserByEmail(normalizedIdentifier);
+  }
+
+  return (
+    await findAuthUserById(normalizedIdentifier) ||
+    await findAuthUserByName(normalizedIdentifier)
+  );
+}
+
 async function findAuthUserById(userId) {
   if (isUserRepositoryEnabled()) {
     return findUserRecordById(userId);
   }
 
   return findUserById(userId);
+}
+
+async function findAuthUserByName(name) {
+  if (isUserRepositoryEnabled()) {
+    return findUserRecordByName(name);
+  }
+
+  return findUserByName(name);
 }
 
 function toSafeUser(user) {

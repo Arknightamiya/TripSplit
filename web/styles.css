@@ -1,13 +1,19 @@
 :root {
-  --bg: #f4efe6;
-  --surface: rgba(255, 255, 255, 0.82);
-  --surface-strong: #fffdf8;
-  --text: #1d2a2d;
-  --muted: #5c6d71;
-  --accent: #0f766e;
-  --accent-soft: #dff3ef;
-  --border: rgba(29, 42, 45, 0.12);
-  --shadow: 0 18px 48px rgba(34, 53, 57, 0.12);
+  --bg: #fff7fa;
+  --surface: #ffffff;
+  --surface-strong: #ffffff;
+  --text: #262626;
+  --muted: #737373;
+  --accent: #f3a0b8;
+  --accent-strong: #d86f95;
+  --accent-soft: #fff1f5;
+  --on-accent: #4f2433;
+  --border: #e9dce2;
+  --shadow: 0 8px 28px rgba(38, 38, 38, 0.08);
+  --danger: #de6878;
+  --danger-strong: #c64e61;
+  --danger-soft: #fff0f2;
+  --on-danger: #5e1724;
 }
 
 * {
@@ -17,11 +23,10 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  line-height: 1.45;
   color: var(--text);
-  background:
-    radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 28%),
-    linear-gradient(160deg, #efe4d1 0%, #f9f6f0 52%, #e4f3f0 100%);
+  background: var(--bg);
 }
 
 button,
@@ -32,16 +37,137 @@ input {
 .page {
   width: min(1100px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 3rem 0 4rem;
+  padding: 1.5rem 0 4rem;
 }
 
 .hero {
-  padding: 1rem 0 2rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 0 0 1.25rem;
+}
+
+.auth-view[hidden],
+.app-view[hidden] {
+  display: none;
+}
+
+.auth-layout {
+  min-height: calc(100vh - 7rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: 2rem;
+  align-items: center;
+}
+
+.auth-brand {
+  padding: 1rem 0;
+}
+
+.auth-brand h1 {
+  width: min(48rem, 100%);
+}
+
+.auth-panel {
+  margin-top: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.auth-tab {
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.auth-tab.is-active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.auth-form[hidden] {
+  display: none;
+}
+
+.auth-submit {
+  width: 100%;
+}
+
+.link-button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.link-button:hover {
+  background: transparent;
+}
+
+.link-button[hidden] {
+  display: none;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.checkbox-row input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent);
+}
+
+.user-menu {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.user-menu div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+#current-user-name {
+  font-weight: 700;
 }
 
 .eyebrow {
   margin: 0 0 0.5rem;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--muted);
   font-size: 0.78rem;
@@ -55,8 +181,9 @@ p {
 
 h1 {
   margin-bottom: 0.5rem;
-  font-size: clamp(2.6rem, 8vw, 4.8rem);
-  line-height: 0.95;
+  font-size: clamp(2.6rem, 7vw, 4.5rem);
+  line-height: 1;
+  font-weight: 800;
 }
 
 .hero-copy {
@@ -67,11 +194,10 @@ h1 {
 
 .panel {
   margin-top: 1rem;
-  padding: 1.25rem;
+  padding: 1.35rem;
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 8px;
   background: var(--surface);
-  backdrop-filter: blur(12px);
   box-shadow: var(--shadow);
 }
 
@@ -95,7 +221,7 @@ h1 {
   gap: 0.2rem;
   padding: 0.95rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--surface-strong);
   text-align: left;
 }
@@ -113,10 +239,10 @@ button:hover {
 
 button {
   border: 0;
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 0.8rem 1rem;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   cursor: pointer;
   transition: transform 160ms ease, opacity 160ms ease;
 }
@@ -125,8 +251,12 @@ input {
   width: 100%;
   padding: 0.85rem 0.95rem;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+input::placeholder {
+  color: rgba(128, 106, 117, 0.68);
 }
 
 .hint,
@@ -185,28 +315,28 @@ input {
 
 .button-danger {
   background: transparent;
-  color: #b03030;
+  color: var(--danger);
   border: 1px solid var(--border);
   padding: 0.35rem 0.6rem;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 0.8rem;
 }
 
 .button-danger:hover {
-  background: rgba(176, 48, 48, 0.08);
+  background: var(--danger-soft);
 }
 
 .button-prominent {
-  background: #b03030;
-  color: white;
-  border-color: #b03030;
+  background: var(--danger);
+  color: var(--on-danger);
+  border-color: var(--danger);
   padding: 0.8rem 1rem;
-  border-radius: 14px;
+  border-radius: 8px;
   font-size: 1rem;
 }
 
 .button-prominent:hover {
-  background: #922626;
+  background: var(--danger-strong);
 }
 
 .detail-actions {
@@ -227,9 +357,9 @@ input {
   align-items: center;
   gap: 0.35rem;
   padding: 0.25rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-strong);
   font-size: 0.8rem;
 }
 
@@ -237,9 +367,9 @@ input {
   content: "organizer";
   font-size: 0.7rem;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   padding: 0.05rem 0.4rem;
-  border-radius: 999px;
+  border-radius: 6px;
 }
 
 .budget-grid {
@@ -252,7 +382,7 @@ input {
 .budget-stat {
   padding: 0.7rem 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--surface-strong);
   display: grid;
   gap: 0.15rem;
@@ -262,7 +392,7 @@ input {
   font-size: 0.72rem;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
 }
 
 .budget-stat-value {
@@ -271,7 +401,7 @@ input {
 }
 
 .budget-stat.is-over .budget-stat-value {
-  color: #b03030;
+  color: var(--danger);
 }
 
 .form-grid {
@@ -297,8 +427,8 @@ label.field input {
   width: 100%;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  background: var(--surface);
   color: var(--text);
   font-size: 0.95rem;
 }
@@ -315,8 +445,8 @@ label.field input {
   gap: 0.35rem;
   padding: 0.4rem 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  background: var(--surface);
   cursor: pointer;
   font-size: 0.85rem;
   white-space: nowrap;
@@ -334,8 +464,8 @@ label.field input {
   gap: 0.35rem;
   padding: 0.3rem 0.6rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  background: var(--surface);
   cursor: pointer;
   font-size: 0.85rem;
 }
@@ -353,7 +483,7 @@ label.field input {
   align-items: center;
   padding: 0.7rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--surface-strong);
 }
 
@@ -389,16 +519,16 @@ label.field input {
 .balance-table th {
   font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
   color: var(--muted);
   font-weight: 600;
 }
 
 .balance-table td.positive { color: var(--accent); font-weight: 600; }
-.balance-table td.negative { color: #b03030; font-weight: 600; }
+.balance-table td.negative { color: var(--danger); font-weight: 600; }
 
 .form-error {
-  color: #b03030;
+  color: var(--danger);
   font-size: 0.85rem;
   margin: 0.25rem 0 0;
   min-height: 1.1rem;
@@ -416,7 +546,7 @@ label.field input {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(29, 42, 45, 0.42);
+  background: rgba(38, 38, 38, 0.28);
   backdrop-filter: blur(4px);
 }
 
@@ -428,7 +558,7 @@ label.field input {
   width: min(420px, 100%);
   padding: 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--surface-strong);
   box-shadow: var(--shadow);
 }
@@ -452,6 +582,22 @@ label.field input {
 
   .panel {
     padding: 1rem;
+  }
+
+  .hero,
+  .auth-layout,
+  .user-menu {
+    display: grid;
+  }
+
+  .auth-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .user-menu {
+    grid-template-columns: 1fr;
   }
 
   .input-row {

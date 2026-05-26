@@ -45,6 +45,12 @@ export function findUserByEmail(email) {
   return user ? clone(user) : null;
 }
 
+export function findUserByName(name) {
+  const normalizedName = normalizeText(name).toLowerCase();
+  const user = state.users.find((entry) => entry.name.toLowerCase() === normalizedName);
+  return user ? clone(user) : null;
+}
+
 export function listTripSummariesForUser(userId) {
   return state.trips
     .filter((trip) => isApprovedParticipant(trip.id, userId))

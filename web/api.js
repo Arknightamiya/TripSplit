@@ -30,27 +30,6 @@ export async function apiRequest(path, options = {}) {
 
 const CURRENT_USER_STORAGE_KEY = "tripsplit.currentUser";
 
-export async function ensureDemoAuth() {
-  const credentials = {
-    email: "alex@example.com",
-    password: "demo-password"
-  };
-  let authResult;
-
-  try {
-    authResult = await login(credentials);
-  } catch (error) {
-    authResult = await register({
-      name: "Alex Organizer",
-      ...credentials
-    });
-  }
-
-  const { token, user } = authResult;
-  storeAuthToken(token);
-  storeCurrentUser(user);
-}
-
 export function getStoredCurrentUser() {
   try {
     const raw = window.localStorage.getItem(CURRENT_USER_STORAGE_KEY);
@@ -64,10 +43,23 @@ export function storeCurrentUser(user) {
   window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
 }
 
-export async function login({ email, password }) {
+export function storeAuthSession({ token, user }) {
+  storeAuthToken(token);
+  storeCurrentUser(user);
+}
+
+export function clearAuthSession() {
+  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+}
+
+export async function login({ identifier, email, password }) {
   return apiRequest(API_ROUTES.authLogin, {
     method: "POST",
-    body: { email, password }
+    body: {
+      identifier: identifier ?? email,
+      password
+    }
   });
 }
 
