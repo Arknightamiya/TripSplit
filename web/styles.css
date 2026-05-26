@@ -4,13 +4,16 @@
   --surface-strong: #ffffff;
   --text: #262626;
   --muted: #737373;
-  --accent: #e45d8f;
-  --accent-strong: #c13584;
-  --accent-soft: #fff0f5;
+  --accent: #f3a0b8;
+  --accent-strong: #d86f95;
+  --accent-soft: #fff1f5;
+  --on-accent: #4f2433;
   --border: #e9dce2;
   --shadow: 0 8px 28px rgba(38, 38, 38, 0.08);
-  --danger: #d62955;
-  --danger-strong: #b91f45;
+  --danger: #de6878;
+  --danger-strong: #c64e61;
+  --danger-soft: #fff0f2;
+  --on-danger: #5e1724;
 }
 
 * {
@@ -91,7 +94,7 @@ input {
 
 .auth-tab.is-active {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .auth-form {
@@ -239,7 +242,7 @@ button {
   border-radius: 8px;
   padding: 0.8rem 1rem;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   cursor: pointer;
   transition: transform 160ms ease, opacity 160ms ease;
 }
@@ -320,12 +323,12 @@ input::placeholder {
 }
 
 .button-danger:hover {
-  background: rgba(176, 48, 79, 0.08);
+  background: var(--danger-soft);
 }
 
 .button-prominent {
   background: var(--danger);
-  color: white;
+  color: var(--on-danger);
   border-color: var(--danger);
   padding: 0.8rem 1rem;
   border-radius: 8px;
@@ -356,7 +359,7 @@ input::placeholder {
   padding: 0.25rem 0.6rem;
   border-radius: 8px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-strong);
   font-size: 0.8rem;
 }
 
@@ -364,7 +367,7 @@ input::placeholder {
   content: "organizer";
   font-size: 0.7rem;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   padding: 0.05rem 0.4rem;
   border-radius: 6px;
 }
