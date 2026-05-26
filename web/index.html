@@ -26,12 +26,19 @@
 
             <form id="login-form" class="auth-form">
               <label class="field">
-                Email
-                <input name="email" type="email" autocomplete="email" required />
+                User ID / Email
+                <input name="identifier" autocomplete="username" required />
               </label>
+              <button type="button" id="different-account-button" class="link-button">
+                Log in with a different account
+              </button>
               <label class="field">
                 Password
                 <input name="password" type="password" autocomplete="current-password" required />
+              </label>
+              <label class="checkbox-row">
+                <input name="rememberLogin" type="checkbox" />
+                Save user ID
               </label>
               <p id="login-error" class="form-error" role="alert" hidden></p>
               <button type="submit" class="auth-submit">Log in</button>

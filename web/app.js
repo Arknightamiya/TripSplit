@@ -23,6 +23,7 @@ const loginForm = document.querySelector("#login-form");
 const registerForm = document.querySelector("#register-form");
 const loginError = document.querySelector("#login-error");
 const registerError = document.querySelector("#register-error");
+const differentAccountButton = document.querySelector("#different-account-button");
 const currentUserName = document.querySelector("#current-user-name");
 const currentUserEmail = document.querySelector("#current-user-email");
 const logoutButton = document.querySelector("#logout-button");
@@ -45,12 +46,14 @@ const expensesPanel = document.querySelector("#expenses-panel");
 const balancesPanel = document.querySelector("#balances-panel");
 
 let activeTripId = null;
+const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
 
 authTabs.forEach((tab) => {
   tab.addEventListener("click", () => showAuthMode(tab.dataset.authMode));
 });
 loginForm.addEventListener("submit", handleLogin);
 registerForm.addEventListener("submit", handleRegister);
+differentAccountButton.addEventListener("click", clearSavedLogin);
 logoutButton.addEventListener("click", handleLogout);
 setupTripForm(tripForm, loadTrips);
 detailClose.addEventListener("click", closeDetail);
@@ -110,11 +113,16 @@ function showAuthMode(mode) {
     tab.classList.toggle("is-active", isActive);
     tab.setAttribute("aria-selected", String(isActive));
   });
+
+  if (!isRegister) {
+    populateSavedLogin();
+  }
 }
 
 async function handleLogin(event) {
   event.preventDefault();
   const formData = new FormData(loginForm);
+  const rememberLogin = formData.get("rememberLogin") === "on";
 
   await submitAuthForm({
     form: loginForm,
@@ -122,9 +130,16 @@ async function handleLogin(event) {
     submitText: "Log in",
     loadingText: "Logging in...",
     action: () => login({
-      email: String(formData.get("email") || "").trim(),
+      identifier: String(formData.get("identifier") || "").trim(),
       password: String(formData.get("password") || "")
-    })
+    }),
+    onSuccess: () => {
+      saveLoginPreference({
+        identifier: String(formData.get("identifier") || "").trim(),
+        password: String(formData.get("password") || ""),
+        rememberLogin
+      });
+    }
   });
 }
 
@@ -152,7 +167,14 @@ async function handleRegister(event) {
   });
 }
 
-async function submitAuthForm({ form, errorNode, submitText, loadingText, action }) {
+async function submitAuthForm({
+  form,
+  errorNode,
+  submitText,
+  loadingText,
+  action,
+  onSuccess
+}) {
   const submitButton = form.querySelector("button[type='submit']");
   setFormError(errorNode, "");
   submitButton.disabled = true;
@@ -161,6 +183,7 @@ async function submitAuthForm({ form, errorNode, submitText, loadingText, action
   try {
     const authResult = await action();
     storeAuthSession(authResult);
+    onSuccess?.(authResult);
     showAppView(authResult.user);
     await loadTrips();
   } catch (error) {
@@ -179,6 +202,48 @@ function handleLogout() {
 function setFormError(node, message) {
   node.textContent = message;
   node.hidden = !message;
+}
+
+function populateSavedLogin() {
+  const savedLogin = getSavedLogin();
+  const identifierInput = loginForm.elements.identifier;
+  const passwordInput = loginForm.elements.password;
+  const rememberInput = loginForm.elements.rememberLogin;
+
+  identifierInput.value = savedLogin?.identifier || "";
+  passwordInput.value = savedLogin?.password || "";
+  rememberInput.checked = Boolean(savedLogin);
+  differentAccountButton.hidden = !savedLogin;
+}
+
+function saveLoginPreference({ identifier, password, rememberLogin }) {
+  if (!rememberLogin) {
+    window.localStorage.removeItem(SAVED_LOGIN_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(
+    SAVED_LOGIN_STORAGE_KEY,
+    JSON.stringify({ identifier, password })
+  );
+}
+
+function clearSavedLogin() {
+  window.localStorage.removeItem(SAVED_LOGIN_STORAGE_KEY);
+  loginForm.elements.identifier.value = "";
+  loginForm.elements.password.value = "";
+  loginForm.elements.rememberLogin.checked = false;
+  differentAccountButton.hidden = true;
+  loginForm.elements.identifier.focus();
+}
+
+function getSavedLogin() {
+  try {
+    const raw = window.localStorage.getItem(SAVED_LOGIN_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 async function loadTrips() {

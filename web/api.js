@@ -53,10 +53,13 @@ export function clearAuthSession() {
   window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
 }
 
-export async function login({ email, password }) {
+export async function login({ identifier, email, password }) {
   return apiRequest(API_ROUTES.authLogin, {
     method: "POST",
-    body: { email, password }
+    body: {
+      identifier: identifier ?? email,
+      password
+    }
   });
 }
 

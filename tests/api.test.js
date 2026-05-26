@@ -35,6 +35,21 @@ test("login returns JWT and lists trips for the authenticated participant", asyn
   assert.equal(response.body.trips[0].budgetSummary.totalBudget, 900);
 });
 
+test("login accepts user id or email as the identifier", async () => {
+  const emailLogin = await loginAsDemoUser();
+  const idLogin = await request("/api/auth/login", {
+    method: "POST",
+    body: {
+      identifier: emailLogin.user.id,
+      password: "demo-password"
+    }
+  });
+
+  assert.equal(idLogin.status, 200);
+  assert.equal(idLogin.body.user.id, emailLogin.user.id);
+  assert.equal(idLogin.body.token.split(".").length, 3);
+});
+
 test("register returns a JWT and starts with no private trips", async () => {
   const response = await request("/api/auth/register", {
     method: "POST",

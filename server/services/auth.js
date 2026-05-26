@@ -35,9 +35,14 @@ export async function registerUser(input = {}) {
 }
 
 export async function loginUser(input = {}) {
-  requireFields(input, ["email", "password"]);
+  requireFields(input, ["password"]);
 
-  const userRecord = await findAuthUserByEmail(input.email);
+  const identifier = input.identifier ?? input.email;
+  if (!identifier) {
+    throw badRequest("Missing required field: identifier");
+  }
+
+  const userRecord = await findAuthUserByIdentifier(identifier);
   if (!userRecord || !verifyPassword(input.password, userRecord.passwordHash)) {
     throw unauthorized("Invalid credentials");
   }
@@ -158,6 +163,16 @@ async function findAuthUserByEmail(email) {
   }
 
   return findUserByEmail(email);
+}
+
+async function findAuthUserByIdentifier(identifier) {
+  const normalizedIdentifier = String(identifier || "").trim();
+
+  if (normalizedIdentifier.includes("@")) {
+    return findAuthUserByEmail(normalizedIdentifier);
+  }
+
+  return findAuthUserById(normalizedIdentifier);
 }
 
 async function findAuthUserById(userId) {
