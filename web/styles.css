@@ -477,6 +477,13 @@ label.field input {
   font-size: 0.95rem;
 }
 
+label.field input:disabled {
+  background: #faf6f8;
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+  cursor: not-allowed;
+}
+
 .radio-row {
   display: flex;
   gap: 0.5rem;
@@ -624,6 +631,18 @@ label.field input {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--accent-soft);
+}
+
+.avatar-trigger {
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+}
+
+.avatar-trigger:hover {
+  transform: none;
 }
 
 .modal-actions {

@@ -53,6 +53,7 @@ const profileClose = document.querySelector("#profile-close");
 const profileError = document.querySelector("#profile-error");
 const profileAvatarPreview = document.querySelector("#profile-avatar-preview");
 const profileAvatarFallback = document.querySelector("#profile-avatar-fallback");
+const profileAvatarTrigger = document.querySelector("#profile-avatar-trigger");
 const profilePreviewName = document.querySelector("#profile-preview-name");
 const profilePreviewId = document.querySelector("#profile-preview-id");
 const profileRemoveAvatar = document.querySelector("#profile-remove-avatar");
@@ -76,6 +77,7 @@ logoutButton.addEventListener("click", handleLogout);
 profileForm.addEventListener("submit", handleProfileSubmit);
 profileClose.addEventListener("click", closeProfileDialog);
 profileRemoveAvatar.addEventListener("click", removeProfileAvatar);
+profileAvatarTrigger.addEventListener("click", () => profileForm.elements.avatarFile.click());
 profileForm.elements.avatarFile.addEventListener("change", handleAvatarFileChange);
 profileDialog.addEventListener("click", (event) => {
   if (event.target === profileDialog) {
