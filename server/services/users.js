@@ -9,7 +9,7 @@ import {
 } from "../repositories/users.js";
 import { badRequest, notFound } from "../utils/errors.js";
 
-const MAX_AVATAR_DATA_URL_LENGTH = 900_000;
+const MAX_AVATAR_DATA_URL_LENGTH = 1_200_000;
 
 export async function getCurrentUserProfile(userId) {
   const user = isUserRepositoryEnabled()

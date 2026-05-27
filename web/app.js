@@ -64,7 +64,9 @@ const balancesPanel = document.querySelector("#balances-panel");
 let activeTripId = null;
 let profileAvatarDataUrl = "";
 const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
-const MAX_AVATAR_FILE_SIZE = 500_000;
+const MAX_AVATAR_FILE_SIZE = 8_000_000;
+const AVATAR_IMAGE_SIZE = 256;
+const AVATAR_IMAGE_QUALITY = 0.86;
 
 authTabs.forEach((tab) => {
   tab.addEventListener("click", () => showAuthMode(tab.dataset.authMode));
@@ -366,17 +368,22 @@ async function handleAvatarFileChange(event) {
   }
 
   if (file.size > MAX_AVATAR_FILE_SIZE) {
-    setFormError(profileError, "Profile photo must be 500 KB or smaller.");
+    setFormError(profileError, "Profile photo must be 8 MB or smaller.");
     event.target.value = "";
     return;
   }
 
-  profileAvatarDataUrl = await readFileAsDataUrl(file);
-  renderProfilePreview({
-    ...getStoredCurrentUser(),
-    displayName: profileForm.elements.displayName.value,
-    avatarUrl: profileAvatarDataUrl
-  });
+  try {
+    profileAvatarDataUrl = await createCompressedAvatarDataUrl(file);
+    renderProfilePreview({
+      ...getStoredCurrentUser(),
+      displayName: profileForm.elements.displayName.value,
+      avatarUrl: profileAvatarDataUrl
+    });
+  } catch (error) {
+    setFormError(profileError, error.message || "Unable to prepare profile photo.");
+    event.target.value = "";
+  }
 }
 
 function removeProfileAvatar() {
@@ -444,6 +451,44 @@ function readFileAsDataUrl(file) {
     reader.addEventListener("load", () => resolve(String(reader.result || "")));
     reader.addEventListener("error", () => reject(new Error("Unable to read profile photo.")));
     reader.readAsDataURL(file);
+  });
+}
+
+async function createCompressedAvatarDataUrl(file) {
+  const sourceUrl = await readFileAsDataUrl(file);
+  const image = await loadImage(sourceUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = AVATAR_IMAGE_SIZE;
+  canvas.height = AVATAR_IMAGE_SIZE;
+
+  const context = canvas.getContext("2d");
+  const sourceSize = Math.min(image.naturalWidth, image.naturalHeight);
+  const sourceX = Math.max((image.naturalWidth - sourceSize) / 2, 0);
+  const sourceY = Math.max((image.naturalHeight - sourceSize) / 2, 0);
+
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceSize,
+    sourceSize,
+    0,
+    0,
+    AVATAR_IMAGE_SIZE,
+    AVATAR_IMAGE_SIZE
+  );
+
+  return canvas.toDataURL("image/jpeg", AVATAR_IMAGE_QUALITY);
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", () => reject(new Error("Unable to load profile photo.")), {
+      once: true
+    });
+    image.src = src;
   });
 }
 
