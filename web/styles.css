@@ -658,16 +658,65 @@ label.field input:disabled {
 
 .avatar-view-overlay {
   z-index: 30;
+  background: rgba(15, 15, 15, 0.88);
+  backdrop-filter: none;
 }
 
 .avatar-view-modal {
-  width: min(420px, 100%);
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(92vw, 920px);
+  min-height: min(82vh, 720px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.avatar-view-close {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  z-index: 1;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #262626;
+  font-size: 1.6rem;
+  line-height: 1;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
 }
 
 .avatar-view-content {
   display: grid;
   place-items: center;
-  padding: 1rem 0 0.4rem;
+  width: 100%;
+  min-height: inherit;
+  padding: 1rem;
+}
+
+.avatar-view-content .avatar-image,
+.avatar-view-content .avatar-fallback {
+  width: min(82vw, 680px);
+  height: min(82vw, 680px);
+  max-height: 74vh;
+  border-radius: 12px;
+  border: 0;
+}
+
+.avatar-view-content .avatar-image {
+  object-fit: contain;
+  background: #111111;
+}
+
+.avatar-view-content .avatar-fallback {
+  font-size: clamp(4rem, 18vw, 9rem);
 }
 
 .modal-actions {

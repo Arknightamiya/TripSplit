@@ -207,14 +207,10 @@
     </div>
 
     <div id="avatar-view-dialog" class="modal-overlay avatar-view-overlay" hidden>
-      <div class="modal avatar-view-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-view-title">
-        <div class="panel-header">
-          <div>
-            <p class="eyebrow">Profile photo</p>
-            <h2 id="avatar-view-title">Avatar preview</h2>
-          </div>
-          <button type="button" id="avatar-view-close" class="button-ghost">Close</button>
-        </div>
+      <div class="avatar-view-modal" role="dialog" aria-modal="true" aria-label="Profile photo preview">
+        <button type="button" id="avatar-view-close" class="avatar-view-close" aria-label="Close preview">
+          ×
+        </button>
         <div class="avatar-view-content">
           <span id="avatar-view-fallback" class="avatar-fallback avatar-xl">TS</span>
           <img id="avatar-view-image" class="avatar-image avatar-xl" alt="" hidden />
