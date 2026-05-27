@@ -23,13 +23,12 @@ export async function registerUser(input = {}) {
   if (await findAuthUserByEmail(input.email)) {
     throw conflict("An account with this email already exists");
   }
-  if (await findAuthUserByName(input.name)) {
-    throw conflict("An account with this username already exists");
-  }
+
+  const assignedUserId = await assignUserId(input.name);
 
   const userRecord = await createAuthUser({
-    name: input.name,
-    displayName: input.displayName || input.name,
+    name: assignedUserId,
+    displayName: input.displayName || assignedUserId,
     email: input.email,
     passwordHash: hashPassword(input.password)
   });
@@ -198,6 +197,30 @@ async function findAuthUserByName(name) {
   }
 
   return findUserByName(name);
+}
+
+async function assignUserId(requestedUserId) {
+  const baseUserId = normalizeUserIdBase(requestedUserId);
+  if (!baseUserId) {
+    throw badRequest("User ID is required");
+  }
+
+  let discriminator = (await findAuthUserByName(baseUserId)) ? 2 : 1;
+  let candidate = `${baseUserId}#${discriminator}`;
+
+  while (await findAuthUserByName(candidate)) {
+    discriminator += 1;
+    candidate = `${baseUserId}#${discriminator}`;
+  }
+
+  return candidate;
+}
+
+function normalizeUserIdBase(userId) {
+  return String(userId || "")
+    .trim()
+    .replace(/#\d+$/, "")
+    .trim();
 }
 
 function toSafeUser(user) {

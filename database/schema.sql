@@ -23,6 +23,45 @@ UPDATE users
 SET display_name = name
 WHERE display_name IS NULL OR display_name = '';
 
+WITH existing_suffixes AS (
+  SELECT
+    LOWER(REGEXP_REPLACE(name, '#[0-9]+$', '')) AS base_name,
+    MAX(
+      CASE
+        WHEN name ~ '#[0-9]+$' THEN SUBSTRING(name FROM '#([0-9]+)$')::INTEGER
+        ELSE 0
+      END
+    ) AS max_suffix
+  FROM users
+  GROUP BY LOWER(REGEXP_REPLACE(name, '#[0-9]+$', ''))
+),
+unsuffixed_users AS (
+  SELECT
+    users.id,
+    users.name,
+    ROW_NUMBER() OVER (PARTITION BY LOWER(users.name) ORDER BY users.id) AS base_rank,
+    COALESCE(existing_suffixes.max_suffix, 0) AS max_suffix
+  FROM users
+  LEFT JOIN existing_suffixes
+    ON existing_suffixes.base_name = LOWER(users.name)
+  WHERE users.name !~ '#[0-9]+$'
+)
+UPDATE users
+SET
+  name = unsuffixed_users.name || '#' || (unsuffixed_users.max_suffix + unsuffixed_users.base_rank),
+  display_name = CASE
+    WHEN users.display_name IS NULL
+      OR users.display_name = ''
+      OR users.display_name = users.name
+    THEN unsuffixed_users.name || '#' || (unsuffixed_users.max_suffix + unsuffixed_users.base_rank)
+    ELSE users.display_name
+  END
+FROM unsuffixed_users
+WHERE users.id = unsuffixed_users.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_name_unique
+  ON users (LOWER(name));
+
 CREATE TABLE IF NOT EXISTS trips (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,

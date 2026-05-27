@@ -62,8 +62,8 @@ test("register returns a JWT and starts with no private trips", async () => {
 
   assert.equal(response.status, 201);
   assert.equal(response.body.user.email, "taylor@example.com");
-  assert.equal(response.body.user.userId, "Taylor New");
-  assert.equal(response.body.user.displayName, "Taylor New");
+  assert.equal(response.body.user.userId, "Taylor New#1");
+  assert.equal(response.body.user.displayName, "Taylor New#1");
   assert.equal(response.body.user.avatarUrl, "");
   assert.equal(response.body.user.passwordHash, undefined);
   assert.equal(response.body.token.split(".").length, 3);
@@ -74,6 +74,25 @@ test("register returns a JWT and starts with no private trips", async () => {
 
   assert.equal(tripsResponse.status, 200);
   assert.deepEqual(tripsResponse.body.trips, []);
+});
+
+test("registration assigns Discord-style user ID discriminators", async () => {
+  const first = await registerUser({
+    name: "miya",
+    email: "miya-one@example.com"
+  });
+  const second = await registerUser({
+    name: "miya",
+    email: "miya-two@example.com"
+  });
+  const withTypedSuffix = await registerUser({
+    name: "miya#99",
+    email: "miya-three@example.com"
+  });
+
+  assert.equal(first.user.userId, "miya#1");
+  assert.equal(second.user.userId, "miya#2");
+  assert.equal(withTypedSuffix.user.userId, "miya#3");
 });
 
 test("authenticated user can update profile display name and avatar", async () => {
@@ -101,16 +120,24 @@ test("authenticated user can update profile display name and avatar", async () =
       password: "demo-password"
     }
   });
+  const fullUserIdLoginResponse = await request("/api/auth/login", {
+    method: "POST",
+    body: {
+      identifier: "ProfileUser#1",
+      password: "demo-password"
+    }
+  });
 
   assert.equal(updateResponse.status, 200);
-  assert.equal(updateResponse.body.user.userId, "ProfileUser");
-  assert.equal(updateResponse.body.user.name, "ProfileUser");
+  assert.equal(updateResponse.body.user.userId, "ProfileUser#1");
+  assert.equal(updateResponse.body.user.name, "ProfileUser#1");
   assert.equal(updateResponse.body.user.displayName, "Miya Traveler");
   assert.equal(updateResponse.body.user.avatarUrl, avatarUrl);
   assert.equal(profileResponse.status, 200);
   assert.equal(profileResponse.body.user.displayName, "Miya Traveler");
-  assert.equal(loginResponse.status, 200);
-  assert.equal(loginResponse.body.user.userId, "ProfileUser");
+  assert.equal(loginResponse.status, 401);
+  assert.equal(fullUserIdLoginResponse.status, 200);
+  assert.equal(fullUserIdLoginResponse.body.user.userId, "ProfileUser#1");
 });
 
 test("profile update keeps nickname required and rejects non-image avatars", async () => {
