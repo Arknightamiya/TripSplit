@@ -173,6 +173,276 @@ test("profile update keeps nickname required and rejects non-image avatars", asy
   });
 });
 
+test("friend request flow adds friends for both users", async () => {
+  const alice = await registerUser({
+    name: "FriendAlice",
+    email: "friend-alice@example.com"
+  });
+  const bob = await registerUser({
+    name: "FriendBob",
+    email: "friend-bob@example.com"
+  });
+
+  const selfRequest = await request("/api/friends/requests", {
+    method: "POST",
+    headers: authHeaders(alice.token),
+    body: {
+      identifier: alice.user.userId
+    }
+  });
+  const sendRequest = await request("/api/friends/requests", {
+    method: "POST",
+    headers: authHeaders(alice.token),
+    body: {
+      identifier: bob.user.email
+    }
+  });
+  const duplicateRequest = await request("/api/friends/requests", {
+    method: "POST",
+    headers: authHeaders(alice.token),
+    body: {
+      identifier: bob.user.email
+    }
+  });
+  const bobOverviewBeforeAccept = await request("/api/friends", {
+    headers: authHeaders(bob.token)
+  });
+  const acceptResponse = await request(
+    `/api/friends/requests/${bobOverviewBeforeAccept.body.incomingRequests[0].id}/accept`,
+    {
+      method: "POST",
+      headers: authHeaders(bob.token)
+    }
+  );
+  const aliceOverview = await request("/api/friends", {
+    headers: authHeaders(alice.token)
+  });
+  const bobOverview = await request("/api/friends", {
+    headers: authHeaders(bob.token)
+  });
+
+  assert.equal(selfRequest.status, 400);
+  assert.equal(sendRequest.status, 201);
+  assert.equal(sendRequest.body.request.requester.id, alice.user.id);
+  assert.equal(sendRequest.body.request.recipient.id, bob.user.id);
+  assert.equal(duplicateRequest.status, 409);
+  assert.equal(bobOverviewBeforeAccept.status, 200);
+  assert.equal(bobOverviewBeforeAccept.body.incomingRequests.length, 1);
+  assert.equal(acceptResponse.status, 200);
+  assert.equal(acceptResponse.body.request.status, "accepted");
+  assert.equal(aliceOverview.body.friends.length, 1);
+  assert.equal(aliceOverview.body.friends[0].id, bob.user.id);
+  assert.equal(bobOverview.body.friends.length, 1);
+  assert.equal(bobOverview.body.friends[0].id, alice.user.id);
+});
+
+test("declined friend request does not create friendship", async () => {
+  const alice = await registerUser({
+    name: "DeclineAlice",
+    email: "decline-alice@example.com"
+  });
+  const bob = await registerUser({
+    name: "DeclineBob",
+    email: "decline-bob@example.com"
+  });
+
+  await request("/api/friends/requests", {
+    method: "POST",
+    headers: authHeaders(alice.token),
+    body: {
+      identifier: bob.user.userId
+    }
+  });
+  const bobOverviewBeforeDecline = await request("/api/friends", {
+    headers: authHeaders(bob.token)
+  });
+  const declineResponse = await request(
+    `/api/friends/requests/${bobOverviewBeforeDecline.body.incomingRequests[0].id}/decline`,
+    {
+      method: "POST",
+      headers: authHeaders(bob.token)
+    }
+  );
+  const bobOverview = await request("/api/friends", {
+    headers: authHeaders(bob.token)
+  });
+
+  assert.equal(declineResponse.status, 200);
+  assert.equal(declineResponse.body.request.status, "declined");
+  assert.deepEqual(bobOverview.body.friends, []);
+  assert.deepEqual(bobOverview.body.incomingRequests, []);
+});
+
+test("friends can request to join public trips", async () => {
+  const organizer = await registerUser({
+    name: "PublicTripOwner",
+    email: "public-owner@example.com"
+  });
+  const friend = await registerUser({
+    name: "PublicTripFriend",
+    email: "public-friend@example.com"
+  });
+  const outsider = await registerUser({
+    name: "PublicTripOutsider",
+    email: "public-outsider@example.com"
+  });
+
+  await request("/api/friends/requests", {
+    method: "POST",
+    headers: authHeaders(friend.token),
+    body: {
+      identifier: organizer.user.userId
+    }
+  });
+  const organizerOverviewBeforeAccept = await request("/api/friends", {
+    headers: authHeaders(organizer.token)
+  });
+  await request(
+    `/api/friends/requests/${organizerOverviewBeforeAccept.body.incomingRequests[0].id}/accept`,
+    {
+      method: "POST",
+      headers: authHeaders(organizer.token)
+    }
+  );
+
+  const publicTripResponse = await request("/api/trips", {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      name: "Public Yosemite Trip",
+      visibility: "public"
+    }
+  });
+  const privateTripResponse = await request("/api/trips", {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      name: "Private Vegas Trip",
+      visibility: "private"
+    }
+  });
+  const friendProfile = await request(`/api/friends/${organizer.user.id}`, {
+    headers: authHeaders(friend.token)
+  });
+  const outsiderJoinResponse = await request(
+    `/api/friends/trips/${publicTripResponse.body.trip.id}/join-requests`,
+    {
+      method: "POST",
+      headers: authHeaders(outsider.token)
+    }
+  );
+  const friendJoinResponse = await request(
+    `/api/friends/trips/${publicTripResponse.body.trip.id}/join-requests`,
+    {
+      method: "POST",
+      headers: authHeaders(friend.token)
+    }
+  );
+  const organizerOverview = await request("/api/friends", {
+    headers: authHeaders(organizer.token)
+  });
+  const acceptJoinResponse = await request(
+    `/api/friends/trip-join-requests/${organizerOverview.body.tripJoinRequests[0].id}/accept`,
+    {
+      method: "POST",
+      headers: authHeaders(organizer.token)
+    }
+  );
+  const friendTripDetail = await request(`/api/trips/${publicTripResponse.body.trip.id}`, {
+    headers: authHeaders(friend.token)
+  });
+  const hiddenPrivateTrip = await request(`/api/trips/${privateTripResponse.body.trip.id}`, {
+    headers: authHeaders(friend.token)
+  });
+
+  assert.equal(publicTripResponse.status, 201);
+  assert.equal(publicTripResponse.body.trip.visibility, "public");
+  assert.equal(privateTripResponse.status, 201);
+  assert.equal(friendProfile.status, 200);
+  assert.equal(friendProfile.body.publicTrips.length, 1);
+  assert.equal(friendProfile.body.publicTrips[0].id, publicTripResponse.body.trip.id);
+  assert.equal(outsiderJoinResponse.status, 403);
+  assert.equal(friendJoinResponse.status, 201);
+  assert.equal(organizerOverview.body.tripJoinRequests.length, 1);
+  assert.equal(acceptJoinResponse.status, 200);
+  assert.equal(acceptJoinResponse.body.request.status, "accepted");
+  assert.equal(friendTripDetail.status, 200);
+  assert.equal(friendTripDetail.body.trip.id, publicTripResponse.body.trip.id);
+  assert.equal(hiddenPrivateTrip.status, 403);
+});
+
+test("deleting a friend is one-way and hides public trips from the deleted user", async () => {
+  const organizer = await registerUser({
+    name: "DeleteFriendOwner",
+    email: "delete-friend-owner@example.com"
+  });
+  const friend = await registerUser({
+    name: "DeleteFriendViewer",
+    email: "delete-friend-viewer@example.com"
+  });
+
+  await request("/api/friends/requests", {
+    method: "POST",
+    headers: authHeaders(friend.token),
+    body: {
+      identifier: organizer.user.userId
+    }
+  });
+  const organizerOverviewBeforeAccept = await request("/api/friends", {
+    headers: authHeaders(organizer.token)
+  });
+  await request(
+    `/api/friends/requests/${organizerOverviewBeforeAccept.body.incomingRequests[0].id}/accept`,
+    {
+      method: "POST",
+      headers: authHeaders(organizer.token)
+    }
+  );
+
+  const publicTripResponse = await request("/api/trips", {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      name: "Visible Before Delete",
+      visibility: "public"
+    }
+  });
+  const friendProfileBeforeDelete = await request(`/api/friends/${organizer.user.id}`, {
+    headers: authHeaders(friend.token)
+  });
+  const deleteResponse = await request(`/api/friends/${friend.user.id}`, {
+    method: "DELETE",
+    headers: authHeaders(organizer.token)
+  });
+  const organizerOverviewAfterDelete = await request("/api/friends", {
+    headers: authHeaders(organizer.token)
+  });
+  const friendOverviewAfterDelete = await request("/api/friends", {
+    headers: authHeaders(friend.token)
+  });
+  const friendProfileAfterDelete = await request(`/api/friends/${organizer.user.id}`, {
+    headers: authHeaders(friend.token)
+  });
+  const joinAfterDelete = await request(
+    `/api/friends/trips/${publicTripResponse.body.trip.id}/join-requests`,
+    {
+      method: "POST",
+      headers: authHeaders(friend.token)
+    }
+  );
+
+  assert.equal(friendProfileBeforeDelete.status, 200);
+  assert.equal(friendProfileBeforeDelete.body.publicTrips.length, 1);
+  assert.equal(deleteResponse.status, 200);
+  assert.equal(deleteResponse.body.removed, true);
+  assert.equal(organizerOverviewAfterDelete.body.friends.length, 0);
+  assert.equal(friendOverviewAfterDelete.body.friends.length, 1);
+  assert.equal(friendOverviewAfterDelete.body.friends[0].id, organizer.user.id);
+  assert.equal(friendProfileAfterDelete.status, 200);
+  assert.equal(friendProfileAfterDelete.body.publicTrips.length, 0);
+  assert.equal(joinAfterDelete.status, 403);
+});
+
 test("duplicate registration is rejected", async () => {
   const response = await request("/api/auth/register", {
     method: "POST",
@@ -205,6 +475,72 @@ test("trip creation uses the token user as organizer", async () => {
   assert.equal(response.status, 201);
   assert.equal(response.body.trip.organizerId, user.id);
   assert.deepEqual(response.body.trip.participantIds, [user.id]);
+});
+
+test("organizer can update trip destination, dates, and visibility", async () => {
+  const { token } = await loginAsDemoUser();
+  const createResponse = await request("/api/trips", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      name: "Draft Trip",
+      destination: "Draft Trip",
+      startDate: "2026-06-01",
+      endDate: "2026-06-05",
+      visibility: "public"
+    }
+  });
+  const tripId = createResponse.body.trip.id;
+
+  const updateResponse = await request(`/api/trips/${tripId}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: {
+      name: "Big Bear Weekend",
+      destination: "Big Bear Weekend",
+      startDate: "2026-05-27",
+      endDate: "2026-06-27",
+      visibility: "private"
+    }
+  });
+  const detailResponse = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(token)
+  });
+  const listResponse = await request("/api/trips", {
+    headers: authHeaders(token)
+  });
+  const listTrip = listResponse.body.trips.find((trip) => trip.id === tripId);
+
+  assert.equal(updateResponse.status, 200);
+  assert.equal(updateResponse.body.trip.name, "Big Bear Weekend");
+  assert.equal(updateResponse.body.trip.startDate, "2026-05-27");
+  assert.equal(updateResponse.body.trip.endDate, "2026-06-27");
+  assert.equal(updateResponse.body.trip.visibility, "private");
+  assert.equal(detailResponse.body.trip.destination, "Big Bear Weekend");
+  assert.equal(listTrip.visibility, "private");
+  assert.equal(listTrip.startDate, "2026-05-27");
+  assert.equal(listTrip.budgetSummary, null);
+});
+
+test("regular participants cannot update trip metadata", async () => {
+  const { token } = await loginAsDemoUser({
+    email: "sam@example.com",
+    password: "demo-password"
+  });
+
+  const response = await request("/api/trips/trip_4", {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: {
+      name: "Blocked Rename",
+      visibility: "public"
+    }
+  });
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(response.body, {
+    error: "Only an organizer can perform this action"
+  });
 });
 
 test("non-participant cannot view private trip details", async () => {
@@ -308,6 +644,242 @@ test("organizer can add an existing user by id", async () => {
   assert.equal(participant.email, "riley-existing@example.com");
   assert.equal(participant.role, "participant");
   assert.equal(participant.joinStatus, "approved");
+});
+
+test("trip invitation stays pending and does not increase approved participant count", async () => {
+  const organizer = await registerUser({
+    name: "InviteOwner",
+    email: "invite-owner@example.com"
+  });
+  const invitee = await registerUser({
+    name: "InvitePending",
+    email: "invite-pending@example.com"
+  });
+  const tripId = await createTrip(organizer.token);
+
+  const inviteResponse = await request(`/api/trips/${tripId}/invitations`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: invitee.user.id
+    }
+  });
+  const listResponse = await request("/api/trips", {
+    headers: authHeaders(organizer.token)
+  });
+  const inviteeTripBeforeAccept = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(invitee.token)
+  });
+  const inviteeOverview = await request("/api/friends", {
+    headers: authHeaders(invitee.token)
+  });
+
+  assert.equal(inviteResponse.status, 200);
+  const pendingParticipant = inviteResponse.body.trip.participants.find(
+    (participant) => participant.id === invitee.user.id
+  );
+  assert.equal(pendingParticipant.joinStatus, "pending");
+  assert.equal(pendingParticipant.role, "participant");
+  assert.equal(
+    listResponse.body.trips.find((trip) => trip.id === tripId).participantCount,
+    1
+  );
+  assert.equal(inviteeTripBeforeAccept.status, 403);
+  assert.equal(inviteeOverview.body.tripInvitations.length, 1);
+  assert.equal(inviteeOverview.body.tripInvitations[0].trip.id, tripId);
+});
+
+test("invited user can accept or decline trip invitations", async () => {
+  const organizer = await registerUser({
+    name: "InviteActionOwner",
+    email: "invite-action-owner@example.com"
+  });
+  const acceptingInvitee = await registerUser({
+    name: "InviteAccepting",
+    email: "invite-accepting@example.com"
+  });
+  const decliningInvitee = await registerUser({
+    name: "InviteDeclining",
+    email: "invite-declining@example.com"
+  });
+  const tripId = await createTrip(organizer.token);
+
+  await request(`/api/trips/${tripId}/invitations`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: acceptingInvitee.user.id
+    }
+  });
+  await request(`/api/trips/${tripId}/invitations`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: decliningInvitee.user.id
+    }
+  });
+
+  const acceptResponse = await request(`/api/friends/trip-invitations/${tripId}/accept`, {
+    method: "POST",
+    headers: authHeaders(acceptingInvitee.token)
+  });
+  const declineResponse = await request(`/api/friends/trip-invitations/${tripId}/decline`, {
+    method: "POST",
+    headers: authHeaders(decliningInvitee.token)
+  });
+  const acceptedTripDetail = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(acceptingInvitee.token)
+  });
+  const declinedTripDetail = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(decliningInvitee.token)
+  });
+  const organizerTripDetail = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(organizer.token)
+  });
+
+  assert.equal(acceptResponse.status, 200);
+  assert.equal(acceptResponse.body.invitation.status, "accepted");
+  assert.equal(declineResponse.status, 200);
+  assert.equal(declineResponse.body.invitation.status, "declined");
+  assert.equal(acceptedTripDetail.status, 200);
+  assert.equal(declinedTripDetail.status, 403);
+  assert.equal(
+    acceptedTripDetail.body.trip.participants.find(
+      (participant) => participant.id === acceptingInvitee.user.id
+    ).joinStatus,
+    "approved"
+  );
+  assert.equal(
+    organizerTripDetail.body.trip.participants.some(
+      (participant) => participant.id === decliningInvitee.user.id
+    ),
+    false
+  );
+});
+
+test("organizer can remove pending invitations and approved participants", async () => {
+  const organizer = await registerUser({
+    name: "RemoveOwner",
+    email: "remove-owner@example.com"
+  });
+  const pendingInvitee = await registerUser({
+    name: "RemovePending",
+    email: "remove-pending@example.com"
+  });
+  const approvedMember = await registerUser({
+    name: "RemoveMember",
+    email: "remove-member@example.com"
+  });
+  const tripId = await createTrip(organizer.token);
+
+  await request(`/api/trips/${tripId}/invitations`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: pendingInvitee.user.id
+    }
+  });
+  await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: approvedMember.user.id
+    }
+  });
+
+  const removePendingResponse = await request(
+    `/api/trips/${tripId}/participants/${pendingInvitee.user.id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(organizer.token)
+    }
+  );
+  const removeApprovedResponse = await request(
+    `/api/trips/${tripId}/participants/${approvedMember.user.id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(organizer.token)
+    }
+  );
+  const organizerTripDetail = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(organizer.token)
+  });
+  const pendingInviteeOverview = await request("/api/friends", {
+    headers: authHeaders(pendingInvitee.token)
+  });
+  const organizerTripList = await request("/api/trips", {
+    headers: authHeaders(organizer.token)
+  });
+
+  assert.equal(removePendingResponse.status, 200);
+  assert.equal(removePendingResponse.body.removedParticipantId, pendingInvitee.user.id);
+  assert.equal(removeApprovedResponse.status, 200);
+  assert.equal(removeApprovedResponse.body.removedParticipantId, approvedMember.user.id);
+  assert.equal(
+    organizerTripDetail.body.trip.participants.some(
+      (participant) =>
+        participant.id === pendingInvitee.user.id ||
+        participant.id === approvedMember.user.id
+    ),
+    false
+  );
+  assert.equal(pendingInviteeOverview.body.tripInvitations.length, 0);
+  assert.equal(
+    organizerTripList.body.trips.find((trip) => trip.id === tripId).participantCount,
+    1
+  );
+});
+
+test("organizer cannot remove themselves or members who paid expenses", async () => {
+  const { token, user } = await loginAsDemoUser();
+  const participant = await registerUser({
+    name: "PaidMember",
+    email: "paid-member@example.com"
+  });
+  const tripId = await createTrip(token);
+
+  await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      userId: participant.user.id
+    }
+  });
+  await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Paid Dinner",
+      amount: 120,
+      category: "food",
+      expenseType: "shared",
+      payerId: participant.user.id
+    }
+  });
+
+  const removeOrganizerResponse = await request(
+    `/api/trips/${tripId}/participants/${user.id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token)
+    }
+  );
+  const removePayerResponse = await request(
+    `/api/trips/${tripId}/participants/${participant.user.id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token)
+    }
+  );
+
+  assert.equal(removeOrganizerResponse.status, 400);
+  assert.deepEqual(removeOrganizerResponse.body, {
+    error: "Organizer cannot be removed from the trip"
+  });
+  assert.equal(removePayerResponse.status, 409);
+  assert.deepEqual(removePayerResponse.body, {
+    error: "Cannot remove a participant who paid expenses"
+  });
 });
 
 test("organizer cannot add a duplicate approved participant", async () => {

@@ -10,6 +10,7 @@ export async function createTripRecord({
   destination,
   startDate,
   endDate,
+  visibility,
   organizerId
 }) {
   const database = getDatabase();
@@ -19,11 +20,18 @@ export async function createTripRecord({
 
     const tripResult = await database.query(
       `
-        INSERT INTO trips (name, destination, start_date, end_date, organizer_id)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO trips (name, destination, start_date, end_date, visibility, organizer_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
       `,
-      [name, destination || null, startDate || null, endDate || null, organizerId]
+      [
+        name,
+        destination || null,
+        startDate || null,
+        endDate || null,
+        visibility === "public" ? "public" : "private",
+        organizerId
+      ]
     );
     const tripId = tripResult.rows[0].id;
 
@@ -60,6 +68,121 @@ export async function addParticipantRecord(tripId, { userId, role }) {
   );
 
   return findTripRecordById(tripId);
+}
+
+export async function inviteParticipantRecord(tripId, { userId, role = "participant" }) {
+  await getDatabase().query(
+    `
+      INSERT INTO trip_participants (trip_id, user_id, role, join_status)
+      VALUES ($1, $2, $3, 'pending')
+      ON CONFLICT (trip_id, user_id)
+      DO UPDATE SET
+        role = CASE
+          WHEN trip_participants.role = 'organizer' THEN 'organizer'
+          ELSE EXCLUDED.role
+        END,
+        join_status = CASE
+          WHEN trip_participants.join_status = 'approved' THEN 'approved'
+          ELSE 'pending'
+        END
+    `,
+    [tripId, userId, role]
+  );
+
+  return findTripRecordById(tripId);
+}
+
+export async function findTripParticipantRecord(tripId, userId) {
+  const result = await getDatabase().query(
+    `
+      SELECT trip_id, user_id, role, join_status
+      FROM trip_participants
+      WHERE trip_id = $1
+        AND user_id = $2
+      LIMIT 1
+    `,
+    [tripId, userId]
+  );
+
+  const row = result.rows[0];
+  return row
+    ? {
+        tripId: String(row.trip_id),
+        userId: String(row.user_id),
+        role: row.role,
+        joinStatus: row.join_status
+      }
+    : null;
+}
+
+export async function removeParticipantRecord(tripId, userId) {
+  const trip = await findTripRecordById(tripId);
+  if (!trip) {
+    return null;
+  }
+
+  const result = await getDatabase().transaction(async (client) => {
+    await client.query(
+      `
+        DELETE FROM balance_summaries
+        WHERE trip_id = $1
+          AND participant_id = $2
+      `,
+      [tripId, userId]
+    );
+    await client.query(
+      `
+        DELETE FROM expense_shares
+        WHERE trip_id = $1
+          AND participant_id = $2
+      `,
+      [tripId, userId]
+    );
+    return client.query(
+      `
+        DELETE FROM trip_participants
+        WHERE trip_id = $1
+          AND user_id = $2
+          AND role <> 'organizer'
+        RETURNING user_id
+      `,
+      [tripId, userId]
+    );
+  });
+
+  return result.rowCount > 0 ? findTripRecordById(tripId) : null;
+}
+
+export async function updateTripRecord(tripId, {
+  name,
+  destination,
+  startDate,
+  endDate,
+  visibility
+}) {
+  const result = await getDatabase().query(
+    `
+      UPDATE trips
+      SET
+        name = $2,
+        destination = $3,
+        start_date = $4,
+        end_date = $5,
+        visibility = $6
+      WHERE id = $1
+      RETURNING id
+    `,
+    [
+      tripId,
+      name,
+      destination || null,
+      startDate || null,
+      endDate || null,
+      visibility === "public" ? "public" : "private"
+    ]
+  );
+
+  return result.rows[0] ? findTripRecordById(tripId) : null;
 }
 
 export async function setBudgetRecord(tripId, budgetInput) {
@@ -117,7 +240,10 @@ export async function listTripSummaryRecordsForUser(userId) {
         t.destination,
         t.start_date,
         t.end_date,
+        t.visibility,
         t.organizer_id,
+        organizer.name AS organizer_name,
+        organizer.display_name AS organizer_display_name,
         b.mode,
         b.total_budget,
         b.per_person_budget,
@@ -139,6 +265,7 @@ export async function listTripSummaryRecordsForUser(userId) {
         ), 0) AS total_spent
       FROM trips t
       JOIN trip_participants tp ON tp.trip_id = t.id
+      JOIN users organizer ON organizer.id = t.organizer_id
       LEFT JOIN budgets b ON b.trip_id = t.id
       WHERE tp.user_id = $1
         AND tp.join_status = 'approved'
@@ -159,6 +286,7 @@ export async function findTripRecordById(tripId) {
         t.destination,
         t.start_date,
         t.end_date,
+        t.visibility,
         t.organizer_id,
         b.mode,
         b.total_budget,
@@ -244,7 +372,9 @@ async function listParticipantRecordsForTrip(tripId) {
       SELECT
         u.id,
         u.name,
+        u.display_name,
         u.email,
+        u.avatar_url,
         tp.role,
         tp.join_status
       FROM trip_participants tp
@@ -258,7 +388,10 @@ async function listParticipantRecordsForTrip(tripId) {
   return result.rows.map((row) => ({
     id: String(row.id),
     name: row.name,
+    displayName: row.display_name || row.name,
+    userId: row.name,
     email: row.email,
+    avatarUrl: row.avatar_url || "",
     role: row.role,
     joinStatus: row.join_status
   }));
@@ -274,7 +407,9 @@ function mapTripSummaryRow(row) {
     destination: row.destination || "TBD",
     startDate: formatDate(row.start_date),
     endDate: formatDate(row.end_date),
+    visibility: row.visibility || "private",
     organizerId: String(row.organizer_id),
+    organizerName: row.organizer_display_name || row.organizer_name || "Organizer",
     participantCount,
     expenseCount: Number(row.expense_count),
     budgetSummary: buildBudgetSummary(row, participantCount, totalSpent)
@@ -290,6 +425,7 @@ function mapTripDetailRow(row, participants, participantCount, expenses = []) {
     destination: row.destination || "TBD",
     startDate: formatDate(row.start_date),
     endDate: formatDate(row.end_date),
+    visibility: row.visibility || "private",
     organizerId: String(row.organizer_id),
     participantIds: participants
       .filter((participant) => participant.joinStatus === "approved")
