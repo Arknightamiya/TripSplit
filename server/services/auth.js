@@ -23,12 +23,12 @@ export async function registerUser(input = {}) {
   if (await findAuthUserByEmail(input.email)) {
     throw conflict("An account with this email already exists");
   }
-  if (await findAuthUserByName(input.name)) {
-    throw conflict("An account with this username already exists");
-  }
+
+  const assignedUserId = await assignUserId(input.name);
 
   const userRecord = await createAuthUser({
-    name: input.name,
+    name: assignedUserId,
+    displayName: input.displayName || assignedUserId,
     email: input.email,
     passwordHash: hashPassword(input.password)
   });
@@ -154,12 +154,12 @@ function getJwtSecret() {
   return process.env.JWT_SECRET || "tripsplit-local-development-secret";
 }
 
-async function createAuthUser({ name, email, passwordHash }) {
+async function createAuthUser({ name, displayName, email, passwordHash }) {
   if (isUserRepositoryEnabled()) {
-    return createUserRecord({ name, email, passwordHash });
+    return createUserRecord({ name, displayName, email, passwordHash });
   }
 
-  return createUser({ name, email, passwordHash });
+  return createUser({ name, displayName, email, passwordHash });
 }
 
 async function findAuthUserByEmail(email) {
@@ -199,10 +199,37 @@ async function findAuthUserByName(name) {
   return findUserByName(name);
 }
 
+async function assignUserId(requestedUserId) {
+  const baseUserId = normalizeUserIdBase(requestedUserId);
+  if (!baseUserId) {
+    throw badRequest("User ID is required");
+  }
+
+  let discriminator = (await findAuthUserByName(baseUserId)) ? 2 : 1;
+  let candidate = `${baseUserId}#${discriminator}`;
+
+  while (await findAuthUserByName(candidate)) {
+    discriminator += 1;
+    candidate = `${baseUserId}#${discriminator}`;
+  }
+
+  return candidate;
+}
+
+function normalizeUserIdBase(userId) {
+  return String(userId || "")
+    .trim()
+    .replace(/#\d+$/, "")
+    .trim();
+}
+
 function toSafeUser(user) {
   return {
     id: user.id,
+    userId: user.userId || user.name,
     name: user.name,
-    email: user.email
+    displayName: user.displayName || user.name,
+    email: user.email,
+    avatarUrl: user.avatarUrl || ""
   };
 }

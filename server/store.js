@@ -22,15 +22,30 @@ export function listUsers() {
   return clone(state.users.map(toSafeUser));
 }
 
-export function createUser({ name, email, passwordHash }) {
+export function createUser({ name, email, passwordHash, displayName, avatarUrl }) {
+  const normalizedName = normalizeText(name) || "Unnamed User";
   const user = {
     id: createId("user"),
-    name: normalizeText(name) || "Unnamed User",
+    name: normalizedName,
+    displayName: normalizeText(displayName) || normalizedName,
     email: normalizeEmail(email),
-    passwordHash
+    passwordHash,
+    avatarUrl: normalizeText(avatarUrl) || ""
   };
 
   state.users.push(user);
+  return clone(toSafeUser(user));
+}
+
+export function updateUserProfile(userId, { displayName, avatarUrl }) {
+  const user = state.users.find((entry) => entry.id === userId);
+  if (!user) {
+    return null;
+  }
+
+  user.displayName = normalizeText(displayName) || user.name;
+  user.avatarUrl = normalizeText(avatarUrl) || "";
+
   return clone(toSafeUser(user));
 }
 
@@ -376,8 +391,11 @@ function normalizeText(value) {
 function toSafeUser(user) {
   return {
     id: user.id,
+    userId: user.name,
     name: user.name,
-    email: user.email
+    displayName: user.displayName || user.name,
+    email: user.email,
+    avatarUrl: user.avatarUrl || ""
   };
 }
 

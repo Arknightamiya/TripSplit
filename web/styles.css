@@ -30,7 +30,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -156,13 +157,67 @@ input {
   box-shadow: var(--shadow);
 }
 
-.user-menu div {
+.profile-summary > span {
   display: grid;
   gap: 0.1rem;
 }
 
 #current-user-name {
   font-weight: 700;
+}
+
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.25rem 0.35rem;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.profile-summary:hover {
+  background: var(--accent-soft);
+}
+
+.avatar-fallback,
+.avatar-image {
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.avatar-fallback[hidden],
+.avatar-image[hidden] {
+  display: none;
+}
+
+.avatar-fallback {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--on-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.avatar-image {
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.avatar-large {
+  width: 4.5rem;
+  height: 4.5rem;
+  font-size: 1.1rem;
+}
+
+.avatar-xl {
+  width: min(17rem, 68vw);
+  height: min(17rem, 68vw);
+  font-size: clamp(2.4rem, 12vw, 4rem);
 }
 
 .eyebrow {
@@ -433,6 +488,13 @@ label.field input {
   font-size: 0.95rem;
 }
 
+label.field input:disabled {
+  background: #faf6f8;
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+  cursor: not-allowed;
+}
+
 .radio-row {
   display: flex;
   gap: 0.5rem;
@@ -565,6 +627,96 @@ label.field input {
 
 .modal h2 {
   margin-bottom: 0.5rem;
+}
+
+.profile-modal {
+  width: min(520px, 100%);
+}
+
+.profile-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.8rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.avatar-trigger {
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+}
+
+.avatar-trigger:hover {
+  transform: none;
+}
+
+.avatar-view-overlay {
+  z-index: 30;
+  background: rgba(15, 15, 15, 0.88);
+  backdrop-filter: none;
+}
+
+.avatar-view-modal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(92vw, 920px);
+  min-height: min(82vh, 720px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.avatar-view-close {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  z-index: 1;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #262626;
+  font-size: 1.6rem;
+  line-height: 1;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+}
+
+.avatar-view-content {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: inherit;
+  padding: 1rem;
+}
+
+.avatar-view-content .avatar-image,
+.avatar-view-content .avatar-fallback {
+  width: min(82vw, 680px);
+  height: min(82vw, 680px);
+  max-height: 74vh;
+  border-radius: 12px;
+  border: 0;
+}
+
+.avatar-view-content .avatar-image {
+  object-fit: contain;
+  background: #111111;
+}
+
+.avatar-view-content .avatar-fallback {
+  font-size: clamp(4rem, 18vw, 9rem);
 }
 
 .modal-actions {

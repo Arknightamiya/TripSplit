@@ -26,7 +26,7 @@
 
             <form id="login-form" class="auth-form">
               <label class="field">
-                Username / Email
+                User ID / Email
                 <input name="identifier" autocomplete="username" required />
               </label>
               <button type="button" id="different-account-button" class="link-button">
@@ -38,7 +38,7 @@
               </label>
               <label class="checkbox-row">
                 <input name="rememberLogin" type="checkbox" />
-                Save username/email
+                Save user ID and password
               </label>
               <p id="login-error" class="form-error" role="alert" hidden></p>
               <button type="submit" class="auth-submit">Log in</button>
@@ -46,8 +46,8 @@
 
             <form id="register-form" class="auth-form" hidden>
               <label class="field">
-                Username
-                <input name="name" autocomplete="name" required />
+                User ID
+                <input name="name" autocomplete="username" required />
               </label>
               <label class="field">
                 Email
@@ -89,10 +89,14 @@
             </p>
           </div>
           <div class="user-menu">
-            <div>
-              <span id="current-user-name">Signed in</span>
-              <span id="current-user-email" class="hint"></span>
-            </div>
+            <button type="button" id="profile-button" class="profile-summary">
+              <span id="current-user-avatar-fallback" class="avatar-fallback">TS</span>
+              <img id="current-user-avatar" class="avatar-image" alt="" hidden />
+              <span>
+                <span id="current-user-name">Signed in</span>
+                <span id="current-user-id" class="hint"></span>
+              </span>
+            </button>
             <button type="button" id="logout-button" class="button-ghost">Log out</button>
           </div>
         </section>
@@ -150,6 +154,66 @@
           <button type="button" id="delete-trip-yes" class="button-danger button-prominent">
             Yes, delete
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="profile-dialog" class="modal-overlay" hidden>
+      <form id="profile-form" class="modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Account</p>
+            <h2 id="profile-title">Profile</h2>
+          </div>
+          <button type="button" id="profile-close" class="button-ghost">Close</button>
+        </div>
+
+        <div class="profile-preview">
+          <button type="button" id="profile-avatar-trigger" class="avatar-trigger" aria-label="View profile photo">
+            <span id="profile-avatar-fallback" class="avatar-fallback avatar-large">TS</span>
+            <img id="profile-avatar-preview" class="avatar-image avatar-large" alt="" hidden />
+          </button>
+          <div>
+            <strong id="profile-preview-name">Nickname</strong>
+            <p id="profile-preview-id" class="hint"></p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <label class="field">
+            User ID
+            <input name="userId" disabled />
+          </label>
+          <label class="field">
+            Email
+            <input name="email" type="email" disabled />
+          </label>
+          <label class="field">
+            Nickname
+            <input name="displayName" autocomplete="name" required />
+          </label>
+          <label class="field">
+            Profile photo
+            <input name="avatarFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp" />
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="profile-remove-avatar" class="button-ghost">Remove photo</button>
+          <button type="submit">Save profile</button>
+        </div>
+        <p id="profile-error" class="form-error" role="alert" hidden></p>
+      </form>
+    </div>
+
+    <div id="avatar-view-dialog" class="modal-overlay avatar-view-overlay" hidden>
+      <div class="avatar-view-modal" role="dialog" aria-modal="true" aria-label="Profile photo preview">
+        <button type="button" id="avatar-view-close" class="avatar-view-close" aria-label="Close preview">
+          ×
+        </button>
+        <div class="avatar-view-content">
+          <span id="avatar-view-fallback" class="avatar-fallback avatar-xl">TS</span>
+          <img id="avatar-view-image" class="avatar-image avatar-xl" alt="" hidden />
         </div>
       </div>
     </div>

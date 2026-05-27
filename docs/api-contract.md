@@ -55,10 +55,15 @@ Recommended status codes:
 ```json
 {
   "id": "user_1",
-  "name": "Alex Organizer",
-  "email": "alex@example.com"
+  "userId": "alex-organizer#1",
+  "name": "alex-organizer#1",
+  "displayName": "Alex Organizer",
+  "email": "alex@example.com",
+  "avatarUrl": ""
 }
 ```
+
+`name` remains the immutable login user ID for backward compatibility with the starter code. New frontend work should display `displayName` and treat `userId`/`name` as the fixed account identifier. During registration, the backend assigns a Discord-style discriminator, so the first user who requests `miya` becomes `miya#1`, the next becomes `miya#2`, and so on. `displayName` and `avatarUrl` can be changed from the profile UI; `userId`, `name`, and `email` are not edited from profile.
 
 ### Budget Summary
 
@@ -150,11 +155,13 @@ Request:
 
 ```json
 {
-  "name": "Alex Organizer",
+  "name": "alex-organizer",
   "email": "alex@example.com",
   "password": "demo-password"
 }
 ```
+
+The requested `name` is the base User ID. The backend stores and returns the final immutable User ID with an automatic discriminator, such as `alex-organizer#1`.
 
 Response:
 
@@ -162,8 +169,11 @@ Response:
 {
   "user": {
     "id": "user_1",
-    "name": "Alex Organizer",
-    "email": "alex@example.com"
+    "userId": "alex-organizer#1",
+    "name": "alex-organizer#1",
+    "displayName": "alex-organizer#1",
+    "email": "alex@example.com",
+    "avatarUrl": ""
   },
   "token": "demo-token-user_1"
 }
@@ -181,12 +191,12 @@ Request:
 
 ```json
 {
-  "identifier": "alex@example.com",
+  "identifier": "alex-organizer#1",
   "password": "demo-password"
 }
 ```
 
-`identifier` can be either the user's username or email address. The backend still accepts `email` for backward compatibility.
+`identifier` can be either the user's full User ID, including its discriminator, or email address. The backend still accepts `email` for backward compatibility.
 
 Response:
 
@@ -194,8 +204,11 @@ Response:
 {
   "user": {
     "id": "user_1",
-    "name": "Alex Organizer",
-    "email": "alex@example.com"
+    "userId": "alex-organizer#1",
+    "name": "alex-organizer#1",
+    "displayName": "Alex Organizer",
+    "email": "alex@example.com",
+    "avatarUrl": "data:image/png;base64,..."
   },
   "token": "demo-token-user_1"
 }
@@ -206,6 +219,65 @@ Errors:
 - account not found
 - invalid password
 - missing credentials
+
+## Profile APIs
+
+### GET `/api/me`
+
+Headers:
+
+```http
+Authorization: Bearer <token>
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "user_1",
+    "userId": "alex-organizer#1",
+    "name": "alex-organizer#1",
+    "displayName": "Alex Organizer",
+    "email": "alex@example.com",
+    "avatarUrl": "data:image/png;base64,..."
+  }
+}
+```
+
+### PATCH `/api/me`
+
+Headers:
+
+```http
+Authorization: Bearer <token>
+```
+
+Request:
+
+```json
+{
+  "displayName": "Miya Traveler",
+  "avatarUrl": "data:image/png;base64,..."
+}
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "user_1",
+    "userId": "alex-organizer#1",
+    "name": "alex-organizer#1",
+    "displayName": "Miya Traveler",
+    "email": "alex@example.com",
+    "avatarUrl": "data:image/png;base64,..."
+  }
+}
+```
+
+`displayName` is required. `avatarUrl` can be an empty string to remove the profile photo. The current frontend stores uploaded profile photos as image data URLs so they can be saved through the same API and persisted in PostgreSQL.
 
 ## Trip APIs
 
