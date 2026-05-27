@@ -188,6 +188,11 @@ select {
   flex: 0 0 auto;
 }
 
+.avatar-fallback[hidden],
+.avatar-image[hidden] {
+  display: none;
+}
+
 .avatar-fallback {
   display: grid;
   place-items: center;
@@ -207,6 +212,12 @@ select {
   width: 4.5rem;
   height: 4.5rem;
   font-size: 1.1rem;
+}
+
+.avatar-xl {
+  width: min(17rem, 68vw);
+  height: min(17rem, 68vw);
+  font-size: clamp(2.4rem, 12vw, 4rem);
 }
 
 .eyebrow {
@@ -643,6 +654,20 @@ label.field input:disabled {
 
 .avatar-trigger:hover {
   transform: none;
+}
+
+.avatar-view-overlay {
+  z-index: 30;
+}
+
+.avatar-view-modal {
+  width: min(420px, 100%);
+}
+
+.avatar-view-content {
+  display: grid;
+  place-items: center;
+  padding: 1rem 0 0.4rem;
 }
 
 .modal-actions {

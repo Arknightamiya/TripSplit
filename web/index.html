@@ -169,7 +169,7 @@
         </div>
 
         <div class="profile-preview">
-          <button type="button" id="profile-avatar-trigger" class="avatar-trigger" aria-label="Choose profile photo">
+          <button type="button" id="profile-avatar-trigger" class="avatar-trigger" aria-label="View profile photo">
             <span id="profile-avatar-fallback" class="avatar-fallback avatar-large">TS</span>
             <img id="profile-avatar-preview" class="avatar-image avatar-large" alt="" hidden />
           </button>
@@ -204,6 +204,22 @@
         </div>
         <p id="profile-error" class="form-error" role="alert" hidden></p>
       </form>
+    </div>
+
+    <div id="avatar-view-dialog" class="modal-overlay avatar-view-overlay" hidden>
+      <div class="modal avatar-view-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-view-title">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Profile photo</p>
+            <h2 id="avatar-view-title">Avatar preview</h2>
+          </div>
+          <button type="button" id="avatar-view-close" class="button-ghost">Close</button>
+        </div>
+        <div class="avatar-view-content">
+          <span id="avatar-view-fallback" class="avatar-fallback avatar-xl">TS</span>
+          <img id="avatar-view-image" class="avatar-image avatar-xl" alt="" hidden />
+        </div>
+      </div>
     </div>
 
     <script type="module" src="/web/app.js"></script>

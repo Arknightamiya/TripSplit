@@ -57,6 +57,10 @@ const profileAvatarTrigger = document.querySelector("#profile-avatar-trigger");
 const profilePreviewName = document.querySelector("#profile-preview-name");
 const profilePreviewId = document.querySelector("#profile-preview-id");
 const profileRemoveAvatar = document.querySelector("#profile-remove-avatar");
+const avatarViewDialog = document.querySelector("#avatar-view-dialog");
+const avatarViewClose = document.querySelector("#avatar-view-close");
+const avatarViewImage = document.querySelector("#avatar-view-image");
+const avatarViewFallback = document.querySelector("#avatar-view-fallback");
 const budgetPanel = document.querySelector("#budget-panel");
 const expensesPanel = document.querySelector("#expenses-panel");
 const balancesPanel = document.querySelector("#balances-panel");
@@ -79,11 +83,17 @@ logoutButton.addEventListener("click", handleLogout);
 profileForm.addEventListener("submit", handleProfileSubmit);
 profileClose.addEventListener("click", closeProfileDialog);
 profileRemoveAvatar.addEventListener("click", removeProfileAvatar);
-profileAvatarTrigger.addEventListener("click", () => profileForm.elements.avatarFile.click());
+profileAvatarTrigger.addEventListener("click", openAvatarViewDialog);
 profileForm.elements.avatarFile.addEventListener("change", handleAvatarFileChange);
 profileDialog.addEventListener("click", (event) => {
   if (event.target === profileDialog) {
     closeProfileDialog();
+  }
+});
+avatarViewClose.addEventListener("click", closeAvatarViewDialog);
+avatarViewDialog.addEventListener("click", (event) => {
+  if (event.target === avatarViewDialog) {
+    closeAvatarViewDialog();
   }
 });
 setupTripForm(tripForm, loadTrips);
@@ -303,6 +313,7 @@ async function openProfileDialog() {
 
 function closeProfileDialog() {
   profileDialog.hidden = true;
+  closeAvatarViewDialog();
   setFormError(profileError, "");
   profileForm.reset();
 }
@@ -394,6 +405,19 @@ function removeProfileAvatar() {
     displayName: profileForm.elements.displayName.value,
     avatarUrl: ""
   });
+}
+
+function openAvatarViewDialog() {
+  renderAvatar(avatarViewImage, avatarViewFallback, {
+    ...getStoredCurrentUser(),
+    displayName: profileForm.elements.displayName.value,
+    avatarUrl: profileAvatarDataUrl
+  });
+  avatarViewDialog.hidden = false;
+}
+
+function closeAvatarViewDialog() {
+  avatarViewDialog.hidden = true;
 }
 
 function renderCurrentUser(user) {
