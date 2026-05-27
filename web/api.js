@@ -70,6 +70,17 @@ export async function register({ name, email, password }) {
   });
 }
 
+export async function fetchCurrentUserProfile() {
+  return apiRequest(API_ROUTES.me);
+}
+
+export async function updateCurrentUserProfile({ displayName, avatarUrl }) {
+  return apiRequest(API_ROUTES.me, {
+    method: "PATCH",
+    body: { displayName, avatarUrl }
+  });
+}
+
 export async function fetchHealth(){
       return apiRequest(API_ROUTES.health);
 }

@@ -71,14 +71,14 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
   const payer = approved.find((p) => p.id === expense.payerId);
   const canDelete = isOrganizer || expense.payerId === currentUserId;
   const splitParticipants = expense.includedParticipantIds
-    .map((participantId) => approved.find((p) => p.id === participantId)?.name || "unknown")
+    .map((participantId) => displayName(approved.find((p) => p.id === participantId)))
     .join(", ");
   return `
     <div class="expense-row">
       <div>
         <div class="expense-title">${escapeHtml(expense.title)}</div>
         <div class="expense-sub">
-          ${escapeHtml(expense.category)} · paid by ${escapeHtml(payer?.name || "unknown")} · split between ${escapeHtml(splitParticipants || "unknown")}
+          ${escapeHtml(expense.category)} · paid by ${escapeHtml(displayName(payer))} · split between ${escapeHtml(splitParticipants || "unknown")}
         </div>
       </div>
       <div class="expense-amount">${formatMoney(expense.amount)}</div>
@@ -91,7 +91,7 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
 
 function expenseFormHtml(approved, currentUserId) {
   const payerOptions = approved
-    .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(p.name)}</option>`)
+    .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(displayName(p))}</option>`)
     .join("");
   const categoryOptions = EXPENSE_CATEGORIES
     .map((c) => `<option value="${c}">${escapeHtml(c)}</option>`)
@@ -103,7 +103,7 @@ function expenseFormHtml(approved, currentUserId) {
     .map((p) => `
       <label>
         <input type="checkbox" name="includedParticipantIds" value="${p.id}" checked />
-        ${escapeHtml(p.name)}
+        ${escapeHtml(displayName(p))}
       </label>
     `)
     .join("");
@@ -144,4 +144,8 @@ function expenseFormHtml(approved, currentUserId) {
       </div>
     </form>
   `;
+}
+
+function displayName(user) {
+  return user?.displayName || user?.name || "unknown";
 }

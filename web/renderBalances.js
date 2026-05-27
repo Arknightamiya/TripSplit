@@ -15,7 +15,7 @@ function tableHtml(balances, trip, currentUserId) {
   const rows = balances
     .map((b) => {
       const participant = b.participant || participantById.get(b.participantId);
-      const name = participant?.name || b.participantId;
+      const name = participant?.displayName || participant?.name || b.participantId;
       const youTag = b.participantId === currentUserId ? ' <span class="chip">you</span>' : "";
       const netClass = b.netBalance > 0 ? "positive" : b.netBalance < 0 ? "negative" : "";
       const prefix = b.netBalance > 0 ? "+" : b.netBalance < 0 ? "-" : "";

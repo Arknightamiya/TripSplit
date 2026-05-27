@@ -62,6 +62,9 @@ test("register returns a JWT and starts with no private trips", async () => {
 
   assert.equal(response.status, 201);
   assert.equal(response.body.user.email, "taylor@example.com");
+  assert.equal(response.body.user.userId, "Taylor New");
+  assert.equal(response.body.user.displayName, "Taylor New");
+  assert.equal(response.body.user.avatarUrl, "");
   assert.equal(response.body.user.passwordHash, undefined);
   assert.equal(response.body.token.split(".").length, 3);
 
@@ -71,6 +74,76 @@ test("register returns a JWT and starts with no private trips", async () => {
 
   assert.equal(tripsResponse.status, 200);
   assert.deepEqual(tripsResponse.body.trips, []);
+});
+
+test("authenticated user can update profile display name and avatar", async () => {
+  const auth = await registerUser({
+    name: "ProfileUser",
+    email: "profile@example.com"
+  });
+  const avatarUrl = "data:image/png;base64,aGVsbG8=";
+
+  const updateResponse = await request("/api/me", {
+    method: "PATCH",
+    headers: authHeaders(auth.token),
+    body: {
+      displayName: "Miya Traveler",
+      avatarUrl
+    }
+  });
+  const profileResponse = await request("/api/me", {
+    headers: authHeaders(auth.token)
+  });
+  const loginResponse = await request("/api/auth/login", {
+    method: "POST",
+    body: {
+      identifier: "ProfileUser",
+      password: "demo-password"
+    }
+  });
+
+  assert.equal(updateResponse.status, 200);
+  assert.equal(updateResponse.body.user.userId, "ProfileUser");
+  assert.equal(updateResponse.body.user.name, "ProfileUser");
+  assert.equal(updateResponse.body.user.displayName, "Miya Traveler");
+  assert.equal(updateResponse.body.user.avatarUrl, avatarUrl);
+  assert.equal(profileResponse.status, 200);
+  assert.equal(profileResponse.body.user.displayName, "Miya Traveler");
+  assert.equal(loginResponse.status, 200);
+  assert.equal(loginResponse.body.user.userId, "ProfileUser");
+});
+
+test("profile update keeps nickname required and rejects non-image avatars", async () => {
+  const auth = await registerUser({
+    name: "InvalidProfile",
+    email: "invalid-profile@example.com"
+  });
+
+  const missingName = await request("/api/me", {
+    method: "PATCH",
+    headers: authHeaders(auth.token),
+    body: {
+      displayName: "",
+      avatarUrl: ""
+    }
+  });
+  const invalidAvatar = await request("/api/me", {
+    method: "PATCH",
+    headers: authHeaders(auth.token),
+    body: {
+      displayName: "Still Valid",
+      avatarUrl: "https://example.com/avatar.png"
+    }
+  });
+
+  assert.equal(missingName.status, 400);
+  assert.deepEqual(missingName.body, {
+    error: "Display name is required"
+  });
+  assert.equal(invalidAvatar.status, 400);
+  assert.deepEqual(invalidAvatar.body, {
+    error: "Avatar must be an uploaded image"
+  });
 });
 
 test("duplicate registration is rejected", async () => {

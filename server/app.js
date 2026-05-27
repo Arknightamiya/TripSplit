@@ -7,6 +7,7 @@ import { createAuthRouter } from "./routes/auth.js";
 import { createBalancesRouter } from "./routes/balances.js";
 import { createExpensesRouter } from "./routes/expenses.js";
 import { createTripsRouter } from "./routes/trips.js";
+import { createUsersRouter } from "./routes/users.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,13 +17,14 @@ export function createApp({ rootDir = defaultRootDir } = {}) {
   const app = express();
 
   app.use(applyCors);
-  app.use(express.json());
+  app.use(express.json({ limit: "1mb" }));
 
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ ok: true, service: "TripSplit API" });
   });
 
   app.use("/api/auth", createAuthRouter());
+  app.use("/api/me", createUsersRouter());
   app.use("/api/trips/:tripId/expenses", createExpensesRouter());
   app.use("/api/trips/:tripId/balances", createBalancesRouter());
   app.use("/api/trips", createTripsRouter());

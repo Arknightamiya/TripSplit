@@ -5,12 +5,23 @@
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
+  display_name TEXT,
   email TEXT UNIQUE NOT NULL,
   phone_number TEXT UNIQUE,
   password_hash TEXT NOT NULL,
   avatar_url TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS display_name TEXT;
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+UPDATE users
+SET display_name = name
+WHERE display_name IS NULL OR display_name = '';
 
 CREATE TABLE IF NOT EXISTS trips (
   id SERIAL PRIMARY KEY,

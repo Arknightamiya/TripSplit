@@ -55,10 +55,15 @@ Recommended status codes:
 ```json
 {
   "id": "user_1",
-  "name": "Alex Organizer",
-  "email": "alex@example.com"
+  "userId": "alex-organizer",
+  "name": "alex-organizer",
+  "displayName": "Alex Organizer",
+  "email": "alex@example.com",
+  "avatarUrl": ""
 }
 ```
+
+`name` remains the immutable login user ID for backward compatibility with the starter code. New frontend work should display `displayName` and treat `userId`/`name` as the fixed account identifier. `displayName` and `avatarUrl` can be changed from the profile UI; `userId`, `name`, and `email` are not edited from profile.
 
 ### Budget Summary
 
@@ -150,7 +155,7 @@ Request:
 
 ```json
 {
-  "name": "Alex Organizer",
+  "name": "alex-organizer",
   "email": "alex@example.com",
   "password": "demo-password"
 }
@@ -162,8 +167,11 @@ Response:
 {
   "user": {
     "id": "user_1",
-    "name": "Alex Organizer",
-    "email": "alex@example.com"
+    "userId": "alex-organizer",
+    "name": "alex-organizer",
+    "displayName": "alex-organizer",
+    "email": "alex@example.com",
+    "avatarUrl": ""
   },
   "token": "demo-token-user_1"
 }
@@ -194,8 +202,11 @@ Response:
 {
   "user": {
     "id": "user_1",
-    "name": "Alex Organizer",
-    "email": "alex@example.com"
+    "userId": "alex-organizer",
+    "name": "alex-organizer",
+    "displayName": "Alex Organizer",
+    "email": "alex@example.com",
+    "avatarUrl": "data:image/png;base64,..."
   },
   "token": "demo-token-user_1"
 }
@@ -206,6 +217,65 @@ Errors:
 - account not found
 - invalid password
 - missing credentials
+
+## Profile APIs
+
+### GET `/api/me`
+
+Headers:
+
+```http
+Authorization: Bearer <token>
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "user_1",
+    "userId": "alex-organizer",
+    "name": "alex-organizer",
+    "displayName": "Alex Organizer",
+    "email": "alex@example.com",
+    "avatarUrl": "data:image/png;base64,..."
+  }
+}
+```
+
+### PATCH `/api/me`
+
+Headers:
+
+```http
+Authorization: Bearer <token>
+```
+
+Request:
+
+```json
+{
+  "displayName": "Miya Traveler",
+  "avatarUrl": "data:image/png;base64,..."
+}
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "user_1",
+    "userId": "alex-organizer",
+    "name": "alex-organizer",
+    "displayName": "Miya Traveler",
+    "email": "alex@example.com",
+    "avatarUrl": "data:image/png;base64,..."
+  }
+}
+```
+
+`displayName` is required. `avatarUrl` can be an empty string to remove the profile photo. The current frontend stores uploaded profile photos as image data URLs so they can be saved through the same API and persisted in PostgreSQL.
 
 ## Trip APIs
 

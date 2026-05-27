@@ -29,6 +29,7 @@ export async function registerUser(input = {}) {
 
   const userRecord = await createAuthUser({
     name: input.name,
+    displayName: input.displayName || input.name,
     email: input.email,
     passwordHash: hashPassword(input.password)
   });
@@ -154,12 +155,12 @@ function getJwtSecret() {
   return process.env.JWT_SECRET || "tripsplit-local-development-secret";
 }
 
-async function createAuthUser({ name, email, passwordHash }) {
+async function createAuthUser({ name, displayName, email, passwordHash }) {
   if (isUserRepositoryEnabled()) {
-    return createUserRecord({ name, email, passwordHash });
+    return createUserRecord({ name, displayName, email, passwordHash });
   }
 
-  return createUser({ name, email, passwordHash });
+  return createUser({ name, displayName, email, passwordHash });
 }
 
 async function findAuthUserByEmail(email) {
@@ -202,7 +203,10 @@ async function findAuthUserByName(name) {
 function toSafeUser(user) {
   return {
     id: user.id,
+    userId: user.userId || user.name,
     name: user.name,
-    email: user.email
+    displayName: user.displayName || user.name,
+    email: user.email,
+    avatarUrl: user.avatarUrl || ""
   };
 }

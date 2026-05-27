@@ -30,7 +30,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -156,13 +157,56 @@ input {
   box-shadow: var(--shadow);
 }
 
-.user-menu div {
+.profile-summary > span {
   display: grid;
   gap: 0.1rem;
 }
 
 #current-user-name {
   font-weight: 700;
+}
+
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.25rem 0.35rem;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.profile-summary:hover {
+  background: var(--accent-soft);
+}
+
+.avatar-fallback,
+.avatar-image {
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.avatar-fallback {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--on-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.avatar-image {
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.avatar-large {
+  width: 4.5rem;
+  height: 4.5rem;
+  font-size: 1.1rem;
 }
 
 .eyebrow {
@@ -565,6 +609,21 @@ label.field input {
 
 .modal h2 {
   margin-bottom: 0.5rem;
+}
+
+.profile-modal {
+  width: min(520px, 100%);
+}
+
+.profile-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.8rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent-soft);
 }
 
 .modal-actions {

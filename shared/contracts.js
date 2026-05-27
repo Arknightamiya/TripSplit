@@ -4,6 +4,7 @@ export const API_ROUTES = {
   health: `${API_BASE}/health`,
   authRegister: `${API_BASE}/auth/register`,
   authLogin: `${API_BASE}/auth/login`,
+  me: `${API_BASE}/me`,
   trips: `${API_BASE}/trips`,
   trip: (tripId) => `${API_BASE}/trips/${tripId}`,
   participants: (tripId) => `${API_BASE}/trips/${tripId}/participants`,
