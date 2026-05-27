@@ -89,15 +89,83 @@ export async function fetchTrips(){
     return apiRequest(API_ROUTES.trips);
 }
 
-export async function postTrip(name){
+export async function fetchFriends() {
+  return apiRequest(API_ROUTES.friends);
+}
+
+export async function searchUsersForFriend(query) {
+  const params = new URLSearchParams({ query });
+  return apiRequest(`${API_ROUTES.friendSearch}?${params.toString()}`);
+}
+
+export async function sendFriendRequest(identifier) {
+  return apiRequest(API_ROUTES.friendRequests, {
+    method: "POST",
+    body: { identifier }
+  });
+}
+
+export async function respondToFriendRequest(requestId, action) {
+  return apiRequest(API_ROUTES.friendRequestAction(requestId, action), {
+    method: "POST"
+  });
+}
+
+export async function removeFriend(friendId) {
+  return apiRequest(API_ROUTES.friend(friendId), {
+    method: "DELETE"
+  });
+}
+
+export async function fetchFriendProfile(friendId) {
+  return apiRequest(API_ROUTES.friend(friendId));
+}
+
+export async function requestTripJoin(tripId) {
+  return apiRequest(API_ROUTES.tripJoinRequests(tripId), {
+    method: "POST"
+  });
+}
+
+export async function respondToTripJoinRequest(requestId, action) {
+  return apiRequest(API_ROUTES.tripJoinRequestAction(requestId, action), {
+    method: "POST"
+  });
+}
+
+export async function respondToTripInvitation(tripId, action) {
+  return apiRequest(API_ROUTES.tripInvitationAction(tripId, action), {
+    method: "POST"
+  });
+}
+
+export async function postTrip({
+    name,
+    visibility = "public",
+    startDate = "",
+    endDate = ""
+}){
     return apiRequest(API_ROUTES.trips, {
         method: "POST",
-        body: { name }
+        body: {
+            name,
+            destination: name,
+            visibility,
+            startDate: startDate || null,
+            endDate: endDate || null
+        }
     });
 }
 
 export async function fetchTrip(tripId) {
   return apiRequest(API_ROUTES.trip(tripId));
+}
+
+export async function updateTrip(tripId, payload) {
+  return apiRequest(API_ROUTES.trip(tripId), {
+    method: "PATCH",
+    body: payload
+  });
 }
 
 export async function deleteTrip(tripId) {
@@ -107,6 +175,22 @@ export async function deleteTrip(tripId) {
   }
 
   return apiRequest(API_ROUTES.trip(normalizedTripId), {
+    method: "DELETE"
+  });
+}
+
+export async function inviteParticipant(tripId, userId) {
+  return apiRequest(API_ROUTES.tripInvitations(tripId), {
+    method: "POST",
+    body: {
+      userId,
+      role: "participant"
+    }
+  });
+}
+
+export async function removeTripParticipant(tripId, participantId) {
+  return apiRequest(API_ROUTES.tripParticipant(tripId, participantId), {
     method: "DELETE"
   });
 }

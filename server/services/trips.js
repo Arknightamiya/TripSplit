@@ -5,23 +5,31 @@ import {
   deleteTrip,
   findUserByEmail,
   findUserById,
+  findTripParticipant,
   getTripById,
   getTripRecord,
+  inviteParticipant,
   isApprovedParticipant,
   isOrganizer,
   isValidBudgetInput,
   listTripSummariesForUser,
-  setBudget
+  removeTripParticipant,
+  setBudget,
+  updateTrip
 } from "../store.js";
 import {
   createTripRecord,
   addParticipantRecord,
   deleteTripRecord,
+  findTripParticipantRecord,
   findTripRecordById,
+  inviteParticipantRecord,
   isTripRepositoryEnabled,
   listTripSummaryRecordsForUser,
+  removeParticipantRecord,
   setBudgetRecord,
   tripRecordExists,
+  updateTripRecord,
   userIsApprovedParticipantRecord,
   userIsOrganizerRecord
 } from "../repositories/trips.js";
@@ -49,15 +57,12 @@ export async function listTripsForUser(userId) {
 }
 
 export async function createTripForUser(userId, input = {}) {
-  requireFields(input, ["name"]);
+  const normalizedInput = normalizeTripInput(input);
 
   if (isTripRepositoryEnabled()) {
     return {
       trip: await createTripRecord({
-        name: input.name,
-        destination: input.destination,
-        startDate: input.startDate,
-        endDate: input.endDate,
+        ...normalizedInput,
         organizerId: userId
       })
     };
@@ -65,10 +70,7 @@ export async function createTripForUser(userId, input = {}) {
 
   return {
     trip: createTrip({
-      name: input.name,
-      destination: input.destination,
-      startDate: input.startDate,
-      endDate: input.endDate,
+      ...normalizedInput,
       organizerId: userId
     })
   };
@@ -98,6 +100,21 @@ export async function deleteTripForUser(userId, tripId) {
   return {
     deletedTripId: String(deletedTrip.id)
   };
+}
+
+export async function updateTripForUser(userId, tripId, input = {}) {
+  await ensureOrganizer(userId, tripId);
+  const normalizedInput = normalizeTripInput(input);
+
+  const trip = isTripRepositoryEnabled()
+    ? await updateTripRecord(tripId, normalizedInput)
+    : updateTrip(tripId, normalizedInput);
+
+  if (!trip) {
+    throw notFound("Trip not found");
+  }
+
+  return { trip };
 }
 
 export async function addParticipantToTrip(userId, tripId, input = {}) {
@@ -137,6 +154,93 @@ export async function addParticipantToTrip(userId, tripId, input = {}) {
       userId: participantUser.id,
       role
     })
+  };
+}
+
+export async function inviteParticipantToTrip(userId, tripId, input = {}) {
+  await ensureOrganizer(userId, tripId);
+  const role = normalizeParticipantRole(input.role);
+
+  if (isTripRepositoryEnabled()) {
+    const participantUser = await resolveParticipantUserRecord(input);
+    const existingParticipant = await findTripParticipantRecord(tripId, participantUser.id);
+
+    if (existingParticipant?.joinStatus === "approved") {
+      throw conflict("Participant already exists on this trip");
+    }
+
+    if (existingParticipant?.joinStatus === "pending") {
+      throw conflict("Invitation already pending");
+    }
+
+    return {
+      trip: await inviteParticipantRecord(tripId, {
+        userId: participantUser.id,
+        role
+      })
+    };
+  }
+
+  const participantUser = resolveParticipantUser(input);
+  const existingParticipant = findTripParticipant(tripId, participantUser.id);
+
+  if (existingParticipant?.joinStatus === "approved") {
+    throw conflict("Participant already exists on this trip");
+  }
+
+  if (existingParticipant?.joinStatus === "pending") {
+    throw conflict("Invitation already pending");
+  }
+
+  return {
+    trip: inviteParticipant(tripId, {
+      userId: participantUser.id,
+      role
+    })
+  };
+}
+
+export async function removeParticipantFromTrip(userId, tripId, participantId) {
+  await ensureOrganizer(userId, tripId);
+
+  const trip = isTripRepositoryEnabled()
+    ? await findTripRecordById(tripId)
+    : getTripById(tripId);
+
+  if (!trip) {
+    throw notFound("Trip not found");
+  }
+
+  const participant = (trip.participants || []).find(
+    (entry) => String(entry.id) === String(participantId)
+  );
+
+  if (!participant) {
+    throw notFound("Participant not found");
+  }
+
+  if (participant.role === "organizer") {
+    throw badRequest("Organizer cannot be removed from the trip");
+  }
+
+  if (
+    participant.joinStatus === "approved" &&
+    (trip.expenses || []).some((expense) => String(expense.payerId) === String(participantId))
+  ) {
+    throw conflict("Cannot remove a participant who paid expenses");
+  }
+
+  const updatedTrip = isTripRepositoryEnabled()
+    ? await removeParticipantRecord(tripId, participantId)
+    : removeTripParticipant(tripId, participantId);
+
+  if (!updatedTrip) {
+    throw notFound("Participant not found");
+  }
+
+  return {
+    removedParticipantId: String(participantId),
+    trip: updatedTrip
   };
 }
 
@@ -258,4 +362,31 @@ function normalizeParticipantRole(role = "participant") {
   }
 
   return role;
+}
+
+function normalizeTripVisibility(visibility = "private") {
+  return visibility === "public" ? "public" : "private";
+}
+
+function normalizeTripInput(input = {}) {
+  const name = String(input.name ?? input.destination ?? "").trim();
+  const destination = String(input.destination ?? input.name ?? "").trim();
+  const startDate = input.startDate || null;
+  const endDate = input.endDate || null;
+
+  if (!name) {
+    throw badRequest("Destination is required");
+  }
+
+  if (startDate && endDate && endDate < startDate) {
+    throw badRequest("End date must be after start date");
+  }
+
+  return {
+    name,
+    destination: destination || name,
+    startDate,
+    endDate,
+    visibility: normalizeTripVisibility(input.visibility)
+  };
 }

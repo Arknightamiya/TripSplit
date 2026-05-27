@@ -81,64 +81,147 @@
       </section>
 
       <section id="app-view" class="app-view" hidden>
-        <section class="hero">
-          <div>
-            <h1>TripSplit</h1>
-            <p class="hero-copy">
-              Plan group trips, track shared spending, and settle balances fairly.
-            </p>
-          </div>
-          <div class="user-menu">
-            <button type="button" id="profile-button" class="profile-summary">
-              <span id="current-user-avatar-fallback" class="avatar-fallback">TS</span>
-              <img id="current-user-avatar" class="avatar-image" alt="" hidden />
-              <span>
-                <span id="current-user-name">Signed in</span>
-                <span id="current-user-id" class="hint"></span>
-              </span>
-            </button>
-            <button type="button" id="logout-button" class="button-ghost">Log out</button>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Your Trips</h2>
-          </div>
-          <form id="trip-form" class="input-row">
-            <input
-              id="trip-name"
-              name="name"
-              placeholder="Destination"
-              required
-            />
-            <button type="submit">Add Trip</button>
-          </form>
-          <div id="trip-list" class="stack"></div>
-        </section>
-
-        <section id="trip-detail" class="trip-detail" hidden>
-          <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow" id="detail-eyebrow">Trip</p>
-                <h2 id="detail-title">Trip Detail</h2>
-                <p class="hint" id="detail-meta"></p>
-              </div>
-              <div class="detail-actions">
-                <button type="button" id="detail-delete" class="button-danger button-prominent" hidden>
-                  Delete
-                </button>
-                <button type="button" id="detail-close" class="button-ghost">Close</button>
-              </div>
+        <div class="app-shell">
+          <aside id="friends-sidebar" class="friends-sidebar" aria-label="Friends">
+            <div class="friends-rail-header">
+              <button type="button" id="friends-toggle" class="icon-button" aria-label="Collapse friends">
+                ‹
+              </button>
+              <strong>Friends</strong>
+              <button type="button" id="add-friend-button" class="icon-button" aria-label="Add friend">
+                +
+              </button>
             </div>
-            <div id="detail-participants" class="chip-row"></div>
-          </div>
+            <label class="friend-search">
+              <span class="sr-only">Search friends</span>
+              <input id="friends-search" placeholder="Search friends" />
+            </label>
+            <button type="button" id="friend-requests-button" class="request-entry">
+              <span class="request-dot" id="friend-requests-dot" hidden></span>
+              Requests
+              <span id="friend-requests-count" class="request-count">0</span>
+            </button>
+            <div id="friends-list" class="friends-list"></div>
+          </aside>
 
-          <div id="budget-panel" class="panel"></div>
-          <div id="expenses-panel" class="panel"></div>
-          <div id="balances-panel" class="panel"></div>
-        </section>
+          <div class="app-main">
+            <section class="hero">
+              <div>
+                <h1>TripSplit</h1>
+                <p class="hero-copy">
+                  Plan group trips, track shared spending, and settle balances fairly.
+                </p>
+              </div>
+              <div class="user-menu">
+                <button type="button" id="profile-button" class="profile-summary">
+                  <span id="current-user-avatar-fallback" class="avatar-fallback">TS</span>
+                  <img id="current-user-avatar" class="avatar-image" alt="" hidden />
+                  <span>
+                    <span id="current-user-name">Signed in</span>
+                    <span id="current-user-id" class="hint"></span>
+                  </span>
+                </button>
+                <button type="button" id="logout-button" class="button-ghost">Log out</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Your Trips</h2>
+              </div>
+              <form id="trip-form" class="input-row trip-input-row">
+                <input
+                  id="trip-name"
+                  name="name"
+                  placeholder="Destination"
+                  required
+                />
+                <div class="date-range-field" aria-label="Trip dates">
+                  <label>
+                    <span>Start</span>
+                    <input name="startDate" type="date" />
+                  </label>
+                  <label>
+                    <span>End</span>
+                    <input name="endDate" type="date" />
+                  </label>
+                </div>
+                <label class="visibility-switch">
+                  <span class="sr-only">Trip visibility</span>
+                  <input name="isPrivate" type="checkbox" />
+                  <span class="visibility-track" aria-hidden="true">
+                    <span class="visibility-option visibility-public">Public</span>
+                    <span class="visibility-option visibility-private">Private</span>
+                  </span>
+                </label>
+                <button type="submit">Add Trip</button>
+              </form>
+              <div id="trip-list" class="stack"></div>
+            </section>
+
+            <section id="trip-detail" class="trip-detail" hidden>
+              <div class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 id="detail-title">Trip Detail</h2>
+                    <p class="hint" id="detail-meta"></p>
+                  </div>
+                  <div class="detail-actions">
+                    <button type="button" id="detail-delete" class="button-danger button-prominent" hidden>
+                      Delete
+                    </button>
+                    <button type="button" id="detail-close" class="button-ghost">Close</button>
+                  </div>
+                </div>
+
+                <form id="trip-edit-form" class="trip-edit-form">
+                  <input name="name" placeholder="Destination" required />
+                  <div class="date-range-field" aria-label="Trip dates">
+                    <label>
+                      <span>Start</span>
+                      <input name="startDate" type="date" />
+                    </label>
+                    <label>
+                      <span>End</span>
+                      <input name="endDate" type="date" />
+                    </label>
+                  </div>
+                  <label class="visibility-switch">
+                    <span class="sr-only">Trip visibility</span>
+                    <input name="isPrivate" type="checkbox" />
+                    <span class="visibility-track" aria-hidden="true">
+                      <span class="visibility-option visibility-public">Public</span>
+                      <span class="visibility-option visibility-private">Private</span>
+                    </span>
+                  </label>
+                  <button type="submit">Save</button>
+                </form>
+
+                <div class="trip-management-row">
+                  <div class="participant-groups">
+                    <div>
+                      <h3>Participants</h3>
+                      <div id="detail-participants" class="chip-row"></div>
+                    </div>
+                    <div id="detail-pending-invitations-wrap" class="pending-invitations" hidden>
+                      <h3>Pending invitations</h3>
+                      <div id="detail-pending-invitations" class="chip-row"></div>
+                    </div>
+                  </div>
+                  <div id="trip-invite-form" class="trip-invite-form participant-actions">
+                    <button type="button" id="trip-remove-participant-button" class="button-ghost">Remove</button>
+                    <button type="button" id="trip-invite-button">Invite</button>
+                  </div>
+                </div>
+                <p id="trip-edit-error" class="form-error" role="alert" hidden></p>
+              </div>
+
+              <div id="budget-panel" class="panel"></div>
+              <div id="expenses-panel" class="panel"></div>
+              <div id="balances-panel" class="panel"></div>
+            </section>
+          </div>
+        </div>
       </section>
     </main>
 
@@ -204,6 +287,147 @@
         </div>
         <p id="profile-error" class="form-error" role="alert" hidden></p>
       </form>
+    </div>
+
+    <div id="add-friend-dialog" class="modal-overlay" hidden>
+      <div class="modal friend-modal" role="dialog" aria-modal="true" aria-labelledby="add-friend-title">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Friends</p>
+            <h2 id="add-friend-title">Add friend</h2>
+          </div>
+          <button type="button" id="add-friend-close" class="button-ghost">Close</button>
+        </div>
+        <form id="add-friend-form" class="friend-search-form">
+          <label class="field">
+            User ID / Email
+            <input name="identifier" placeholder="miya#1 or miya@example.com" required />
+          </label>
+          <button type="submit">Search</button>
+        </form>
+        <div id="add-friend-results" class="friend-result-list"></div>
+        <p id="add-friend-error" class="form-error" role="alert" hidden></p>
+      </div>
+    </div>
+
+    <div id="friend-requests-dialog" class="modal-overlay" hidden>
+      <div class="modal friend-modal friend-requests-modal" role="dialog" aria-modal="true" aria-labelledby="friend-requests-title">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Requests</p>
+            <h2 id="friend-requests-title" class="sr-only">Requests</h2>
+          </div>
+          <button type="button" id="friend-requests-close" class="button-ghost">Close</button>
+        </div>
+        <div class="request-tabs" role="tablist" aria-label="Request categories">
+          <button type="button" class="request-tab" data-request-tab="friends" aria-controls="friend-requests-list">
+            <span class="request-tab-label">Friend requests</span>
+            <span class="request-tab-count" data-request-tab-count="friends">0</span>
+          </button>
+          <button type="button" class="request-tab" data-request-tab="invitations" aria-controls="trip-invitations-list">
+            <span class="request-tab-label">Trip invitations</span>
+            <span class="request-tab-count" data-request-tab-count="invitations">0</span>
+          </button>
+          <button type="button" class="request-tab" data-request-tab="joins" aria-controls="trip-join-requests-list">
+            <span class="request-tab-label">Trip join requests</span>
+            <span class="request-tab-count" data-request-tab-count="joins">0</span>
+          </button>
+        </div>
+        <div id="friend-requests-list" class="request-list request-tab-panel" data-request-panel="friends"></div>
+        <div id="trip-invitations-list" class="request-list request-tab-panel" data-request-panel="invitations"></div>
+        <div id="trip-join-requests-list" class="request-list request-tab-panel" data-request-panel="joins"></div>
+        <p id="friend-requests-error" class="form-error" role="alert" hidden></p>
+      </div>
+    </div>
+
+    <div id="friend-profile-dialog" class="modal-overlay" hidden>
+      <div class="modal friend-profile-modal" role="dialog" aria-modal="true" aria-labelledby="friend-profile-name">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Friend</p>
+            <h2 id="friend-profile-name">Friend profile</h2>
+          </div>
+          <button type="button" id="friend-profile-close" class="button-ghost">Close</button>
+        </div>
+        <div class="profile-preview">
+          <button type="button" id="friend-avatar-trigger" class="avatar-trigger" aria-label="View friend photo">
+            <span id="friend-profile-avatar-fallback" class="avatar-fallback avatar-large">FR</span>
+            <img id="friend-profile-avatar" class="avatar-image avatar-large" alt="" hidden />
+          </button>
+          <div>
+            <strong id="friend-profile-display-name">Nickname</strong>
+            <p id="friend-profile-id" class="hint"></p>
+          </div>
+        </div>
+        <div class="panel-header compact-header">
+          <h3>Public trips</h3>
+          <button type="button" id="remove-friend-button" class="button-danger">Delete</button>
+        </div>
+        <div id="friend-public-trips" class="friend-trip-list"></div>
+        <p id="friend-profile-error" class="form-error" role="alert" hidden></p>
+      </div>
+    </div>
+
+    <div id="delete-friend-dialog" class="modal-overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-friend-title">
+        <h2 id="delete-friend-title">Delete this friend?</h2>
+        <p class="hint">
+          This will remove this person from your friend list and block them from seeing your public trips.
+        </p>
+        <p id="delete-friend-error" class="form-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button type="button" id="delete-friend-no" class="button-ghost">No</button>
+          <button type="button" id="delete-friend-yes" class="button-danger button-prominent">
+            Yes, delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="join-trip-dialog" class="modal-overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="join-trip-title">
+        <h2 id="join-trip-title">Request to join?</h2>
+        <p id="join-trip-copy" class="hint"></p>
+        <p id="join-trip-error" class="form-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button type="button" id="join-trip-no" class="button-ghost">No</button>
+          <button type="button" id="join-trip-yes">Yes, request</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="trip-invite-dialog" class="modal-overlay" hidden>
+      <div class="modal invite-modal" role="dialog" aria-modal="true" aria-labelledby="trip-invite-title">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Invite</p>
+            <h2 id="trip-invite-title">Invite friends</h2>
+          </div>
+        </div>
+        <div id="trip-invite-list" class="invite-friend-list"></div>
+        <p id="trip-invite-error" class="form-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button type="button" id="trip-invite-back" class="button-ghost">Back</button>
+          <button type="button" id="trip-invite-send">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="trip-remove-participant-dialog" class="modal-overlay" hidden>
+      <div class="modal invite-modal" role="dialog" aria-modal="true" aria-labelledby="trip-remove-participant-title">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Participants</p>
+            <h2 id="trip-remove-participant-title">Remove participants</h2>
+          </div>
+        </div>
+        <div id="trip-remove-participant-list" class="invite-friend-list"></div>
+        <p id="trip-remove-participant-error" class="form-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button type="button" id="trip-remove-participant-back" class="button-ghost">Back</button>
+          <button type="button" id="trip-remove-participant-send" class="button-danger button-prominent">Remove</button>
+        </div>
+      </div>
     </div>
 
     <div id="avatar-view-dialog" class="modal-overlay avatar-view-overlay" hidden>

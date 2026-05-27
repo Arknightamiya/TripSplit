@@ -5,8 +5,11 @@ import {
   createTripForUser,
   deleteTripForUser,
   getTripForUser,
+  inviteParticipantToTrip,
   listTripsForUser,
-  setTripBudget
+  removeParticipantFromTrip,
+  setTripBudget,
+  updateTripForUser
 } from "../services/trips.js";
 
 export function createTripsRouter() {
@@ -46,11 +49,43 @@ export function createTripsRouter() {
     }
   });
 
+  router.patch("/:tripId", async (req, res, next) => {
+    try {
+      res.status(200).json(await updateTripForUser(req.user.id, req.params.tripId, req.body));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/:tripId/participants", async (req, res, next) => {
     try {
       res
         .status(200)
         .json(await addParticipantToTrip(req.user.id, req.params.tripId, req.body));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:tripId/invitations", async (req, res, next) => {
+    try {
+      res
+        .status(200)
+        .json(await inviteParticipantToTrip(req.user.id, req.params.tripId, req.body));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:tripId/participants/:participantId", async (req, res, next) => {
+    try {
+      res
+        .status(200)
+        .json(await removeParticipantFromTrip(
+          req.user.id,
+          req.params.tripId,
+          req.params.participantId
+        ));
     } catch (error) {
       next(error);
     }

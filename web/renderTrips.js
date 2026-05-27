@@ -7,19 +7,25 @@ export function renderTrips(trips, tripList, { activeTripId, onSelect } = {}) {
   tripList.innerHTML = trips
     .map((trip) => {
       const dates = formatDates(trip.startDate, trip.endDate);
-      const spent = trip.budgetSummary
-        ? `${formatMoney(trip.budgetSummary.totalSpent)} spent of ${formatMoney(trip.budgetSummary.totalBudget)}`
-        : "No budget set";
+      const budget = formatBudgetSummary(trip.budgetSummary);
+      const visibility = trip.visibility === "public" ? "Public" : "Private";
       const isActive = trip.id === activeTripId ? " is-active" : "";
+      const organizer = trip.organizerName || "Organizer";
       return `
         <button type="button" class="trip-card${isActive}" data-trip-id="${trip.id}">
           <div class="trip-card-row">
-            <strong>${escapeHtml(trip.name)}</strong>
-            <span class="trip-card-meta">${escapeHtml(trip.destination || "")}</span>
+            <span class="trip-card-title-group">
+              <strong>${escapeHtml(trip.name)}</strong>
+              <span class="trip-organizer-chip">
+                <span>${escapeHtml(organizer)}</span>
+                <span class="trip-organizer-role">organizer</span>
+              </span>
+            </span>
+            <span class="trip-visibility ${trip.visibility === "public" ? "is-public" : "is-private"}">${visibility}</span>
           </div>
           <div class="trip-card-row">
             <span class="trip-card-meta">${dates}</span>
-            <span class="trip-card-meta">${spent}</span>
+            <span class="trip-card-meta">${budget}</span>
           </div>
           <div class="trip-card-meta">${pluralize(trip.participantCount, "participant")} · ${pluralize(trip.expenseCount, "expense")}</div>
         </button>
@@ -43,6 +49,18 @@ function formatDates(start, end) {
 export function formatMoney(value) {
   const n = Number(value || 0);
   return `$${n.toFixed(2)}`;
+}
+
+export function formatBudgetSummary(budgetSummary) {
+  if (!budgetSummary) {
+    return "0 budget";
+  }
+
+  if (budgetSummary.mode === "per-person") {
+    return `${formatMoney(budgetSummary.perPersonBudget)} budget per person`;
+  }
+
+  return `${formatMoney(budgetSummary.totalBudget)} budget`;
 }
 
 export function pluralize(count, singular, plural) {

@@ -62,16 +62,47 @@ WHERE users.id = unsuffixed_users.id;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_name_unique
   ON users (LOWER(name));
 
+CREATE TABLE IF NOT EXISTS friend_requests (
+  id SERIAL PRIMARY KEY,
+  requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'accepted', 'declined')),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (requester_id <> recipient_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_friend_requests_pending_pair
+  ON friend_requests (
+    LEAST(requester_id, recipient_id),
+    GREATEST(requester_id, recipient_id)
+  )
+  WHERE status = 'pending';
+
+CREATE TABLE IF NOT EXISTS friendships (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  friend_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, friend_id),
+  CHECK (user_id <> friend_id)
+);
+
 CREATE TABLE IF NOT EXISTS trips (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   destination TEXT,
   start_date DATE,
   end_date DATE,
+  visibility TEXT NOT NULL DEFAULT 'private'
+    CHECK (visibility IN ('private', 'public')),
   organizer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
 );
+
+ALTER TABLE trips
+  ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'private';
 
 CREATE TABLE IF NOT EXISTS trip_participants (
   trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
@@ -83,6 +114,20 @@ CREATE TABLE IF NOT EXISTS trip_participants (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (trip_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS trip_join_requests (
+  id SERIAL PRIMARY KEY,
+  trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'accepted', 'declined')),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_join_requests_pending_unique
+  ON trip_join_requests (trip_id, requester_id)
+  WHERE status = 'pending';
 
 CREATE TABLE IF NOT EXISTS budgets (
   trip_id INTEGER PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
