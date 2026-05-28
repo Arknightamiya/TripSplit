@@ -1052,6 +1052,48 @@ test("expense API creates one equal share per included participant", async () =>
   assert.equal(response.body.budgetSummary.totalSpent, 639);
 });
 
+test("expense API distributes leftover cents so equal split balances are conserved", async () => {
+  const { token } = await loginAsDemoUser();
+
+  const response = await request("/api/trips/trip_4/expenses", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Theme Park Tickets",
+      amount: 500,
+      category: "tickets",
+      expenseType: "shared",
+      payerId: "user_1",
+      splitRule: "equal",
+      includedParticipantIds: ["user_1", "user_2", "user_3"]
+    }
+  });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(response.body.expense.expenseShares, [
+    {
+      participantId: "user_1",
+      shareAmount: 166.67
+    },
+    {
+      participantId: "user_2",
+      shareAmount: 166.67
+    },
+    {
+      participantId: "user_3",
+      shareAmount: 166.66
+    }
+  ]);
+  assert.equal(
+    response.body.expense.expenseShares.reduce((sum, share) => sum + share.shareAmount, 0),
+    500
+  );
+  assert.equal(
+    response.body.balances.reduce((sum, balance) => sum + balance.netBalance, 0),
+    0
+  );
+});
+
 test("expense API rejects payer who is not an approved trip participant", async () => {
   const { token } = await loginAsDemoUser();
   const outsider = await registerUser({

@@ -5,6 +5,7 @@ import {
   SPLIT_RULES
 } from "../shared/contracts.js";
 import { calculateBalances } from "./settlement.js";
+import { splitCurrencyEvenly } from "./utils/currency.js";
 
 const state = {
   nextId: 1,
@@ -667,13 +668,7 @@ function getBudgetSummary(trip) {
 }
 
 function createExpenseShares(amount, includedParticipantIds) {
-  const splitCount = includedParticipantIds.length || 1;
-  const shareAmount = roundCurrency(amount / splitCount);
-
-  return includedParticipantIds.map((participantId) => ({
-    participantId,
-    shareAmount
-  }));
+  return splitCurrencyEvenly(amount, includedParticipantIds);
 }
 
 function approvedParticipantIds(trip) {
