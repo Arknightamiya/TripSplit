@@ -31,6 +31,10 @@ export function connectDatabase() {
     connectionString: process.env.DATABASE_URL
   });
 
+  pool.on("error", (error) => {
+    console.warn("PostgreSQL idle client error:", error.message);
+  });
+
   database = {
     enabled: true,
     driver: "postgresql",

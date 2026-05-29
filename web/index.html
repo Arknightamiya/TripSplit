@@ -126,37 +126,60 @@
             </section>
 
             <section class="panel">
-              <div class="panel-header">
-                <h2>Your Trips</h2>
+              <div class="main-tab-bar" role="tablist" aria-label="Trip views">
+                <button type="button" class="main-tab is-active" data-main-tab="trips" role="tab" aria-selected="true">
+                  Your Trips
+                </button>
+                <button type="button" class="main-tab" data-main-tab="lobby" role="tab" aria-selected="false">
+                  Trip Lobby
+                </button>
               </div>
-              <form id="trip-form" class="input-row trip-input-row">
-                <input
-                  id="trip-name"
-                  name="name"
-                  placeholder="Destination"
-                  required
-                />
-                <div class="date-range-field" aria-label="Trip dates">
-                  <label>
-                    <span>Start</span>
-                    <input name="startDate" type="date" />
-                  </label>
-                  <label>
-                    <span>End</span>
-                    <input name="endDate" type="date" />
-                  </label>
+
+              <section id="your-trips-panel" data-main-panel="trips">
+                <form id="trip-form" class="input-row trip-input-row">
+                  <input
+                    id="trip-name"
+                    name="name"
+                    placeholder="Destination"
+                    required
+                  />
+                  <div class="date-range-field" aria-label="Trip dates">
+                    <label>
+                      <span>Start</span>
+                      <input name="startDate" type="date" />
+                    </label>
+                    <label>
+                      <span>End</span>
+                      <input name="endDate" type="date" />
+                    </label>
+                  </div>
+                  <div class="create-trip-action-row">
+                    <label class="visibility-switch">
+                      <span class="sr-only">Trip visibility</span>
+                      <input name="isPrivate" type="checkbox" />
+                      <span class="visibility-track" aria-hidden="true">
+                        <span class="visibility-option visibility-public">Public</span>
+                        <span class="visibility-option visibility-private">Private</span>
+                      </span>
+                    </label>
+                    <button type="button" id="create-trip-invite-button" class="button-ghost create-invite-button">
+                      Invite
+                      <span id="create-trip-invite-count" class="create-invite-count" hidden>0</span>
+                    </button>
+                    <button type="submit">Add Trip</button>
+                  </div>
+                </form>
+                <div id="trip-list" class="stack"></div>
+              </section>
+
+              <section id="trip-lobby-panel" class="trip-lobby-panel" data-main-panel="lobby" hidden>
+                <div class="trip-lobby-toolbar">
+                  <p class="trip-lobby-copy">Browse public trips shared by your friends.</p>
+                  <button type="button" id="trip-lobby-refresh" class="button-ghost">Refresh</button>
                 </div>
-                <label class="visibility-switch">
-                  <span class="sr-only">Trip visibility</span>
-                  <input name="isPrivate" type="checkbox" />
-                  <span class="visibility-track" aria-hidden="true">
-                    <span class="visibility-option visibility-public">Public</span>
-                    <span class="visibility-option visibility-private">Private</span>
-                  </span>
-                </label>
-                <button type="submit">Add Trip</button>
-              </form>
-              <div id="trip-list" class="stack"></div>
+                <p id="trip-lobby-error" class="form-error" role="alert" hidden></p>
+                <div id="trip-lobby-list" class="trip-lobby-list"></div>
+              </section>
             </section>
 
             <section id="trip-detail" class="trip-detail" hidden>
@@ -186,15 +209,19 @@
                       <input name="endDate" type="date" />
                     </label>
                   </div>
-                  <label class="visibility-switch">
-                    <span class="sr-only">Trip visibility</span>
-                    <input name="isPrivate" type="checkbox" />
-                    <span class="visibility-track" aria-hidden="true">
-                      <span class="visibility-option visibility-public">Public</span>
-                      <span class="visibility-option visibility-private">Private</span>
-                    </span>
-                  </label>
-                  <button type="submit">Save</button>
+                  <div id="trip-invite-form" class="trip-edit-action-row participant-actions">
+                    <label class="visibility-switch">
+                      <span class="sr-only">Trip visibility</span>
+                      <input name="isPrivate" type="checkbox" />
+                      <span class="visibility-track" aria-hidden="true">
+                        <span class="visibility-option visibility-public">Public</span>
+                        <span class="visibility-option visibility-private">Private</span>
+                      </span>
+                    </label>
+                    <button type="button" id="trip-remove-participant-button" class="button-ghost">Remove</button>
+                    <button type="button" id="trip-invite-button">Invite</button>
+                    <button type="submit">Save</button>
+                  </div>
                 </form>
 
                 <div class="trip-management-row">
@@ -207,10 +234,6 @@
                       <h3>Pending invitations</h3>
                       <div id="detail-pending-invitations" class="chip-row"></div>
                     </div>
-                  </div>
-                  <div id="trip-invite-form" class="trip-invite-form participant-actions">
-                    <button type="button" id="trip-remove-participant-button" class="button-ghost">Remove</button>
-                    <button type="button" id="trip-invite-button">Invite</button>
                   </div>
                 </div>
                 <p id="trip-edit-error" class="form-error" role="alert" hidden></p>
@@ -394,6 +417,23 @@
         <div class="modal-actions">
           <button type="button" id="join-trip-no" class="button-ghost">No</button>
           <button type="button" id="join-trip-yes">Yes, request</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="create-trip-invite-dialog" class="modal-overlay" hidden>
+      <div class="modal invite-modal" role="dialog" aria-modal="true" aria-labelledby="create-trip-invite-title">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Create trip</p>
+            <h2 id="create-trip-invite-title">Invite friends</h2>
+          </div>
+        </div>
+        <div id="create-trip-invite-list" class="invite-friend-list"></div>
+        <p id="create-trip-invite-error" class="form-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button type="button" id="create-trip-invite-back" class="button-ghost">Back</button>
+          <button type="button" id="create-trip-invite-done">Done</button>
         </div>
       </div>
     </div>
