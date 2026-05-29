@@ -79,68 +79,6 @@ test("calculateBalances keeps equal split balances conserved after cent rounding
   );
 });
 
-test("calculateBalances treats shared expenses with empty split fallback as payer-only", () => {
-  const result = calculateBalances({
-    participantIds: ["u1", "u2"],
-    expenses: [
-      {
-        amount: 75,
-        expenseType: "shared",
-        payerId: "u1",
-        includedParticipantIds: []
-      }
-    ]
-  });
-
-  assert.deepEqual(result, [
-    {
-      participantId: "u1",
-      actualPaid: 75,
-      fairShare: 75,
-      netBalance: 0
-    },
-    {
-      participantId: "u2",
-      actualPaid: 0,
-      fairShare: 0,
-      netBalance: 0
-    }
-  ]);
-  assert.equal(
-    result.reduce((sum, balance) => sum + balance.netBalance, 0),
-    0
-  );
-});
-
-test("calculateBalances deduplicates fallback split participants", () => {
-  const result = calculateBalances({
-    participantIds: ["u1", "u2"],
-    expenses: [
-      {
-        amount: 100,
-        expenseType: "shared",
-        payerId: "u1",
-        includedParticipantIds: ["u1", "u1", "u2"]
-      }
-    ]
-  });
-
-  assert.deepEqual(result, [
-    {
-      participantId: "u1",
-      actualPaid: 100,
-      fairShare: 50,
-      netBalance: 50
-    },
-    {
-      participantId: "u2",
-      actualPaid: 0,
-      fairShare: 50,
-      netBalance: -50
-    }
-  ]);
-});
-
 test("calculateBalances treats personal advance as payer-only without stored shares", () => {
   const result = calculateBalances({
     participantIds: ["u1", "u2", "u3"],

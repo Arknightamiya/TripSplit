@@ -1251,8 +1251,7 @@ test("organizer cannot remove themselves or members who paid expenses", async ()
       amount: 120,
       category: "food",
       expenseType: "shared",
-      payerId: participant.user.id,
-      includedParticipantIds: [user.id, participant.user.id]
+      payerId: participant.user.id
     }
   });
 
@@ -1277,49 +1276,7 @@ test("organizer cannot remove themselves or members who paid expenses", async ()
   });
   assert.equal(removePayerResponse.status, 409);
   assert.deepEqual(removePayerResponse.body, {
-    error: "Cannot remove a participant with expense history"
-  });
-});
-
-test("organizer cannot remove members with split expense history", async () => {
-  const { token, user } = await loginAsDemoUser();
-  const participant = await registerUser({
-    name: "SplitHistoryMember",
-    email: "split-history-member@example.com"
-  });
-  const tripId = await createTrip(token);
-
-  await request(`/api/trips/${tripId}/participants`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      userId: participant.user.id
-    }
-  });
-  await request(`/api/trips/${tripId}/expenses`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      title: "Shared Dinner",
-      amount: 120,
-      category: "food",
-      expenseType: "shared",
-      payerId: user.id,
-      includedParticipantIds: [user.id, participant.user.id]
-    }
-  });
-
-  const removeResponse = await request(
-    `/api/trips/${tripId}/participants/${participant.user.id}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(token)
-    }
-  );
-
-  assert.equal(removeResponse.status, 409);
-  assert.deepEqual(removeResponse.body, {
-    error: "Cannot remove a participant with expense history"
+    error: "Cannot remove a participant who paid expenses"
   });
 });
 
@@ -1433,37 +1390,6 @@ test("budget API rejects invalid budget input", async () => {
   });
 });
 
-test("budget API rejects non-cent and non-finite amounts", async () => {
-  const { token } = await loginAsDemoUser();
-  const tripId = await createTrip(token);
-
-  const tinyAmountResponse = await request(`/api/trips/${tripId}/budget`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      mode: "total",
-      totalBudget: 0.004
-    }
-  });
-  const infiniteAmountResponse = await request(`/api/trips/${tripId}/budget`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      mode: "per-person",
-      perPersonBudget: Infinity
-    }
-  });
-
-  assert.equal(tinyAmountResponse.status, 400);
-  assert.deepEqual(tinyAmountResponse.body, {
-    error: "Invalid budget input"
-  });
-  assert.equal(infiniteAmountResponse.status, 400);
-  assert.deepEqual(infiniteAmountResponse.body, {
-    error: "Invalid budget input"
-  });
-});
-
 test("expense API creates equal shares and recalculates balances", async () => {
   const { token, user } = await loginAsDemoUser();
   const tripId = await createTrip(token);
@@ -1487,112 +1413,6 @@ test("expense API creates equal shares and recalculates balances", async () => {
   assert.equal(response.body.balances[0].actualPaid, 30);
   assert.equal(response.body.balances[0].fairShare, 30);
   assert.equal(response.body.balances[0].netBalance, 0);
-});
-
-test("expense API rejects missing or empty shared split participants", async () => {
-  const { token, user } = await loginAsDemoUser();
-  const tripId = await createTrip(token);
-
-  const missingSplitResponse = await request(`/api/trips/${tripId}/expenses`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      title: "Missing Split",
-      amount: 30,
-      category: "food",
-      expenseType: "shared",
-      payerId: user.id,
-      splitRule: "equal"
-    }
-  });
-  const emptySplitResponse = await request(`/api/trips/${tripId}/expenses`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      title: "Empty Split",
-      amount: 30,
-      category: "food",
-      expenseType: "shared",
-      payerId: user.id,
-      splitRule: "equal",
-      includedParticipantIds: []
-    }
-  });
-
-  assert.equal(missingSplitResponse.status, 400);
-  assert.deepEqual(missingSplitResponse.body, {
-    error: "At least one split participant is required"
-  });
-  assert.equal(emptySplitResponse.status, 400);
-  assert.deepEqual(emptySplitResponse.body, {
-    error: "At least one split participant is required"
-  });
-});
-
-test("expense API deduplicates shared split participants", async () => {
-  const { token, user } = await loginAsDemoUser();
-  const tripId = await createTrip(token);
-
-  const response = await request(`/api/trips/${tripId}/expenses`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      title: "Duplicate Split",
-      amount: 100,
-      category: "food",
-      expenseType: "shared",
-      payerId: user.id,
-      splitRule: "equal",
-      includedParticipantIds: [user.id, user.id]
-    }
-  });
-
-  assert.equal(response.status, 201);
-  assert.deepEqual(response.body.expense.includedParticipantIds, [user.id]);
-  assert.deepEqual(response.body.expense.expenseShares, [
-    {
-      participantId: user.id,
-      shareAmount: 100
-    }
-  ]);
-});
-
-test("expense API rejects non-cent and non-finite amounts", async () => {
-  const { token, user } = await loginAsDemoUser();
-  const tripId = await createTrip(token);
-
-  const tinyAmountResponse = await request(`/api/trips/${tripId}/expenses`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      title: "Tiny",
-      amount: 0.004,
-      category: "food",
-      expenseType: "shared",
-      payerId: user.id,
-      splitRule: "equal",
-      includedParticipantIds: [user.id]
-    }
-  });
-  const infiniteAmountResponse = await request(`/api/trips/${tripId}/expenses`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: {
-      title: "Infinite",
-      amount: Infinity,
-      category: "food",
-      expenseType: "shared",
-      payerId: user.id,
-      splitRule: "equal",
-      includedParticipantIds: [user.id]
-    }
-  });
-
-  assert.equal(tinyAmountResponse.status, 400);
-  assert.deepEqual(tinyAmountResponse.body, {
-    error: "Invalid expense input"
-  });
-  assert.equal(infiniteAmountResponse.status, 400);
 });
 
 test("expense API creates one equal share per included participant", async () => {

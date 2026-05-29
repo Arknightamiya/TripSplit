@@ -231,9 +231,9 @@ export async function removeParticipantFromTrip(userId, tripId, participantId) {
 
   if (
     participant.joinStatus === "approved" &&
-    participantHasExpenseHistory(trip, participantId)
+    (trip.expenses || []).some((expense) => String(expense.payerId) === String(participantId))
   ) {
-    throw conflict("Cannot remove a participant with expense history");
+    throw conflict("Cannot remove a participant who paid expenses");
   }
 
   const updatedTrip = isTripRepositoryEnabled()
@@ -416,26 +416,6 @@ function normalizeParticipantRole(role = "participant") {
   }
 
   return role;
-}
-
-function participantHasExpenseHistory(trip, participantId) {
-  const normalizedParticipantId = String(participantId);
-
-  return (trip.expenses || []).some((expense) => {
-    if (String(expense.payerId) === normalizedParticipantId) {
-      return true;
-    }
-
-    if ((expense.includedParticipantIds || []).some(
-      (entry) => String(entry) === normalizedParticipantId
-    )) {
-      return true;
-    }
-
-    return (expense.expenseShares || []).some(
-      (share) => String(share.participantId) === normalizedParticipantId
-    );
-  });
 }
 
 function normalizeTripVisibility(visibility = "private") {

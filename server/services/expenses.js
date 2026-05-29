@@ -30,11 +30,11 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
 
   const participantIds = await getApprovedParticipantIds(tripId);
   const expenseType = input.expenseType || input.type;
-  const includedParticipantIds = normalizeIncludedParticipantIds(input, expenseType);
-
-  if (expenseType === "shared" && !includedParticipantIds.length) {
-    throw badRequest("At least one split participant is required");
-  }
+  const includedParticipantIds = expenseType === "personal_advance"
+    ? [String(input.payerId)]
+    : input.includedParticipantIds?.length
+    ? input.includedParticipantIds.map(String)
+    : participantIds;
 
   ensureTripParticipant(input.payerId, participantIds, "Expense payer");
 
@@ -105,33 +105,6 @@ function ensureTripParticipant(userId, participantIds, label) {
   if (!participantIds.includes(String(userId))) {
     throw badRequest(`${label} must be an approved trip participant`);
   }
-}
-
-function normalizeIncludedParticipantIds(input, expenseType) {
-  if (expenseType === "personal_advance") {
-    return [String(input.payerId)];
-  }
-
-  if (!Array.isArray(input.includedParticipantIds)) {
-    return [];
-  }
-
-  return uniqueStrings(input.includedParticipantIds);
-}
-
-function uniqueStrings(values) {
-  const seen = new Set();
-  const result = [];
-
-  for (const value of values) {
-    const normalizedValue = String(value);
-    if (!seen.has(normalizedValue)) {
-      seen.add(normalizedValue);
-      result.push(normalizedValue);
-    }
-  }
-
-  return result;
 }
 
 async function getApprovedParticipantIds(tripId) {

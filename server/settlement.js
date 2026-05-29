@@ -45,23 +45,6 @@ export function calculateBalances(trip) {
 function createEqualShares(expense) {
   const includedParticipantIds = expense.expenseType === "personal_advance"
     ? [expense.payerId]
-    : expense.includedParticipantIds?.length
-    ? uniqueStrings(expense.includedParticipantIds)
-    : [expense.payerId];
+    : expense.includedParticipantIds || [];
   return splitCurrencyEvenly(expense.amount, includedParticipantIds);
-}
-
-function uniqueStrings(values) {
-  const seen = new Set();
-  const result = [];
-
-  for (const value of values) {
-    const normalizedValue = String(value);
-    if (!seen.has(normalizedValue)) {
-      seen.add(normalizedValue);
-      result.push(normalizedValue);
-    }
-  }
-
-  return result;
 }
