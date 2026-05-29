@@ -1094,6 +1094,62 @@ test("expense API distributes leftover cents so equal split balances are conserv
   );
 });
 
+test("expense API treats personal advance as payer-only while keeping budget spending", async () => {
+  const { token } = await loginAsDemoUser();
+
+  const response = await request("/api/trips/trip_4/expenses", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Personal Drink",
+      amount: 45,
+      category: "drinks",
+      expenseType: "personal_advance",
+      payerId: "user_1",
+      splitRule: "equal",
+      includedParticipantIds: ["user_1", "user_2", "user_3"]
+    }
+  });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(response.body.expense.includedParticipantIds, ["user_1"]);
+  assert.deepEqual(response.body.expense.expenseShares, [
+    {
+      participantId: "user_1",
+      shareAmount: 45
+    }
+  ]);
+  assert.equal(response.body.budgetSummary.totalSpent, 585);
+  assert.deepEqual(
+    response.body.balances.map((balance) => ({
+      participantId: balance.participantId,
+      actualPaid: balance.actualPaid,
+      fairShare: balance.fairShare,
+      netBalance: balance.netBalance
+    })),
+    [
+      {
+        participantId: "user_1",
+        actualPaid: 495,
+        fairShare: 225,
+        netBalance: 270
+      },
+      {
+        participantId: "user_2",
+        actualPaid: 90,
+        fairShare: 180,
+        netBalance: -90
+      },
+      {
+        participantId: "user_3",
+        actualPaid: 0,
+        fairShare: 180,
+        netBalance: -180
+      }
+    ]
+  );
+});
+
 test("expense API rejects payer who is not an approved trip participant", async () => {
   const { token } = await loginAsDemoUser();
   const outsider = await registerUser({

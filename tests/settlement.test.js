@@ -78,3 +78,83 @@ test("calculateBalances keeps equal split balances conserved after cent rounding
     0
   );
 });
+
+test("calculateBalances treats personal advance as payer-only without stored shares", () => {
+  const result = calculateBalances({
+    participantIds: ["u1", "u2", "u3"],
+    expenses: [
+      {
+        amount: 30,
+        expenseType: "personal_advance",
+        payerId: "u1",
+        includedParticipantIds: ["u1", "u2", "u3"]
+      }
+    ]
+  });
+
+  assert.deepEqual(result, [
+    {
+      participantId: "u1",
+      actualPaid: 30,
+      fairShare: 30,
+      netBalance: 0
+    },
+    {
+      participantId: "u2",
+      actualPaid: 0,
+      fairShare: 0,
+      netBalance: 0
+    },
+    {
+      participantId: "u3",
+      actualPaid: 0,
+      fairShare: 0,
+      netBalance: 0
+    }
+  ]);
+});
+
+test("calculateBalances conserves mixed shared and personal advance balances", () => {
+  const result = calculateBalances({
+    participantIds: ["u1", "u2", "u3"],
+    expenses: [
+      {
+        amount: 90,
+        expenseType: "shared",
+        payerId: "u1",
+        includedParticipantIds: ["u1", "u2", "u3"]
+      },
+      {
+        amount: 12,
+        expenseType: "personal_advance",
+        payerId: "u3",
+        includedParticipantIds: ["u1", "u2", "u3"]
+      }
+    ]
+  });
+
+  assert.deepEqual(result, [
+    {
+      participantId: "u1",
+      actualPaid: 90,
+      fairShare: 30,
+      netBalance: 60
+    },
+    {
+      participantId: "u2",
+      actualPaid: 0,
+      fairShare: 30,
+      netBalance: -30
+    },
+    {
+      participantId: "u3",
+      actualPaid: 12,
+      fairShare: 42,
+      netBalance: -30
+    }
+  ]);
+  assert.equal(
+    result.reduce((sum, balance) => sum + balance.netBalance, 0),
+    0
+  );
+});

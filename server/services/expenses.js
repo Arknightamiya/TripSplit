@@ -29,7 +29,10 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
   }
 
   const participantIds = await getApprovedParticipantIds(tripId);
-  const includedParticipantIds = input.includedParticipantIds?.length
+  const expenseType = input.expenseType || input.type;
+  const includedParticipantIds = expenseType === "personal_advance"
+    ? [String(input.payerId)]
+    : input.includedParticipantIds?.length
     ? input.includedParticipantIds.map(String)
     : participantIds;
 
@@ -41,7 +44,7 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
 
   const expenseInput = {
     ...input,
-    expenseType: input.expenseType || input.type,
+    expenseType,
     splitRule: input.splitRule || "equal",
     includedParticipantIds
   };

@@ -43,6 +43,8 @@ export function calculateBalances(trip) {
 }
 
 function createEqualShares(expense) {
-  const includedParticipantIds = expense.includedParticipantIds || [];
+  const includedParticipantIds = expense.expenseType === "personal_advance"
+    ? [expense.payerId]
+    : expense.includedParticipantIds || [];
   return splitCurrencyEvenly(expense.amount, includedParticipantIds);
 }

@@ -1151,6 +1151,14 @@ label.field input:disabled {
   gap: 0.4rem;
 }
 
+.participant-picker[hidden] {
+  display: none;
+}
+
+.field.is-disabled {
+  opacity: 0.8;
+}
+
 .participant-picker label {
   display: inline-flex;
   align-items: center;
