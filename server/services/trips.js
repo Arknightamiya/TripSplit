@@ -43,6 +43,7 @@ import { badRequest, conflict, forbidden, notFound } from "../utils/errors.js";
 import { requireFields } from "../validators/request.js";
 
 const PARTICIPANT_ROLES = ["organizer", "participant"];
+const STRICT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function listTripsForUser(userId) {
   if (isTripRepositoryEnabled()) {
@@ -371,15 +372,15 @@ function normalizeTripVisibility(visibility = "private") {
 function normalizeTripInput(input = {}) {
   const name = String(input.name ?? input.destination ?? "").trim();
   const destination = String(input.destination ?? input.name ?? "").trim();
-  const startDate = input.startDate || null;
-  const endDate = input.endDate || null;
+  const startDate = normalizeTripDate(input.startDate, "Start date");
+  const endDate = normalizeTripDate(input.endDate, "End date");
 
   if (!name) {
     throw badRequest("Destination is required");
   }
 
   if (startDate && endDate && endDate < startDate) {
-    throw badRequest("End date must be after start date");
+    throw badRequest("End date must be on or after start date");
   }
 
   return {
@@ -389,4 +390,31 @@ function normalizeTripInput(input = {}) {
     endDate,
     visibility: normalizeTripVisibility(input.visibility)
   };
+}
+
+function normalizeTripDate(value, label) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const normalizedValue = String(value).trim();
+  if (!STRICT_DATE_PATTERN.test(normalizedValue)) {
+    throw badRequest(`${label} must use YYYY-MM-DD with a 4-digit year`);
+  }
+
+  const [year, month, day] = normalizedValue.split("-").map(Number);
+  if (!isValidCalendarDate(year, month, day)) {
+    throw badRequest(`${label} must be a valid calendar date`);
+  }
+
+  return normalizedValue;
+}
+
+function isValidCalendarDate(year, month, day) {
+  if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+
+  const lastDayOfMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= lastDayOfMonth;
 }

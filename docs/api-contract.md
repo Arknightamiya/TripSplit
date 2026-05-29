@@ -472,7 +472,7 @@ Response:
 }
 ```
 
-The backend sets `organizerId` from the token user and automatically adds that user as an approved organizer participant.
+The backend sets `organizerId` from the token user and automatically adds that user as an approved organizer participant. `startDate` and `endDate` are optional, but when present they must be valid `YYYY-MM-DD` calendar dates with a four-digit year between `0001` and `9999`; `endDate` must be on or after `startDate`.
 
 ### GET `/api/trips/:tripId`
 
@@ -578,7 +578,7 @@ Only the trip organizer can update trip destination, dates, or public/private vi
 Errors:
 
 - trip not found
-- invalid date range
+- invalid date format or date range
 - unauthorized request
 - authenticated user is not the trip organizer
 

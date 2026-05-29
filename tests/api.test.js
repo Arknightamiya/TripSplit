@@ -522,6 +522,66 @@ test("organizer can update trip destination, dates, and visibility", async () =>
   assert.equal(listTrip.budgetSummary, null);
 });
 
+test("trip APIs reject malformed and invalid dates", async () => {
+  const { token } = await loginAsDemoUser();
+
+  const longYearResponse = await request("/api/trips", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      name: "Bad Year",
+      destination: "Bad Year",
+      startDate: "12345-06-01",
+      endDate: "12345-06-03"
+    }
+  });
+  const invalidMonthResponse = await request("/api/trips", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      name: "Bad Month",
+      destination: "Bad Month",
+      startDate: "2026-13-01"
+    }
+  });
+  const invalidDayResponse = await request("/api/trips/trip_4", {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: {
+      name: "Bad Day",
+      destination: "Bad Day",
+      startDate: "2026-02-30"
+    }
+  });
+  const invalidRangeResponse = await request("/api/trips", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      name: "Bad Range",
+      destination: "Bad Range",
+      startDate: "2026-06-03",
+      endDate: "2026-06-01"
+    }
+  });
+
+  assert.equal(longYearResponse.status, 400);
+  assert.deepEqual(longYearResponse.body, {
+    error: "Start date must use YYYY-MM-DD with a 4-digit year"
+  });
+  assert.equal(invalidMonthResponse.status, 400);
+  assert.deepEqual(invalidMonthResponse.body, {
+    error: "Start date must be a valid calendar date"
+  });
+  assert.equal(invalidDayResponse.status, 400);
+  assert.deepEqual(invalidDayResponse.body, {
+    error: "Start date must be a valid calendar date"
+  });
+  assert.equal(invalidRangeResponse.status, 400);
+  assert.deepEqual(invalidRangeResponse.body, {
+    error: "End date must be on or after start date"
+  });
+});
+
 test("regular participants cannot update trip metadata", async () => {
   const { token } = await loginAsDemoUser({
     email: "sam@example.com",
