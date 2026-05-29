@@ -4,6 +4,7 @@ import {
   fetchBalances,
   fetchCurrentUserProfile,
   fetchFriendProfile,
+  fetchFriendPublicTrips,
   fetchFriends,
   fetchHealth,
   fetchTrip,
@@ -21,6 +22,7 @@ import {
   respondToTripJoinRequest,
   searchUsersForFriend,
   sendFriendRequest,
+  SESSION_EXPIRED_ERROR_MESSAGE,
   setUnauthorizedHandler,
   storeAuthSession,
   storeCurrentUser,
@@ -31,7 +33,7 @@ import { setupDateInputs, setupTripForm, validateTripDates } from "./forms.js";
 import { renderBalances } from "./renderBalances.js";
 import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
-import { escapeHtml, pluralize, renderTrips } from "./renderTrips.js";
+import { escapeHtml, formatBudgetSummary, pluralize, renderTrips } from "./renderTrips.js";
 
 const authView = document.querySelector("#auth-view");
 const appView = document.querySelector("#app-view");
@@ -50,6 +52,14 @@ const logoutButton = document.querySelector("#logout-button");
 const statusText = document.querySelector("#status-text");
 const tripList = document.querySelector("#trip-list");
 const tripForm = document.querySelector("#trip-form");
+const appShell = document.querySelector(".app-shell");
+const mainTabButtons = Array.from(document.querySelectorAll("[data-main-tab]"));
+const mainTabPanels = Array.from(document.querySelectorAll("[data-main-panel]"));
+const tripLobbyList = document.querySelector("#trip-lobby-list");
+const tripLobbyRefresh = document.querySelector("#trip-lobby-refresh");
+const tripLobbyError = document.querySelector("#trip-lobby-error");
+const createTripInviteButton = document.querySelector("#create-trip-invite-button");
+const createTripInviteCount = document.querySelector("#create-trip-invite-count");
 const detailSection = document.querySelector("#trip-detail");
 const detailTitle = document.querySelector("#detail-title");
 const detailMeta = document.querySelector("#detail-meta");
@@ -125,6 +135,11 @@ const joinTripCopy = document.querySelector("#join-trip-copy");
 const joinTripYes = document.querySelector("#join-trip-yes");
 const joinTripNo = document.querySelector("#join-trip-no");
 const joinTripError = document.querySelector("#join-trip-error");
+const createTripInviteDialog = document.querySelector("#create-trip-invite-dialog");
+const createTripInviteList = document.querySelector("#create-trip-invite-list");
+const createTripInviteBack = document.querySelector("#create-trip-invite-back");
+const createTripInviteDone = document.querySelector("#create-trip-invite-done");
+const createTripInviteError = document.querySelector("#create-trip-invite-error");
 const tripInviteDialog = document.querySelector("#trip-invite-dialog");
 const tripInviteList = document.querySelector("#trip-invite-list");
 const tripInviteBack = document.querySelector("#trip-invite-back");
@@ -147,17 +162,24 @@ let friendsState = {
 };
 let activeFriendProfile = null;
 let pendingJoinTrip = null;
+let activeMainTab = "trips";
+let publicTripLobbyItems = [];
+let createInviteFriends = [];
+let selectedCreateInviteFriendIds = new Set();
 let inviteableFriends = [];
 let selectedInviteFriendIds = new Set();
 let removableParticipants = [];
 let selectedRemoveParticipantIds = new Set();
 let profileAvatarDataUrl = "";
 let activeRequestTab = "friends";
+let highlightedTripInvitationId = null;
 const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
+const UI_STATE_STORAGE_KEY = "tripsplit.uiState";
 const MAX_AVATAR_FILE_SIZE = 8_000_000;
 const AVATAR_IMAGE_SIZE = 256;
 const AVATAR_IMAGE_QUALITY = 0.86;
-const SESSION_EXPIRED_MESSAGE = "Your session expired. Please log in again.";
+const SESSION_EXPIRED_MESSAGE = SESSION_EXPIRED_ERROR_MESSAGE;
+let sessionExpiredHandled = false;
 
 setUnauthorizedHandler(handleSessionExpired);
 setupDateInputs(document);
@@ -186,7 +208,22 @@ avatarViewDialog.addEventListener("click", (event) => {
     closeAvatarViewDialog();
   }
 });
-setupTripForm(tripForm, loadTrips);
+setupTripForm(tripForm, loadTrips, {
+  getInviteeUserIds: () => Array.from(selectedCreateInviteFriendIds),
+  onCreated: clearCreateTripInvites
+});
+mainTabButtons.forEach((button) => {
+  button.addEventListener("click", () => switchMainTab(button.dataset.mainTab));
+});
+tripLobbyRefresh.addEventListener("click", loadFriendPublicTripLobby);
+createTripInviteButton.addEventListener("click", openCreateTripInviteDialog);
+createTripInviteBack.addEventListener("click", closeCreateTripInviteDialog);
+createTripInviteDone.addEventListener("click", closeCreateTripInviteDialog);
+createTripInviteDialog.addEventListener("click", (event) => {
+  if (event.target === createTripInviteDialog) {
+    closeCreateTripInviteDialog();
+  }
+});
 tripEditForm.addEventListener("submit", handleTripEditSubmit);
 tripInviteButton.addEventListener("click", openTripInviteDialog);
 tripRemoveParticipantButton.addEventListener("click", openTripRemoveParticipantDialog);
@@ -214,9 +251,10 @@ deleteTripDialog.addEventListener("click", (event) => {
 });
 deleteTripYes.addEventListener("click", confirmDeleteTrip);
 document.addEventListener("keydown", handleDeleteTripShortcut);
+document.addEventListener("keydown", handleModalEscape);
 friendsToggle.addEventListener("click", toggleFriendsSidebar);
 friendsSearch.addEventListener("input", renderFriendsList);
-addFriendButton.addEventListener("click", openAddFriendDialog);
+addFriendButton.addEventListener("click", () => openAddFriendDialog());
 addFriendClose.addEventListener("click", closeAddFriendDialog);
 addFriendForm.addEventListener("submit", handleAddFriendSearch);
 addFriendDialog.addEventListener("click", (event) => {
@@ -224,12 +262,13 @@ addFriendDialog.addEventListener("click", (event) => {
     closeAddFriendDialog();
   }
 });
-friendRequestsButton.addEventListener("click", openFriendRequestsDialog);
+friendRequestsButton.addEventListener("click", () => openFriendRequestsDialog());
 friendRequestsClose.addEventListener("click", closeFriendRequestsDialog);
 requestTabButtons.forEach((button) => {
   button.addEventListener("click", () => {
     activeRequestTab = button.dataset.requestTab;
     renderRequestTabs();
+    storeUiState();
   });
 });
 friendRequestsDialog.addEventListener("click", (event) => {
@@ -274,12 +313,22 @@ async function restoreAuthSession() {
     return;
   }
 
+  const savedUiState = getStoredUiState();
+
   try {
     const { user } = await fetchCurrentUserProfile({ skipUnauthorizedHandler: true });
     storeCurrentUser(user);
     showAppView(user);
+    switchMainTab(savedUiState.activeMainTab, { skipLoad: true, skipPersist: true });
     await loadFriends();
+    activeTripId = savedUiState.activeTripId || null;
+    detailSection.hidden = !activeTripId;
     await loadTrips();
+    if (activeMainTab === "lobby") {
+      await loadFriendPublicTripLobby();
+    }
+    await restoreUiOverlay(savedUiState);
+    storeUiState();
   } catch (error) {
     const message = error.status === 401
       ? SESSION_EXPIRED_MESSAGE
@@ -303,6 +352,7 @@ async function loadStatus() {
 
 function showAuthView(message = "") {
   clearAuthSession();
+  clearUiState();
   closeAuthenticatedDialogs();
   activeTripId = null;
   activeTripDetail = null;
@@ -315,6 +365,9 @@ function showAuthView(message = "") {
   };
   activeFriendProfile = null;
   pendingJoinTrip = null;
+  publicTripLobbyItems = [];
+  switchMainTab("trips", { skipLoad: true });
+  clearCreateTripInvites();
   authView.hidden = false;
   appView.hidden = true;
   detailSection.hidden = true;
@@ -334,6 +387,7 @@ function closeAuthenticatedDialogs() {
     friendRequestsDialog,
     friendProfileDialog,
     joinTripDialog,
+    createTripInviteDialog,
     tripInviteDialog,
     tripRemoveParticipantDialog,
     deleteTripDialog,
@@ -346,6 +400,7 @@ function closeAuthenticatedDialogs() {
 }
 
 function showAppView(user) {
+  sessionExpiredHandled = false;
   renderCurrentUser(user);
   authView.hidden = true;
   appView.hidden = false;
@@ -448,6 +503,7 @@ async function submitAuthForm({
 
 function handleLogout() {
   clearAuthSession();
+  clearUiState();
   closeProfileDialog();
   closeAddFriendDialog();
   closeFriendRequestsDialog();
@@ -458,14 +514,128 @@ function handleLogout() {
 }
 
 function handleSessionExpired() {
-  if (!appView.hidden) {
-    showAuthView(SESSION_EXPIRED_MESSAGE);
+  if (sessionExpiredHandled) {
+    return;
   }
+
+  sessionExpiredHandled = true;
+  showAuthView(SESSION_EXPIRED_MESSAGE);
 }
 
 function setFormError(node, message) {
   node.textContent = message;
   node.hidden = !message;
+}
+
+function isSessionExpiredError(error) {
+  return error?.status === 401;
+}
+
+function getStoredUiState() {
+  try {
+    const raw = window.localStorage.getItem(UI_STATE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      activeMainTab: parsed.activeMainTab === "lobby" ? "lobby" : "trips",
+      activeTripId: parsed.activeTripId ? String(parsed.activeTripId) : null,
+      activeOverlay: getValidOverlayName(parsed.activeOverlay),
+      activeRequestTab: getValidRequestTab(parsed.activeRequestTab),
+      activeFriendProfileId: parsed.activeFriendProfileId
+        ? String(parsed.activeFriendProfileId)
+        : null
+    };
+  } catch {
+    return {
+      activeMainTab: "trips",
+      activeTripId: null,
+      activeOverlay: null,
+      activeRequestTab: "friends",
+      activeFriendProfileId: null
+    };
+  }
+}
+
+function storeUiState() {
+  if (!getStoredAuthToken()) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    UI_STATE_STORAGE_KEY,
+    JSON.stringify({
+      activeMainTab,
+      activeTripId,
+      activeRequestTab,
+      ...getActiveOverlayState()
+    })
+  );
+}
+
+function clearUiState() {
+  window.localStorage.removeItem(UI_STATE_STORAGE_KEY);
+}
+
+function getValidOverlayName(overlayName) {
+  return ["profile", "addFriend", "requests", "friendProfile"].includes(overlayName)
+    ? overlayName
+    : null;
+}
+
+function getValidRequestTab(tabName) {
+  return ["friends", "invitations", "joins"].includes(tabName) ? tabName : "friends";
+}
+
+function getActiveOverlayState() {
+  if (profileDialog && !profileDialog.hidden) {
+    return { activeOverlay: "profile" };
+  }
+
+  if (addFriendDialog && !addFriendDialog.hidden) {
+    return { activeOverlay: "addFriend" };
+  }
+
+  if (friendRequestsDialog && !friendRequestsDialog.hidden) {
+    return {
+      activeOverlay: "requests",
+      activeRequestTab
+    };
+  }
+
+  if (friendProfileDialog && !friendProfileDialog.hidden && activeFriendProfile?.friend?.id) {
+    return {
+      activeOverlay: "friendProfile",
+      activeFriendProfileId: String(activeFriendProfile.friend.id)
+    };
+  }
+
+  return {
+    activeOverlay: null,
+    activeFriendProfileId: null
+  };
+}
+
+async function restoreUiOverlay(savedUiState) {
+  if (savedUiState.activeOverlay === "profile") {
+    await openProfileDialog({ skipPersist: true });
+    return;
+  }
+
+  if (savedUiState.activeOverlay === "addFriend") {
+    openAddFriendDialog({ skipPersist: true });
+    return;
+  }
+
+  if (savedUiState.activeOverlay === "requests") {
+    openFriendRequestsDialog({
+      tab: savedUiState.activeRequestTab,
+      skipPersist: true
+    });
+    return;
+  }
+
+  if (savedUiState.activeOverlay === "friendProfile" && savedUiState.activeFriendProfileId) {
+    await openFriendProfile(savedUiState.activeFriendProfileId, { skipPersist: true });
+  }
 }
 
 function populateSavedLogin() {
@@ -510,7 +680,7 @@ function getSavedLogin() {
   }
 }
 
-async function openProfileDialog() {
+async function openProfileDialog(options = {}) {
   setFormError(profileError, "");
   const storedUser = getStoredCurrentUser();
   if (!storedUser) {
@@ -523,7 +693,14 @@ async function openProfileDialog() {
     renderCurrentUser(user);
     populateProfileForm(user);
     profileDialog.hidden = false;
+    if (!options.skipPersist) {
+      storeUiState();
+    }
   } catch (error) {
+    if (isSessionExpiredError(error)) {
+      return;
+    }
+
     setFormError(profileError, error.message || "Unable to load profile.");
     populateProfileForm(storedUser);
     profileDialog.hidden = false;
@@ -535,6 +712,7 @@ function closeProfileDialog() {
   closeAvatarViewDialog();
   setFormError(profileError, "");
   profileForm.reset();
+  storeUiState();
 }
 
 function populateProfileForm(user) {
@@ -768,9 +946,119 @@ async function loadFriends() {
   }
 }
 
+function switchMainTab(tabName, options = {}) {
+  const nextTab = tabName === "lobby" ? "lobby" : "trips";
+  activeMainTab = nextTab;
+
+  mainTabButtons.forEach((button) => {
+    const isActive = button.dataset.mainTab === activeMainTab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+
+  mainTabPanels.forEach((panel) => {
+    panel.hidden = panel.dataset.mainPanel !== activeMainTab;
+  });
+
+  if (activeMainTab === "lobby" && !options.skipLoad) {
+    loadFriendPublicTripLobby();
+  }
+
+  if (!options.skipPersist) {
+    storeUiState();
+  }
+}
+
+async function loadFriendPublicTripLobby() {
+  setFormError(tripLobbyError, "");
+  tripLobbyList.innerHTML = `<p class="empty">Loading public trips...</p>`;
+  tripLobbyRefresh.disabled = true;
+
+  try {
+    const { publicTrips } = await fetchFriendPublicTrips();
+    publicTripLobbyItems = publicTrips || [];
+    renderFriendPublicTripLobby();
+  } catch (error) {
+    publicTripLobbyItems = [];
+    tripLobbyList.innerHTML = "";
+    setFormError(tripLobbyError, error.message || "Unable to load trip lobby.");
+  } finally {
+    tripLobbyRefresh.disabled = false;
+  }
+}
+
+function renderFriendPublicTripLobby() {
+  setFormError(tripLobbyError, "");
+
+  if (!publicTripLobbyItems.length) {
+    tripLobbyList.innerHTML = `
+      <p class="empty">No public friend trips yet. Add friends or ask them to make a trip public.</p>
+    `;
+    return;
+  }
+
+  tripLobbyList.innerHTML = publicTripLobbyItems
+    .map((trip) => renderTripLobbyCard(trip))
+    .join("");
+
+  tripLobbyList.querySelectorAll("[data-request-join-trip]").forEach((node) => {
+    node.addEventListener("click", () => openJoinTripDialog(node.dataset.requestJoinTrip));
+  });
+
+  tripLobbyList.querySelectorAll("[data-open-trip-invitation]").forEach((node) => {
+    node.addEventListener("click", () =>
+      openTripInvitationFromLobby(node.dataset.openTripInvitation)
+    );
+  });
+
+  tripLobbyList.querySelectorAll("[data-open-lobby-friend]").forEach((node) => {
+    node.addEventListener("click", () => openFriendProfile(node.dataset.openLobbyFriend));
+  });
+
+  tripLobbyList.querySelectorAll("[data-avatar-preview-user]").forEach((node) => {
+    node.addEventListener("click", () => {
+      const user = findUserInFriendsState(node.dataset.avatarPreviewUser);
+      if (user) {
+        openAvatarPreview(user);
+      }
+    });
+  });
+}
+
+function renderTripLobbyCard(trip) {
+  const organizer = trip.organizer || {};
+  const organizerName = trip.organizerName || getDisplayName(organizer) || "Organizer";
+  const destination = trip.destination || trip.name || "Trip";
+
+  return `
+    <article class="trip-lobby-card">
+      <div class="trip-lobby-card-main">
+        <div class="trip-card-title-group">
+          <strong>${escapeHtml(destination)}</strong>
+          <span class="trip-organizer-chip">
+            <span>${escapeHtml(organizerName)}</span>
+            <span class="trip-organizer-role">organizer</span>
+          </span>
+          ${renderAvatarPreviewMarkup(organizer)}
+        </div>
+        <div class="trip-lobby-card-content">
+          <div class="trip-lobby-meta">
+            <div class="trip-card-meta">${escapeHtml(formatTripDates(trip.startDate, trip.endDate))}</div>
+            <div class="trip-card-meta">${pluralize(trip.participantCount, "participant")} · ${escapeHtml(formatBudgetSummary(trip.budgetSummary))}</div>
+          </div>
+          <div class="trip-lobby-side">
+            ${renderJoinTripAction(trip, { display: "button" })}
+          </div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 function toggleFriendsSidebar() {
   friendsSidebar.classList.toggle("is-collapsed");
   const isCollapsed = friendsSidebar.classList.contains("is-collapsed");
+  appShell.classList.toggle("is-sidebar-collapsed", isCollapsed);
   friendsToggle.textContent = isCollapsed ? "›" : "‹";
   friendsToggle.setAttribute(
     "aria-label",
@@ -820,11 +1108,14 @@ function renderFriendRequestIndicator() {
   friendRequestsButton.classList.toggle("has-requests", count > 0);
 }
 
-function openAddFriendDialog() {
+function openAddFriendDialog(options = {}) {
   setFormError(addFriendError, "");
   addFriendForm.reset();
   addFriendResults.innerHTML = `<p class="empty">Search by full User ID or email.</p>`;
   addFriendDialog.hidden = false;
+  if (!options.skipPersist) {
+    storeUiState();
+  }
   addFriendForm.elements.identifier.focus();
 }
 
@@ -832,6 +1123,7 @@ function closeAddFriendDialog() {
   addFriendDialog.hidden = true;
   setFormError(addFriendError, "");
   addFriendResults.innerHTML = "";
+  storeUiState();
 }
 
 async function handleAddFriendSearch(event) {
@@ -897,22 +1189,31 @@ async function handleSendFriendRequest(identifier) {
   }
 }
 
-function openFriendRequestsDialog() {
+function openFriendRequestsDialog(options = {}) {
   setFormError(friendRequestsError, "");
-  activeRequestTab = getDefaultRequestTab();
+  highlightedTripInvitationId = options.highlightTripInvitationId
+    ? String(options.highlightTripInvitationId)
+    : null;
+  activeRequestTab = options.tab || getDefaultRequestTab();
   renderFriendRequestsDialog();
   friendRequestsDialog.hidden = false;
+  scrollHighlightedTripInvitation();
+  if (!options.skipPersist) {
+    storeUiState();
+  }
 }
 
 function closeFriendRequestsDialog() {
   friendRequestsDialog.hidden = true;
+  highlightedTripInvitationId = null;
   setFormError(friendRequestsError, "");
+  storeUiState();
 }
 
 function renderFriendRequestsDialog() {
   const incoming = friendsState.incomingRequests || [];
   const tripRequests = friendsState.tripJoinRequests || [];
-  const tripInvitations = friendsState.tripInvitations || [];
+  const tripInvitations = sortTripInvitationsForHighlight(friendsState.tripInvitations || []);
   const counts = getRequestTabCounts();
 
   friendRequestsList.innerHTML = `
@@ -949,6 +1250,34 @@ function renderFriendRequestsDialog() {
         openAvatarPreview(user);
       }
     });
+  });
+
+  scrollHighlightedTripInvitation();
+}
+
+function sortTripInvitationsForHighlight(invitations) {
+  if (!highlightedTripInvitationId) {
+    return invitations;
+  }
+
+  return [...invitations].sort((a, b) => {
+    const aMatches = String(a.tripId || a.id) === highlightedTripInvitationId;
+    const bMatches = String(b.tripId || b.id) === highlightedTripInvitationId;
+    return Number(bMatches) - Number(aMatches);
+  });
+}
+
+function scrollHighlightedTripInvitation() {
+  if (!highlightedTripInvitationId || activeRequestTab !== "invitations") {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    const target = Array.from(
+      tripInvitationsList.querySelectorAll("[data-trip-invitation-card]")
+    ).find((node) => node.dataset.tripInvitationCard === highlightedTripInvitationId);
+
+    target?.scrollIntoView({ block: "start" });
   });
 }
 
@@ -1014,6 +1343,7 @@ function renderIncomingFriendRequest(request) {
 function renderIncomingTripJoinRequest(request) {
   const trip = request.trip || {};
   const destination = trip.destination || trip.name || "TBD";
+  const organizerName = getTripOrganizerName(trip);
 
   return `
     <div class="request-card request-card-stacked">
@@ -1023,7 +1353,8 @@ function renderIncomingTripJoinRequest(request) {
         <p class="hint">Wants to join your trip</p>
         <div class="request-trip-summary">
           <strong>Destination: ${escapeHtml(destination)}</strong>
-          <span>${escapeHtml(formatTripDates(trip.startDate, trip.endDate))}</span>
+          <span>Dates: ${escapeHtml(formatTripDates(trip.startDate, trip.endDate))}</span>
+          <span>Organizer: ${escapeHtml(organizerName)}</span>
         </div>
         <div class="request-actions">
           <button type="button" data-request-id="${escapeHtml(request.id)}" data-trip-request-action="accept">Accept</button>
@@ -1038,24 +1369,31 @@ function renderIncomingTripInvitation(invitation) {
   const organizer = invitation.organizer || {};
   const trip = invitation.trip || {};
   const destination = trip.destination || trip.name || "TBD";
+  const tripId = invitation.tripId || invitation.id;
+  const organizerName = getTripOrganizerName(trip, getDisplayName(organizer));
 
   return `
-    <div class="request-card request-card-stacked">
+    <div class="request-card request-card-stacked" data-trip-invitation-card="${escapeHtml(tripId)}">
       ${renderAvatarPreviewMarkup(organizer)}
       <div class="request-copy">
         <strong>${escapeHtml(getDisplayName(organizer))}</strong>
         <p class="hint">Wants to invite you</p>
         <div class="request-trip-summary">
           <strong>Destination: ${escapeHtml(destination)}</strong>
-          <span>${escapeHtml(formatTripDates(trip.startDate, trip.endDate))}</span>
+          <span>Dates: ${escapeHtml(formatTripDates(trip.startDate, trip.endDate))}</span>
+          <span>Organizer: ${escapeHtml(organizerName)}</span>
         </div>
         <div class="request-actions">
-          <button type="button" data-trip-id="${escapeHtml(invitation.tripId || invitation.id)}" data-trip-invitation-action="accept">Accept</button>
-          <button type="button" class="button-ghost" data-trip-id="${escapeHtml(invitation.tripId || invitation.id)}" data-trip-invitation-action="decline">Decline</button>
+          <button type="button" data-trip-id="${escapeHtml(tripId)}" data-trip-invitation-action="accept">Accept</button>
+          <button type="button" class="button-ghost" data-trip-id="${escapeHtml(tripId)}" data-trip-invitation-action="decline">Decline</button>
         </div>
       </div>
     </div>
   `;
+}
+
+function getTripOrganizerName(trip, fallback = "Organizer") {
+  return trip?.organizerName || getDisplayName(trip?.organizer) || fallback;
 }
 
 async function handleFriendRequestAction(requestId, action) {
@@ -1086,14 +1424,36 @@ async function handleTripInvitationAction(tripId, action) {
 
   try {
     await respondToTripInvitation(tripId, action);
+    if (String(highlightedTripInvitationId || "") === String(tripId || "")) {
+      highlightedTripInvitationId = null;
+    }
     await loadFriends();
     await loadTrips();
+    if (activeMainTab === "lobby") {
+      await loadFriendPublicTripLobby();
+    }
   } catch (error) {
     setFormError(friendRequestsError, error.message || "Unable to update trip invitation.");
   }
 }
 
-async function openFriendProfile(friendId) {
+async function openTripInvitationFromLobby(tripId) {
+  highlightedTripInvitationId = String(tripId || "");
+  activeRequestTab = "invitations";
+  setFormError(friendRequestsError, "");
+  friendRequestsDialog.hidden = false;
+  renderFriendRequestsDialog();
+
+  try {
+    await loadFriends();
+    activeRequestTab = "invitations";
+    renderFriendRequestsDialog();
+  } catch (error) {
+    setFormError(friendRequestsError, error.message || "Unable to load trip invitations.");
+  }
+}
+
+async function openFriendProfile(friendId, options = {}) {
   setFormError(friendProfileError, "");
   friendPublicTrips.innerHTML = `<p class="empty">Loading...</p>`;
   friendProfileDialog.hidden = false;
@@ -1101,6 +1461,9 @@ async function openFriendProfile(friendId) {
   try {
     activeFriendProfile = await fetchFriendProfile(friendId);
     renderFriendProfile(activeFriendProfile);
+    if (!options.skipPersist) {
+      storeUiState();
+    }
   } catch (error) {
     setFormError(friendProfileError, error.message || "Unable to load friend profile.");
     friendPublicTrips.innerHTML = "";
@@ -1124,7 +1487,7 @@ function renderFriendProfile(profile) {
       <div class="friend-trip-card">
         <div>
           <strong>${escapeHtml(trip.destination || trip.name || "Trip")}</strong>
-          <p class="hint">${escapeHtml(formatTripDates(trip.startDate, trip.endDate))} · ${pluralize(trip.participantCount, "participant")}</p>
+          <p class="hint">${escapeHtml(formatTripDates(trip.startDate, trip.endDate))} · ${pluralize(trip.participantCount, "participant")} · ${escapeHtml(formatBudgetSummary(trip.budgetSummary))}</p>
         </div>
         ${renderJoinTripAction(trip)}
       </div>
@@ -1136,9 +1499,37 @@ function renderFriendProfile(profile) {
   });
 }
 
-function renderJoinTripAction(trip) {
+function renderJoinTripAction(trip, options = {}) {
+  if (options.display === "button") {
+    if (trip.isParticipant) {
+      return `<button type="button" class="trip-lobby-state-button is-disabled" disabled>Joined</button>`;
+    }
+
+    if (trip.invitationStatus === "pending") {
+      return `
+        <button type="button" class="trip-lobby-state-button" data-open-trip-invitation="${escapeHtml(trip.id)}">
+          Invited
+        </button>
+      `;
+    }
+
+    if (trip.joinRequestStatus === "pending") {
+      return `<button type="button" class="trip-lobby-state-button is-disabled" disabled>Pending</button>`;
+    }
+
+    return `
+      <button type="button" class="trip-lobby-state-button" data-request-join-trip="${escapeHtml(trip.id)}" aria-label="Request to join ${escapeHtml(trip.destination || trip.name || "trip")}">
+        Request
+      </button>
+    `;
+  }
+
   if (trip.isParticipant) {
     return `<span class="status-pill">Joined</span>`;
+  }
+
+  if (trip.invitationStatus === "pending") {
+    return `<span class="status-pill">Invited</span>`;
   }
 
   if (trip.joinRequestStatus === "pending") {
@@ -1158,6 +1549,7 @@ function closeFriendProfileDialog() {
   closeDeleteFriendDialog();
   setFormError(friendProfileError, "");
   friendPublicTrips.innerHTML = "";
+  storeUiState();
 }
 
 function openDeleteFriendDialog() {
@@ -1204,14 +1596,14 @@ function setDeleteFriendError(message) {
 }
 
 function openJoinTripDialog(tripId) {
-  const trip = activeFriendProfile?.publicTrips?.find((entry) => entry.id === tripId);
+  const trip = findRequestablePublicTrip(tripId);
   if (!trip) {
     return;
   }
 
   pendingJoinTrip = trip;
   setFormError(joinTripError, "");
-  joinTripCopy.textContent = `Send a request to join ${trip.name}?`;
+  joinTripCopy.textContent = `Send a request to join ${trip.destination || trip.name}?`;
   joinTripDialog.hidden = false;
 }
 
@@ -1236,12 +1628,34 @@ async function confirmJoinTripRequest() {
       activeFriendProfile = await fetchFriendProfile(activeFriendProfile.friend.id);
       renderFriendProfile(activeFriendProfile);
     }
+    if (activeMainTab === "lobby") {
+      await loadFriendPublicTripLobby();
+    }
   } catch (error) {
     setFormError(joinTripError, error.message || "Unable to request this trip.");
   } finally {
     joinTripYes.disabled = false;
     joinTripYes.textContent = "Yes, request";
   }
+}
+
+function findRequestablePublicTrip(tripId) {
+  const id = String(tripId || "");
+  const trip = (
+    activeFriendProfile?.publicTrips?.find((entry) => String(entry.id) === id) ||
+    publicTripLobbyItems.find((entry) => String(entry.id) === id)
+  );
+
+  if (
+    !trip ||
+    trip.isParticipant ||
+    trip.invitationStatus === "pending" ||
+    trip.joinRequestStatus === "pending"
+  ) {
+    return null;
+  }
+
+  return trip;
 }
 
 function renderAvatarMarkup(user) {
@@ -1279,7 +1693,8 @@ function findUserInFriendsState(userId) {
     ...(friendsState.tripInvitations || []).flatMap((invitation) => [
       invitation.organizer,
       invitation.invitee
-    ])
+    ]),
+    ...publicTripLobbyItems.map((trip) => trip.organizer)
   ];
 
   return candidates.find((user) => String(user?.id || "") === id) || null;
@@ -1344,6 +1759,95 @@ async function handleTripEditSubmit(event) {
     submitButton.disabled = false;
     submitButton.textContent = "Save";
   }
+}
+
+async function openCreateTripInviteDialog() {
+  setFormError(createTripInviteError, "");
+  createTripInviteDialog.hidden = false;
+  createTripInviteList.innerHTML = `<p class="empty">Loading friends...</p>`;
+
+  try {
+    await loadFriends();
+    createInviteFriends = friendsState.friends || [];
+    const availableFriendIds = new Set(createInviteFriends.map((friend) => String(friend.id)));
+    selectedCreateInviteFriendIds = new Set(
+      Array.from(selectedCreateInviteFriendIds).filter((friendId) =>
+        availableFriendIds.has(friendId)
+      )
+    );
+    renderCreateTripInviteDialog();
+  } catch (error) {
+    setFormError(createTripInviteError, error.message || "Unable to load friends.");
+    createTripInviteList.innerHTML = "";
+  }
+}
+
+function closeCreateTripInviteDialog() {
+  createTripInviteDialog.hidden = true;
+  createInviteFriends = [];
+  setFormError(createTripInviteError, "");
+  createTripInviteList.innerHTML = "";
+  updateCreateTripInviteButton();
+}
+
+function renderCreateTripInviteDialog() {
+  updateCreateTripInviteButton();
+
+  if (!createInviteFriends.length) {
+    createTripInviteList.innerHTML = `<p class="empty">No friends to invite.</p>`;
+    return;
+  }
+
+  createTripInviteList.innerHTML = createInviteFriends
+    .map((friend) => {
+      const isSelected = selectedCreateInviteFriendIds.has(String(friend.id));
+      return `
+        <button
+          type="button"
+          class="invite-friend-row${isSelected ? " is-selected" : ""}"
+          data-create-invite-friend-id="${escapeHtml(friend.id)}"
+          aria-pressed="${isSelected ? "true" : "false"}"
+        >
+          ${renderAvatarMarkup(friend)}
+          <span class="invite-friend-copy">
+            <strong>${escapeHtml(getDisplayName(friend))}</strong>
+            <span>@${escapeHtml(getUserId(friend))}</span>
+          </span>
+          <span class="invite-check" aria-hidden="true"></span>
+        </button>
+      `;
+    })
+    .join("");
+
+  createTripInviteList.querySelectorAll("[data-create-invite-friend-id]").forEach((node) => {
+    node.addEventListener("click", () => toggleCreateTripInviteFriend(
+      node.dataset.createInviteFriendId
+    ));
+  });
+}
+
+function toggleCreateTripInviteFriend(friendId) {
+  const normalizedFriendId = String(friendId || "");
+
+  if (selectedCreateInviteFriendIds.has(normalizedFriendId)) {
+    selectedCreateInviteFriendIds.delete(normalizedFriendId);
+  } else {
+    selectedCreateInviteFriendIds.add(normalizedFriendId);
+  }
+
+  renderCreateTripInviteDialog();
+}
+
+function clearCreateTripInvites() {
+  selectedCreateInviteFriendIds = new Set();
+  updateCreateTripInviteButton();
+}
+
+function updateCreateTripInviteButton() {
+  const count = selectedCreateInviteFriendIds.size;
+  createTripInviteCount.textContent = String(count);
+  createTripInviteCount.hidden = count === 0;
+  createTripInviteButton.classList.toggle("has-selection", count > 0);
 }
 
 async function openTripInviteDialog() {
@@ -1616,6 +2120,7 @@ async function loadTrips() {
 async function openTrip(tripId) {
   activeTripId = tripId;
   detailSection.hidden = false;
+  storeUiState();
   document.querySelectorAll(".trip-card").forEach((card) => {
     card.classList.toggle("is-active", card.dataset.tripId === tripId);
   });
@@ -1627,6 +2132,7 @@ function closeDetail() {
   activeTripId = null;
   activeTripDetail = null;
   detailSection.hidden = true;
+  storeUiState();
   closeDeleteTripDialog();
   closeTripInviteDialog();
   closeTripRemoveParticipantDialog();
@@ -1659,6 +2165,7 @@ async function confirmDeleteTrip() {
   try {
     await deleteTrip(tripId);
     activeTripId = null;
+    storeUiState();
     closeDeleteTripDialog();
     detailSection.hidden = true;
     await loadTrips();
@@ -1685,6 +2192,39 @@ function handleDeleteTripShortcut(event) {
 
   event.preventDefault();
   confirmDeleteTrip();
+}
+
+function handleModalEscape(event) {
+  if (event.key !== "Escape" || event.repeat || event.isComposing) {
+    return;
+  }
+
+  const closeModal = getTopOpenModalCloseAction();
+  if (!closeModal) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  closeModal();
+}
+
+function getTopOpenModalCloseAction() {
+  const modalStack = [
+    [avatarViewDialog, closeAvatarViewDialog],
+    [deleteFriendDialog, closeDeleteFriendDialog],
+    [deleteTripDialog, closeDeleteTripDialog],
+    [joinTripDialog, closeJoinTripDialog],
+    [tripRemoveParticipantDialog, closeTripRemoveParticipantDialog],
+    [tripInviteDialog, closeTripInviteDialog],
+    [createTripInviteDialog, closeCreateTripInviteDialog],
+    [friendProfileDialog, closeFriendProfileDialog],
+    [friendRequestsDialog, closeFriendRequestsDialog],
+    [addFriendDialog, closeAddFriendDialog],
+    [profileDialog, closeProfileDialog]
+  ];
+
+  return modalStack.find(([dialog]) => dialog && !dialog.hidden)?.[1] || null;
 }
 
 function setDeleteTripError(message) {

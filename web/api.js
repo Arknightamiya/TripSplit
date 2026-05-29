@@ -4,6 +4,8 @@ import {
   AUTH_TOKEN_STORAGE_KEY
 } from "/shared/contracts.js";
 
+export const SESSION_EXPIRED_ERROR_MESSAGE = "Your session expired. Please log in again.";
+
 export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   const body = prepareBody(options.body, headers);
@@ -22,13 +24,16 @@ export async function apiRequest(path, options = {}) {
   const payload = await parseJson(response);
 
   if (!response.ok) {
+    const shouldHandleUnauthorized = response.status === 401 && !options.skipUnauthorizedHandler;
     const error = new ApiError(
-      payload?.error || `Request failed with status ${response.status}`,
+      shouldHandleUnauthorized
+        ? SESSION_EXPIRED_ERROR_MESSAGE
+        : payload?.error || `Request failed with status ${response.status}`,
       response.status,
       payload
     );
 
-    if (response.status === 401 && !options.skipUnauthorizedHandler) {
+    if (shouldHandleUnauthorized) {
       unauthorizedHandler?.(error);
     }
 
@@ -118,6 +123,10 @@ export async function fetchFriends() {
   return apiRequest(API_ROUTES.friends);
 }
 
+export async function fetchFriendPublicTrips() {
+  return apiRequest(API_ROUTES.friendPublicTrips);
+}
+
 export async function searchUsersForFriend(query) {
   const params = new URLSearchParams({ query });
   return apiRequest(`${API_ROUTES.friendSearch}?${params.toString()}`);
@@ -168,7 +177,8 @@ export async function postTrip({
     name,
     visibility = "public",
     startDate = "",
-    endDate = ""
+    endDate = "",
+    inviteeUserIds = []
 }){
     return apiRequest(API_ROUTES.trips, {
         method: "POST",
@@ -177,7 +187,8 @@ export async function postTrip({
             destination: name,
             visibility,
             startDate: startDate || null,
-            endDate: endDate || null
+            endDate: endDate || null,
+            inviteeUserIds
         }
     });
 }

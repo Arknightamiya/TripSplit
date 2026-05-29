@@ -314,6 +314,40 @@ Returns the current user's friends, pending incoming/outgoing friend requests, t
 
 Searches users by full User ID, nickname, or email. The frontend uses this from the Add friend dialog.
 
+### GET `/api/friends/public-trips`
+
+Returns all public trips owned by the current user's mutual friends. This powers the Trip Lobby view. Private trips are excluded, and public trips are hidden if either side has removed the friendship.
+
+```json
+{
+  "publicTrips": [
+    {
+      "id": "trip_4",
+      "name": "Yosemite Weekend",
+      "destination": "Yosemite Weekend",
+      "startDate": "2026-06-01",
+      "endDate": "2026-06-03",
+      "visibility": "public",
+      "organizerId": "user_2",
+      "organizerName": "Miya",
+      "organizer": {
+        "id": "user_2",
+        "userId": "miya#1",
+        "displayName": "Miya",
+        "email": "miya@example.com",
+        "avatarUrl": ""
+      },
+      "participantCount": 2,
+      "expenseCount": 0,
+      "budgetSummary": null,
+      "joinRequestStatus": "none",
+      "invitationStatus": "none",
+      "isParticipant": false
+    }
+  ]
+}
+```
+
 ### POST `/api/friends/requests`
 
 Request:
@@ -353,6 +387,7 @@ Returns a friend profile and that friend's public trips. The requester must alre
       "name": "Yosemite Weekend",
       "visibility": "public",
       "joinRequestStatus": "none",
+      "invitationStatus": "none",
       "isParticipant": false
     }
   ]
@@ -440,7 +475,8 @@ Request:
   "destination": "San Diego",
   "startDate": "2026-06-05",
   "endDate": "2026-06-07",
-  "visibility": "private"
+  "visibility": "private",
+  "inviteeUserIds": ["user_2"]
 }
 ```
 
@@ -464,6 +500,13 @@ Response:
         "email": "alex@example.com",
         "role": "organizer",
         "joinStatus": "approved"
+      },
+      {
+        "id": "user_2",
+        "name": "Riley Friend",
+        "email": "riley@example.com",
+        "role": "participant",
+        "joinStatus": "pending"
       }
     ],
     "budgetSummary": null,
@@ -472,7 +515,7 @@ Response:
 }
 ```
 
-The backend sets `organizerId` from the token user and automatically adds that user as an approved organizer participant. `startDate` and `endDate` are optional, but when present they must be valid `YYYY-MM-DD` calendar dates with a four-digit year between `0001` and `9999`; `endDate` must be on or after `startDate`.
+The backend sets `organizerId` from the token user and automatically adds that user as an approved organizer participant. `inviteeUserIds` is optional; each listed user is added as a pending participant invitation and does not count toward approved participant totals until accepted. `startDate` and `endDate` are optional, but when present they must be valid `YYYY-MM-DD` calendar dates with a four-digit year between `0001` and `9999`; `endDate` must be on or after `startDate`.
 
 ### GET `/api/trips/:tripId`
 

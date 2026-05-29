@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import {
   getFriendProfile,
+  getFriendPublicTrips,
   getFriendsOverview,
   removeFriend,
   requestToJoinPublicTrip,
@@ -28,6 +29,14 @@ export function createFriendsRouter() {
   router.get("/search", async (req, res, next) => {
     try {
       res.status(200).json(await searchFriends(req.user.id, req.query.query));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/public-trips", async (req, res, next) => {
+    try {
+      res.status(200).json(await getFriendPublicTrips(req.user.id));
     } catch (error) {
       next(error);
     }

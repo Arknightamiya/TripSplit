@@ -7,6 +7,7 @@ export const API_ROUTES = {
   me: `${API_BASE}/me`,
   friends: `${API_BASE}/friends`,
   friendSearch: `${API_BASE}/friends/search`,
+  friendPublicTrips: `${API_BASE}/friends/public-trips`,
   friendRequests: `${API_BASE}/friends/requests`,
   friendRequestAction: (requestId, action) => `${API_BASE}/friends/requests/${requestId}/${action}`,
   friend: (friendId) => `${API_BASE}/friends/${friendId}`,

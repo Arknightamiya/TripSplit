@@ -25,9 +25,8 @@ export function renderTrips(trips, tripList, { activeTripId, onSelect } = {}) {
           </div>
           <div class="trip-card-row">
             <span class="trip-card-meta">${dates}</span>
-            <span class="trip-card-meta">${budget}</span>
           </div>
-          <div class="trip-card-meta">${pluralize(trip.participantCount, "participant")} · ${pluralize(trip.expenseCount, "expense")}</div>
+          <div class="trip-card-meta">${pluralize(trip.participantCount, "participant")} · ${budget}</div>
         </button>
       `;
     })

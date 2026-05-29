@@ -59,12 +59,16 @@ export async function listTripsForUser(userId) {
 
 export async function createTripForUser(userId, input = {}) {
   const normalizedInput = normalizeTripInput(input);
+  const invitedParticipantIds = isTripRepositoryEnabled()
+    ? await resolveTripInviteeIdsRecord(input.inviteeUserIds, userId)
+    : resolveTripInviteeIds(input.inviteeUserIds, userId);
 
   if (isTripRepositoryEnabled()) {
     return {
       trip: await createTripRecord({
         ...normalizedInput,
-        organizerId: userId
+        organizerId: userId,
+        invitedParticipantIds
       })
     };
   }
@@ -72,7 +76,8 @@ export async function createTripForUser(userId, input = {}) {
   return {
     trip: createTrip({
       ...normalizedInput,
-      organizerId: userId
+      organizerId: userId,
+      invitedParticipantIds
     })
   };
 }
@@ -355,6 +360,54 @@ async function resolveParticipantUserRecord(input) {
     email: input.email,
     passwordHash: hashPassword("invited-user")
   });
+}
+
+function normalizeInviteeIds(inviteeUserIds, organizerId) {
+  if (inviteeUserIds === undefined || inviteeUserIds === null) {
+    return [];
+  }
+
+  if (!Array.isArray(inviteeUserIds)) {
+    throw badRequest("inviteeUserIds must be an array");
+  }
+
+  const normalizedIds = [
+    ...new Set(
+      inviteeUserIds
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    )
+  ];
+
+  if (normalizedIds.includes(String(organizerId))) {
+    throw badRequest("Organizer cannot be invited to their own trip");
+  }
+
+  return normalizedIds;
+}
+
+function resolveTripInviteeIds(inviteeUserIds, organizerId) {
+  const normalizedIds = normalizeInviteeIds(inviteeUserIds, organizerId);
+
+  for (const inviteeId of normalizedIds) {
+    if (!findUserById(inviteeId)) {
+      throw notFound("Invitee user not found");
+    }
+  }
+
+  return normalizedIds;
+}
+
+async function resolveTripInviteeIdsRecord(inviteeUserIds, organizerId) {
+  const normalizedIds = normalizeInviteeIds(inviteeUserIds, organizerId);
+
+  for (const inviteeId of normalizedIds) {
+    if (!(await findUserRecordById(inviteeId))) {
+      throw notFound("Invitee user not found");
+    }
+  }
+
+  return normalizedIds;
 }
 
 function normalizeParticipantRole(role = "participant") {

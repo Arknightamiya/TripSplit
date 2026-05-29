@@ -11,14 +11,13 @@ export async function createTripRecord({
   startDate,
   endDate,
   visibility,
-  organizerId
+  organizerId,
+  invitedParticipantIds = []
 }) {
   const database = getDatabase();
 
-  try {
-    await database.query("BEGIN");
-
-    const tripResult = await database.query(
+  const tripId = await database.transaction(async (client) => {
+    const tripResult = await client.query(
       `
         INSERT INTO trips (name, destination, start_date, end_date, visibility, organizer_id)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -33,22 +32,30 @@ export async function createTripRecord({
         organizerId
       ]
     );
-    const tripId = tripResult.rows[0].id;
+    const createdTripId = tripResult.rows[0].id;
 
-    await database.query(
+    await client.query(
       `
         INSERT INTO trip_participants (trip_id, user_id, role, join_status)
         VALUES ($1, $2, 'organizer', 'approved')
       `,
-      [tripId, organizerId]
+      [createdTripId, organizerId]
     );
 
-    await database.query("COMMIT");
-    return findTripRecordById(tripId);
-  } catch (error) {
-    await database.query("ROLLBACK");
-    throw error;
-  }
+    for (const invitedParticipantId of invitedParticipantIds) {
+      await client.query(
+        `
+          INSERT INTO trip_participants (trip_id, user_id, role, join_status)
+          VALUES ($1, $2, 'participant', 'pending')
+        `,
+        [createdTripId, invitedParticipantId]
+      );
+    }
+
+    return createdTripId;
+  });
+
+  return findTripRecordById(tripId);
 }
 
 export async function addParticipantRecord(tripId, { userId, role }) {

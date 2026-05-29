@@ -4,6 +4,7 @@ import {
   createTripJoinRequest,
   findPendingFriendRequestBetween,
   findPendingTripJoinRequest,
+  findTripParticipant,
   findUserByEmail,
   findUserById,
   findUserByName,
@@ -28,6 +29,7 @@ import {
   findPendingTripJoinRequestRecord,
   isFriendRepositoryEnabled,
   listFriendRecords,
+  listFriendPublicTripRecords,
   listIncomingFriendRequestRecords,
   listIncomingTripInvitationRecords,
   listIncomingTripJoinRequestRecords,
@@ -47,6 +49,7 @@ import {
 } from "../repositories/users.js";
 import {
   findTripRecordById,
+  findTripParticipantRecord,
   isTripRepositoryEnabled,
   userIsApprovedParticipantRecord
 } from "../repositories/trips.js";
@@ -179,6 +182,26 @@ export async function getFriendProfile(userId, friendId) {
   };
 }
 
+export async function getFriendPublicTrips(userId) {
+  if (isFriendRepositoryEnabled()) {
+    return {
+      publicTrips: await listFriendPublicTripRecords(userId)
+    };
+  }
+
+  const friends = listFriendsForUser(userId);
+  const publicTrips = friends.flatMap((friend) =>
+    listPublicTripsForFriend(userId, friend.id).map((trip) => ({
+      ...trip,
+      organizerId: friend.id,
+      organizerName: friend.displayName || friend.name,
+      organizer: friend
+    }))
+  );
+
+  return { publicTrips };
+}
+
 export async function requestToJoinPublicTrip(userId, tripId) {
   const trip = await findTripByStableId(tripId);
 
@@ -199,6 +222,10 @@ export async function requestToJoinPublicTrip(userId, tripId) {
 
   if (await userIsApprovedParticipant(userId, tripId)) {
     throw conflict("You are already a participant on this trip");
+  }
+
+  if (await userHasPendingTripInvitation(tripId, userId)) {
+    throw conflict("You already have an invitation for this trip");
   }
 
   if (await findPendingTripJoinRequestForUser(tripId, userId)) {
@@ -310,4 +337,12 @@ async function findPendingTripJoinRequestForUser(tripId, userId) {
   return isFriendRepositoryEnabled()
     ? findPendingTripJoinRequestRecord(tripId, userId)
     : findPendingTripJoinRequest(tripId, userId);
+}
+
+async function userHasPendingTripInvitation(tripId, userId) {
+  const participant = isTripRepositoryEnabled()
+    ? await findTripParticipantRecord(tripId, userId)
+    : findTripParticipant(tripId, userId);
+
+  return participant?.joinStatus === "pending";
 }

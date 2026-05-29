@@ -207,6 +207,13 @@ export async function listPublicTripRecordsForFriend(viewerId, friendId) {
         t.end_date,
         t.visibility,
         t.organizer_id,
+        organizer.name AS organizer_name,
+        organizer.display_name AS organizer_display_name,
+        organizer.email AS organizer_email,
+        organizer.avatar_url AS organizer_avatar_url,
+        b.mode,
+        b.total_budget,
+        b.per_person_budget,
         (
           SELECT COUNT(*)
           FROM trip_participants tp
@@ -218,9 +225,17 @@ export async function listPublicTripRecordsForFriend(viewerId, friendId) {
           FROM expenses e
           WHERE e.trip_id = t.id
         ) AS expense_count,
+        COALESCE((
+          SELECT SUM(e.amount)
+          FROM expenses e
+          WHERE e.trip_id = t.id
+        ), 0) AS total_spent,
         tjr.status AS join_request_status,
+        pending_invite.join_status AS invitation_status,
         participant.user_id IS NOT NULL AS is_participant
       FROM trips t
+      JOIN users organizer ON organizer.id = t.organizer_id
+      LEFT JOIN budgets b ON b.trip_id = t.id
       LEFT JOIN trip_join_requests tjr
         ON tjr.trip_id = t.id
         AND tjr.requester_id = $1
@@ -229,6 +244,10 @@ export async function listPublicTripRecordsForFriend(viewerId, friendId) {
         ON participant.trip_id = t.id
         AND participant.user_id = $1
         AND participant.join_status = 'approved'
+      LEFT JOIN trip_participants pending_invite
+        ON pending_invite.trip_id = t.id
+        AND pending_invite.user_id = $1
+        AND pending_invite.join_status = 'pending'
       WHERE t.organizer_id = $2
         AND t.visibility = 'public'
         AND EXISTS (
@@ -240,6 +259,73 @@ export async function listPublicTripRecordsForFriend(viewerId, friendId) {
       ORDER BY t.created_at DESC, t.id DESC
     `,
     [viewerId, friendId]
+  );
+
+  return result.rows.map(mapPublicTripRow);
+}
+
+export async function listFriendPublicTripRecords(viewerId) {
+  const result = await getDatabase().query(
+    `
+      SELECT
+        t.id,
+        t.name,
+        t.destination,
+        t.start_date,
+        t.end_date,
+        t.visibility,
+        t.organizer_id,
+        organizer.name AS organizer_name,
+        organizer.display_name AS organizer_display_name,
+        organizer.email AS organizer_email,
+        organizer.avatar_url AS organizer_avatar_url,
+        b.mode,
+        b.total_budget,
+        b.per_person_budget,
+        (
+          SELECT COUNT(*)
+          FROM trip_participants tp
+          WHERE tp.trip_id = t.id
+            AND tp.join_status = 'approved'
+        ) AS participant_count,
+        (
+          SELECT COUNT(*)
+          FROM expenses e
+          WHERE e.trip_id = t.id
+        ) AS expense_count,
+        COALESCE((
+          SELECT SUM(e.amount)
+          FROM expenses e
+          WHERE e.trip_id = t.id
+        ), 0) AS total_spent,
+        tjr.status AS join_request_status,
+        pending_invite.join_status AS invitation_status,
+        participant.user_id IS NOT NULL AS is_participant
+      FROM trips t
+      JOIN users organizer ON organizer.id = t.organizer_id
+      JOIN friendships viewer_friendship
+        ON viewer_friendship.user_id = $1
+        AND viewer_friendship.friend_id = t.organizer_id
+      JOIN friendships owner_friendship
+        ON owner_friendship.user_id = t.organizer_id
+        AND owner_friendship.friend_id = $1
+      LEFT JOIN budgets b ON b.trip_id = t.id
+      LEFT JOIN trip_join_requests tjr
+        ON tjr.trip_id = t.id
+        AND tjr.requester_id = $1
+        AND tjr.status = 'pending'
+      LEFT JOIN trip_participants participant
+        ON participant.trip_id = t.id
+        AND participant.user_id = $1
+        AND participant.join_status = 'approved'
+      LEFT JOIN trip_participants pending_invite
+        ON pending_invite.trip_id = t.id
+        AND pending_invite.user_id = $1
+        AND pending_invite.join_status = 'pending'
+      WHERE t.visibility = 'public'
+      ORDER BY t.start_date NULLS LAST, t.created_at DESC, t.id DESC
+    `,
+    [viewerId]
   );
 
   return result.rows.map(mapPublicTripRow);
@@ -501,6 +587,13 @@ async function findPublicTripRecord(tripId) {
         t.end_date,
         t.visibility,
         t.organizer_id,
+        organizer.name AS organizer_name,
+        organizer.display_name AS organizer_display_name,
+        organizer.email AS organizer_email,
+        organizer.avatar_url AS organizer_avatar_url,
+        b.mode,
+        b.total_budget,
+        b.per_person_budget,
         (
           SELECT COUNT(*)
           FROM trip_participants tp
@@ -512,9 +605,17 @@ async function findPublicTripRecord(tripId) {
           FROM expenses e
           WHERE e.trip_id = t.id
         ) AS expense_count,
+        COALESCE((
+          SELECT SUM(e.amount)
+          FROM expenses e
+          WHERE e.trip_id = t.id
+        ), 0) AS total_spent,
         'none' AS join_request_status,
+        'none' AS invitation_status,
         false AS is_participant
       FROM trips t
+      JOIN users organizer ON organizer.id = t.organizer_id
+      LEFT JOIN budgets b ON b.trip_id = t.id
       WHERE t.id = $1
     `,
     [tripId]
@@ -549,6 +650,9 @@ function mapUserRow(row) {
 }
 
 function mapPublicTripRow(row) {
+  const participantCount = Number(row.participant_count || 0);
+  const totalSpent = toCurrencyNumber(row.total_spent);
+
   return {
     id: String(row.id),
     name: row.name,
@@ -557,10 +661,45 @@ function mapPublicTripRow(row) {
     endDate: formatDate(row.end_date),
     visibility: row.visibility || "private",
     organizerId: String(row.organizer_id),
-    participantCount: Number(row.participant_count || 0),
+    organizerName: row.organizer_display_name || row.organizer_name || "Organizer",
+    organizer: {
+      id: String(row.organizer_id),
+      userId: row.organizer_name,
+      name: row.organizer_name,
+      displayName: row.organizer_display_name || row.organizer_name,
+      email: row.organizer_email,
+      avatarUrl: row.organizer_avatar_url || ""
+    },
+    participantCount,
     expenseCount: Number(row.expense_count || 0),
+    budgetSummary: buildBudgetSummary(row, participantCount, totalSpent),
     joinRequestStatus: row.join_request_status || "none",
+    invitationStatus: row.invitation_status || "none",
     isParticipant: Boolean(row.is_participant)
+  };
+}
+
+function buildBudgetSummary(row, participantCount, totalSpent) {
+  if (!row.mode) {
+    return null;
+  }
+
+  const perPersonBudget = toNullableCurrencyNumber(row.per_person_budget);
+  const totalBudget =
+    row.mode === "per-person"
+      ? roundCurrency(perPersonBudget * participantCount)
+      : toCurrencyNumber(row.total_budget);
+  const remainingBudget = roundCurrency(Math.max(totalBudget - totalSpent, 0));
+  const overBudgetAmount = roundCurrency(Math.max(totalSpent - totalBudget, 0));
+
+  return {
+    mode: row.mode,
+    totalBudget,
+    perPersonBudget,
+    participantCount,
+    totalSpent,
+    remainingBudget,
+    overBudgetAmount
   };
 }
 
@@ -574,4 +713,16 @@ function formatDate(value) {
   }
 
   return value.toISOString().slice(0, 10);
+}
+
+function toNullableCurrencyNumber(value) {
+  return value === null || value === undefined ? null : toCurrencyNumber(value);
+}
+
+function toCurrencyNumber(value) {
+  return roundCurrency(Number(value || 0));
+}
+
+function roundCurrency(value) {
+  return Number(value.toFixed(2));
 }

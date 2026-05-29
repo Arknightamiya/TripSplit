@@ -85,7 +85,8 @@ export function createTrip({
   startDate,
   endDate,
   visibility,
-  organizerId
+  organizerId,
+  invitedParticipantIds = []
 }) {
   const trip = {
     id: createId("trip"),
@@ -105,6 +106,14 @@ export function createTrip({
     budget: null,
     expenses: []
   };
+
+  for (const invitedParticipantId of invitedParticipantIds) {
+    trip.participants.push({
+      userId: invitedParticipantId,
+      role: "participant",
+      joinStatus: "pending"
+    });
+  }
 
   state.trips.push(trip);
   return hydrateTrip(trip);
@@ -215,6 +224,7 @@ export function listPublicTripsForFriend(viewerId, friendId) {
     .map((trip) => ({
       ...summarizeTrip(trip),
       joinRequestStatus: getTripJoinRequestStatus(trip.id, viewerId),
+      invitationStatus: getTripInvitationStatus(trip.id, viewerId),
       isParticipant: isApprovedParticipant(trip.id, viewerId)
     }));
 }
@@ -604,6 +614,7 @@ function summarizeTrip(trip) {
     visibility: trip.visibility || "private",
     organizerId: trip.organizerId,
     organizerName: organizer?.displayName || organizer?.name || "Organizer",
+    organizer: organizer ? toSafeFriend(organizer) : null,
     participantCount: approvedParticipantIds(trip).length,
     expenseCount: trip.expenses.length,
     budgetSummary: getBudgetSummary(trip)
@@ -791,6 +802,14 @@ function getTripJoinRequestStatus(tripId, requesterId) {
     (entry) => entry.tripId === tripId && entry.requesterId === requesterId
   );
   return request?.status || "none";
+}
+
+function getTripInvitationStatus(tripId, userId) {
+  const trip = getTripRecord(tripId);
+  const invitation = trip?.participants.find(
+    (entry) => entry.userId === userId && entry.joinStatus === "pending"
+  );
+  return invitation ? "pending" : "none";
 }
 
 function inputVisibility(value) {
