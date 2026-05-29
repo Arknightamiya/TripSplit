@@ -419,7 +419,10 @@ export function addExpense(tripId, expenseInput) {
     return null;
   }
 
-  const includedParticipantIds = expenseInput.includedParticipantIds?.length
+  const expenseType = expenseInput.expenseType || expenseInput.type;
+  const includedParticipantIds = expenseType === "personal_advance"
+    ? [expenseInput.payerId]
+    : expenseInput.includedParticipantIds?.length
     ? [...expenseInput.includedParticipantIds]
     : approvedParticipantIds(trip);
   const amount = roundCurrency(Number(expenseInput.amount));
@@ -431,7 +434,7 @@ export function addExpense(tripId, expenseInput) {
     title: normalizeText(expenseInput.title) || "Untitled Expense",
     amount,
     category: expenseInput.category,
-    expenseType: expenseInput.expenseType || expenseInput.type,
+    expenseType,
     payerId: expenseInput.payerId,
     splitRule: expenseInput.splitRule || "equal",
     includedParticipantIds,

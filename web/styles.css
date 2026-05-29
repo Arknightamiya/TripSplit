@@ -627,6 +627,14 @@ h1 {
   margin-bottom: 1rem;
 }
 
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .stack {
   display: grid;
   gap: 0.75rem;
@@ -910,6 +918,14 @@ input::placeholder {
   background: var(--accent-soft);
 }
 
+.button-danger-ghost {
+  color: var(--danger);
+}
+
+.button-danger-ghost:hover {
+  background: var(--danger-soft);
+}
+
 .button-danger {
   background: transparent;
   color: var(--danger);
@@ -1156,6 +1172,14 @@ label.field input:disabled {
   gap: 0.4rem;
 }
 
+.participant-picker[hidden] {
+  display: none;
+}
+
+.field.is-disabled {
+  opacity: 0.8;
+}
+
 .participant-picker label {
   display: inline-flex;
   align-items: center;
@@ -1360,11 +1384,6 @@ label.field input:disabled {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--accent-soft);
-}
-
-.profile-preview .button-danger {
-  margin-left: auto;
-  white-space: nowrap;
 }
 
 .avatar-trigger {

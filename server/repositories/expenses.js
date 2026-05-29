@@ -23,7 +23,9 @@ export async function listApprovedParticipantIdsRecord(tripId) {
 export async function createExpenseRecord(tripId, input) {
   const database = getDatabase();
   const amount = roundCurrency(Number(input.amount));
-  const includedParticipantIds = [...input.includedParticipantIds];
+  const includedParticipantIds = input.expenseType === "personal_advance"
+    ? [input.payerId]
+    : [...input.includedParticipantIds];
   const expenseShares = splitCurrencyEvenly(amount, includedParticipantIds);
 
   const expenseId = await database.transaction(async (transaction) => {
