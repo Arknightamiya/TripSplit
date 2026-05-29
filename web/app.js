@@ -914,7 +914,7 @@ function getDefaultRequestTab() {
 }
 
 function normalizeActiveRequestTab(counts) {
-  if (counts[activeRequestTab] > 0) {
+  if (Object.hasOwn(counts, activeRequestTab)) {
     return;
   }
 
@@ -1117,7 +1117,7 @@ function closeDeleteFriendDialog() {
   deleteFriendDialog.hidden = true;
   setDeleteFriendError("");
   deleteFriendYes.disabled = false;
-  deleteFriendYes.textContent = "Yes, delete";
+  deleteFriendYes.textContent = "Yes, remove";
 }
 
 async function confirmDeleteFriend() {
@@ -1128,7 +1128,7 @@ async function confirmDeleteFriend() {
   setDeleteFriendError("");
   setFormError(friendProfileError, "");
   deleteFriendYes.disabled = true;
-  deleteFriendYes.textContent = "Deleting...";
+  deleteFriendYes.textContent = "Removing...";
 
   try {
     await removeFriend(activeFriendProfile.friend.id);
@@ -1136,9 +1136,9 @@ async function confirmDeleteFriend() {
     closeFriendProfileDialog();
     await loadFriends();
   } catch (error) {
-    setDeleteFriendError(error.message || "Unable to delete friend.");
+    setDeleteFriendError(error.message || "Unable to remove friend.");
     deleteFriendYes.disabled = false;
-    deleteFriendYes.textContent = "Yes, delete";
+    deleteFriendYes.textContent = "Yes, remove";
   }
 }
 

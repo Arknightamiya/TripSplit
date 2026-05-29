@@ -1357,6 +1357,11 @@ label.field input:disabled {
   background: var(--accent-soft);
 }
 
+.profile-preview .button-danger {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .avatar-trigger {
   padding: 0;
   border: 0;

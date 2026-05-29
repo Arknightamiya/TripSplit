@@ -40,3 +40,41 @@ test("calculateBalances splits shared expenses fairly", () => {
     }
   ]);
 });
+
+test("calculateBalances keeps equal split balances conserved after cent rounding", () => {
+  const result = calculateBalances({
+    participantIds: ["u1", "u2", "u3"],
+    expenses: [
+      {
+        amount: 500,
+        payerId: "u1",
+        includedParticipantIds: ["u1", "u2", "u3"]
+      }
+    ]
+  });
+
+  assert.deepEqual(result, [
+    {
+      participantId: "u1",
+      actualPaid: 500,
+      fairShare: 166.67,
+      netBalance: 333.33
+    },
+    {
+      participantId: "u2",
+      actualPaid: 0,
+      fairShare: 166.67,
+      netBalance: -166.67
+    },
+    {
+      participantId: "u3",
+      actualPaid: 0,
+      fairShare: 166.66,
+      netBalance: -166.66
+    }
+  ]);
+  assert.equal(
+    result.reduce((sum, balance) => sum + balance.netBalance, 0),
+    0
+  );
+});

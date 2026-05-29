@@ -1,3 +1,5 @@
+import { splitCurrencyEvenly } from "./utils/currency.js";
+
 function roundCurrency(value) {
   return Number(value.toFixed(2));
 }
@@ -42,11 +44,5 @@ export function calculateBalances(trip) {
 
 function createEqualShares(expense) {
   const includedParticipantIds = expense.includedParticipantIds || [];
-  const splitCount = includedParticipantIds.length || 1;
-  const fairShare = expense.amount / splitCount;
-
-  return includedParticipantIds.map((participantId) => ({
-    participantId,
-    shareAmount: fairShare
-  }));
+  return splitCurrencyEvenly(expense.amount, includedParticipantIds);
 }

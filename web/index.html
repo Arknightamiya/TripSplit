@@ -358,10 +358,10 @@
             <strong id="friend-profile-display-name">Nickname</strong>
             <p id="friend-profile-id" class="hint"></p>
           </div>
+          <button type="button" id="remove-friend-button" class="button-danger">Remove friend</button>
         </div>
         <div class="panel-header compact-header">
           <h3>Public trips</h3>
-          <button type="button" id="remove-friend-button" class="button-danger">Delete</button>
         </div>
         <div id="friend-public-trips" class="friend-trip-list"></div>
         <p id="friend-profile-error" class="form-error" role="alert" hidden></p>
@@ -370,7 +370,7 @@
 
     <div id="delete-friend-dialog" class="modal-overlay" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-friend-title">
-        <h2 id="delete-friend-title">Delete this friend?</h2>
+        <h2 id="delete-friend-title">Remove this friend?</h2>
         <p class="hint">
           This will remove this person from your friend list and block them from seeing your public trips.
         </p>
@@ -378,7 +378,7 @@
         <div class="modal-actions">
           <button type="button" id="delete-friend-no" class="button-ghost">No</button>
           <button type="button" id="delete-friend-yes" class="button-danger button-prominent">
-            Yes, delete
+            Yes, remove
           </button>
         </div>
       </div>

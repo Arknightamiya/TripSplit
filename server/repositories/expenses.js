@@ -1,4 +1,5 @@
 import { getDatabase } from "../db/pool.js";
+import { splitCurrencyEvenly } from "../utils/currency.js";
 
 export function isExpenseRepositoryEnabled() {
   return getDatabase().enabled;
@@ -23,7 +24,7 @@ export async function createExpenseRecord(tripId, input) {
   const database = getDatabase();
   const amount = roundCurrency(Number(input.amount));
   const includedParticipantIds = [...input.includedParticipantIds];
-  const shareAmount = roundCurrency(amount / (includedParticipantIds.length || 1));
+  const expenseShares = splitCurrencyEvenly(amount, includedParticipantIds);
 
   const expenseId = await database.transaction(async (transaction) => {
     const splitRuleResult = await transaction.query(
@@ -71,7 +72,7 @@ export async function createExpenseRecord(tripId, input) {
 
     const expenseId = expenseResult.rows[0].id;
 
-    for (const participantId of includedParticipantIds) {
+    for (const share of expenseShares) {
       await transaction.query(
         `
           INSERT INTO expense_shares (
@@ -82,7 +83,7 @@ export async function createExpenseRecord(tripId, input) {
           )
           VALUES ($1, $2, $3, $4)
         `,
-        [expenseId, tripId, participantId, shareAmount]
+        [expenseId, tripId, share.participantId, share.shareAmount]
       );
     }
 
