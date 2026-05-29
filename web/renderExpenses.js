@@ -39,9 +39,6 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
     splitField.classList.toggle("is-disabled", isPersonalAdvance);
     splitCheckboxes.forEach((checkbox) => {
       checkbox.disabled = isPersonalAdvance;
-      if (isPersonalAdvance) {
-        checkbox.checked = false;
-      }
     });
   }
 
@@ -131,7 +128,7 @@ function expenseFormHtml(approved, currentUserId) {
   const participantChips = approved
     .map((p) => `
       <label>
-        <input type="checkbox" name="includedParticipantIds" value="${p.id}" />
+        <input type="checkbox" name="includedParticipantIds" value="${p.id}" checked />
         ${escapeHtml(displayName(p))}
       </label>
     `)
