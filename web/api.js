@@ -22,13 +22,37 @@ export async function apiRequest(path, options = {}) {
   const payload = await parseJson(response);
 
   if (!response.ok) {
-    throw new Error(payload?.error || `Request failed with status ${response.status}`);
+    const error = new ApiError(
+      payload?.error || `Request failed with status ${response.status}`,
+      response.status,
+      payload
+    );
+
+    if (response.status === 401 && !options.skipUnauthorizedHandler) {
+      unauthorizedHandler?.(error);
+    }
+
+    throw error;
   }
 
   return payload;
 }
 
 const CURRENT_USER_STORAGE_KEY = "tripsplit.currentUser";
+let unauthorizedHandler = null;
+
+export class ApiError extends Error {
+  constructor(message, status, payload) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = typeof handler === "function" ? handler : null;
+}
 
 export function getStoredCurrentUser() {
   try {
@@ -56,6 +80,7 @@ export function clearAuthSession() {
 export async function login({ identifier, email, password }) {
   return apiRequest(API_ROUTES.authLogin, {
     method: "POST",
+    skipUnauthorizedHandler: true,
     body: {
       identifier: identifier ?? email,
       password
@@ -70,8 +95,8 @@ export async function register({ name, email, password }) {
   });
 }
 
-export async function fetchCurrentUserProfile() {
-  return apiRequest(API_ROUTES.me);
+export async function fetchCurrentUserProfile(options = {}) {
+  return apiRequest(API_ROUTES.me, options);
 }
 
 export async function updateCurrentUserProfile({ displayName, avatarUrl }) {

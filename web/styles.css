@@ -29,6 +29,11 @@ body {
   background: var(--bg);
 }
 
+body.is-booting .auth-view,
+body.is-booting .app-view {
+  display: none;
+}
+
 button,
 input,
 select {

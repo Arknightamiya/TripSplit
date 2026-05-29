@@ -9,6 +9,7 @@ import {
   fetchTrip,
   fetchTrips,
   getStoredCurrentUser,
+  getStoredAuthToken,
   inviteParticipant,
   login,
   register,
@@ -20,12 +21,13 @@ import {
   respondToTripJoinRequest,
   searchUsersForFriend,
   sendFriendRequest,
+  setUnauthorizedHandler,
   storeAuthSession,
   storeCurrentUser,
   updateCurrentUserProfile,
   updateTrip
 } from "./api.js";
-import { setupTripForm } from "./forms.js";
+import { setupDateInputs, setupTripForm, validateTripDates } from "./forms.js";
 import { renderBalances } from "./renderBalances.js";
 import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
@@ -155,6 +157,10 @@ const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
 const MAX_AVATAR_FILE_SIZE = 8_000_000;
 const AVATAR_IMAGE_SIZE = 256;
 const AVATAR_IMAGE_QUALITY = 0.86;
+const SESSION_EXPIRED_MESSAGE = "Your session expired. Please log in again.";
+
+setUnauthorizedHandler(handleSessionExpired);
+setupDateInputs(document);
 
 authTabs.forEach((tab) => {
   tab.addEventListener("click", () => showAuthMode(tab.dataset.authMode));
@@ -258,7 +264,28 @@ bootstrap();
 
 async function bootstrap() {
   await loadStatus();
-  showAuthView();
+  await restoreAuthSession();
+  document.body.classList.remove("is-booting");
+}
+
+async function restoreAuthSession() {
+  if (!getStoredAuthToken()) {
+    showAuthView();
+    return;
+  }
+
+  try {
+    const { user } = await fetchCurrentUserProfile({ skipUnauthorizedHandler: true });
+    storeCurrentUser(user);
+    showAppView(user);
+    await loadFriends();
+    await loadTrips();
+  } catch (error) {
+    const message = error.status === 401
+      ? SESSION_EXPIRED_MESSAGE
+      : "Unable to restore your session. Please log in again.";
+    showAuthView(message);
+  }
 }
 
 async function loadStatus() {
@@ -274,8 +301,9 @@ async function loadStatus() {
   }
 }
 
-function showAuthView() {
+function showAuthView(message = "") {
   clearAuthSession();
+  closeAuthenticatedDialogs();
   activeTripId = null;
   activeTripDetail = null;
   friendsState = {
@@ -293,6 +321,28 @@ function showAuthView() {
   tripList.innerHTML = "";
   friendsList.innerHTML = "";
   showAuthMode("login");
+  if (message) {
+    setFormError(loginError, message);
+  }
+}
+
+function closeAuthenticatedDialogs() {
+  [
+    profileDialog,
+    avatarViewDialog,
+    addFriendDialog,
+    friendRequestsDialog,
+    friendProfileDialog,
+    joinTripDialog,
+    tripInviteDialog,
+    tripRemoveParticipantDialog,
+    deleteTripDialog,
+    deleteFriendDialog
+  ].forEach((dialog) => {
+    if (dialog) {
+      dialog.hidden = true;
+    }
+  });
 }
 
 function showAppView(user) {
@@ -405,6 +455,12 @@ function handleLogout() {
   closeJoinTripDialog();
   closeTripInviteDialog();
   showAuthView();
+}
+
+function handleSessionExpired() {
+  if (!appView.hidden) {
+    showAuthView(SESSION_EXPIRED_MESSAGE);
+  }
 }
 
 function setFormError(node, message) {
@@ -1263,8 +1319,9 @@ async function handleTripEditSubmit(event) {
     return;
   }
 
-  if (startDate && endDate && endDate < startDate) {
-    setFormError(tripEditError, "End date must be after start date.");
+  const dateError = validateTripDates(tripEditForm);
+  if (dateError) {
+    setFormError(tripEditError, dateError);
     return;
   }
 
