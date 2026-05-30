@@ -20,6 +20,10 @@ const TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 export async function registerUser(input = {}) {
   requireFields(input, ["name", "email", "password"]);
 
+  if (String(input.password).length < 8) {
+    throw badRequest("Password must be at least 8 characters long");
+  }
+
   if (await findAuthUserByEmail(input.email)) {
     throw conflict("An account with this email already exists");
   }

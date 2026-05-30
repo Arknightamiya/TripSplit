@@ -24,6 +24,8 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
 
   const form = panel.querySelector("#expense-form");
   const error = panel.querySelector("#expense-error");
+  const titleInput = form.elements.title;
+  const amountInput = form.elements.amount;
   const payerSelect = form.elements.payerId;
   const typeSelect = form.elements.expenseType;
   const splitField = form.querySelector("[data-split-field]");
@@ -44,11 +46,16 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
 
   typeSelect.addEventListener("change", syncSplitControls);
   payerSelect.addEventListener("change", syncSplitControls);
+  amountInput.addEventListener("keydown", preventInvalidNumberKey);
+  amountInput.addEventListener("input", sanitizeNumberInput);
   syncSplitControls();
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     error.textContent = "";
+    titleInput.setCustomValidity("");
+    amountInput.setCustomValidity("");
+
     const formData = new FormData(form);
     const title = String(formData.get("title") || "").trim();
     const amount = Number(formData.get("amount"));
@@ -57,8 +64,22 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
     const includedParticipantIds = expenseType === "personal_advance"
       ? [payerId]
       : formData.getAll("includedParticipantIds");
-    if (!title || !(amount > 0) || (expenseType === "shared" && !includedParticipantIds.length)) {
-      error.textContent = "Title, positive amount, and at least one split participant are required.";
+    if (!title) {
+      error.textContent = "Title is required.";
+      titleInput.setCustomValidity(error.textContent);
+      titleInput.reportValidity();
+      titleInput.setCustomValidity("");
+      return;
+    }
+    if (!(amount > 0)) {
+      error.textContent = "Enter a positive amount.";
+      amountInput.setCustomValidity(error.textContent);
+      amountInput.reportValidity();
+      amountInput.setCustomValidity("");
+      return;
+    }
+    if (expenseType === "shared" && !includedParticipantIds.length) {
+      error.textContent = "Choose at least one split participant.";
       return;
     }
     try {
@@ -91,6 +112,16 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
       }
     });
   });
+}
+
+function preventInvalidNumberKey(event) {
+  if (["e", "E", "+", "-"].includes(event.key)) {
+    event.preventDefault();
+  }
+}
+
+function sanitizeNumberInput(event) {
+  event.target.value = event.target.value.replace(/[eE+-]/g, "");
 }
 
 function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
@@ -135,7 +166,7 @@ function expenseFormHtml(approved, currentUserId) {
     .join("");
 
   return `
-    <form id="expense-form" class="form-grid">
+    <form id="expense-form" class="form-grid" novalidate>
       <div class="form-grid-row">
         <label class="field">
           <span>Title</span>

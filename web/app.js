@@ -251,6 +251,7 @@ deleteTripDialog.addEventListener("click", (event) => {
 });
 deleteTripYes.addEventListener("click", confirmDeleteTrip);
 document.addEventListener("keydown", handleDeleteTripShortcut);
+document.addEventListener("keydown", handleDeleteFriendShortcut);
 document.addEventListener("keydown", handleModalEscape);
 friendsToggle.addEventListener("click", toggleFriendsSidebar);
 friendsSearch.addEventListener("input", renderFriendsList);
@@ -427,6 +428,10 @@ function showAuthMode(mode) {
 
 async function handleLogin(event) {
   event.preventDefault();
+  if (!loginForm.reportValidity()) {
+    return;
+  }
+
   const formData = new FormData(loginForm);
   const rememberLogin = formData.get("rememberLogin") === "on";
 
@@ -451,6 +456,10 @@ async function handleLogin(event) {
 
 async function handleRegister(event) {
   event.preventDefault();
+  if (!registerForm.reportValidity()) {
+    return;
+  }
+
   const formData = new FormData(registerForm);
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
@@ -1071,7 +1080,7 @@ function toggleFriendsSidebar() {
 function renderFriendsList() {
   const query = String(friendsSearch.value || "").trim().toLowerCase();
   const friends = (friendsState.friends || []).filter((friend) =>
-    [getDisplayName(friend), getUserId(friend), friend.email]
+    [getDisplayName(friend), getUserId(friend)]
       .filter(Boolean)
       .some((value) => value.toLowerCase().includes(query))
   );
@@ -1113,7 +1122,7 @@ function renderFriendRequestIndicator() {
 function openAddFriendDialog(options = {}) {
   setFormError(addFriendError, "");
   addFriendForm.reset();
-  addFriendResults.innerHTML = `<p class="empty">Search by full User ID or email.</p>`;
+  addFriendResults.innerHTML = `<p class="empty">Search by User ID, nickname, or email.</p>`;
   addFriendDialog.hidden = false;
   if (!options.skipPersist) {
     storeUiState();
@@ -1565,6 +1574,7 @@ function openDeleteFriendDialog() {
 
   setDeleteFriendError("");
   deleteFriendDialog.hidden = false;
+  deleteFriendYes.focus();
 }
 
 function closeDeleteFriendDialog() {
@@ -2198,6 +2208,25 @@ function handleDeleteTripShortcut(event) {
 
   event.preventDefault();
   confirmDeleteTrip();
+}
+
+function handleDeleteFriendShortcut(event) {
+  if (
+    deleteFriendDialog.hidden ||
+    event.key !== "Enter" ||
+    event.repeat ||
+    event.isComposing ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    deleteFriendYes.disabled
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  confirmDeleteFriend();
 }
 
 function handleModalEscape(event) {

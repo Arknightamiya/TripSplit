@@ -209,7 +209,11 @@ export function respondToFriendRequest(requestId, recipientId, status) {
 export function removeFriendship(userId, friendId) {
   const beforeCount = state.friendships.length;
   state.friendships = state.friendships.filter(
-    (entry) => !(entry.userId === userId && entry.friendId === friendId)
+    (entry) =>
+      !(
+        (entry.userId === userId && entry.friendId === friendId) ||
+        (entry.userId === friendId && entry.friendId === userId)
+      )
   );
   return state.friendships.length !== beforeCount;
 }
