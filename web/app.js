@@ -299,6 +299,11 @@ friendProfileDialog.addEventListener("click", (event) => {
 });
 friendAvatarTrigger.addEventListener("click", openFriendAvatarViewDialog);
 removeFriendButton.addEventListener("click", openDeleteFriendDialog);
+profilePreviewName.addEventListener("click", copyFullTruncatedText);
+profilePreviewId.addEventListener("click", copyFullTruncatedText);
+friendProfileName.addEventListener("click", copyFullTruncatedText);
+friendProfileDisplayName.addEventListener("click", copyFullTruncatedText);
+friendProfileId.addEventListener("click", copyFullTruncatedText);
 deleteFriendNo.addEventListener("click", closeDeleteFriendDialog);
 deleteFriendYes.addEventListener("click", confirmDeleteFriend);
 deleteFriendDialog.addEventListener("click", (event) => {
@@ -852,9 +857,31 @@ function renderCurrentUser(user) {
 }
 
 function renderProfilePreview(user) {
-  profilePreviewName.textContent = getDisplayName(user);
-  profilePreviewId.textContent = `@${getUserId(user)} · ${user.email || ""}`;
+  setTruncatedCopyText(profilePreviewName, getDisplayName(user));
+  setTruncatedCopyText(profilePreviewId, `@${getUserId(user)} · ${user.email || ""}`);
   renderAvatar(profileAvatarPreview, profileAvatarFallback, user);
+}
+
+function setTruncatedCopyText(node, text) {
+  const value = String(text || "");
+  node.textContent = value;
+  node.title = value;
+  node.dataset.fullText = value;
+  node.classList.toggle("truncated-copy", Boolean(value));
+}
+
+async function copyFullTruncatedText(event) {
+  const value = event.currentTarget.dataset.fullText;
+
+  if (!value || !navigator.clipboard?.writeText) {
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    // Hover title still exposes the full value when clipboard access is unavailable.
+  }
 }
 
 function renderAvatar(imageNode, fallbackNode, user) {
@@ -1488,9 +1515,9 @@ async function openFriendProfile(friendId, options = {}) {
 
 function renderFriendProfile(profile) {
   const { friend, publicTrips } = profile;
-  friendProfileName.textContent = getDisplayName(friend);
-  friendProfileDisplayName.textContent = getDisplayName(friend);
-  friendProfileId.textContent = `@${getUserId(friend)} · ${friend.email || ""}`;
+  setTruncatedCopyText(friendProfileName, getDisplayName(friend));
+  setTruncatedCopyText(friendProfileDisplayName, getDisplayName(friend));
+  setTruncatedCopyText(friendProfileId, `@${getUserId(friend)} · ${friend.email || ""}`);
   renderAvatar(friendProfileAvatar, friendProfileAvatarFallback, friend);
 
   if (!publicTrips.length) {

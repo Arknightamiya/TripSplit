@@ -404,7 +404,7 @@ test("friends can request to join public trips", async () => {
   assert.equal(hiddenPrivateTrip.status, 403);
 });
 
-test("deleting a friend is one-way and hides public trips from the deleted user", async () => {
+test("deleting a friend removes both directions and hides public trips", async () => {
   const organizer = await registerUser({
     name: "DeleteFriendOwner",
     email: "delete-friend-owner@example.com"
@@ -477,10 +477,11 @@ test("deleting a friend is one-way and hides public trips from the deleted user"
   assert.equal(deleteResponse.status, 200);
   assert.equal(deleteResponse.body.removed, true);
   assert.equal(organizerOverviewAfterDelete.body.friends.length, 0);
-  assert.equal(friendOverviewAfterDelete.body.friends.length, 1);
-  assert.equal(friendOverviewAfterDelete.body.friends[0].id, organizer.user.id);
-  assert.equal(friendProfileAfterDelete.status, 200);
-  assert.equal(friendProfileAfterDelete.body.publicTrips.length, 0);
+  assert.equal(friendOverviewAfterDelete.body.friends.length, 0);
+  assert.equal(friendProfileAfterDelete.status, 404);
+  assert.deepEqual(friendProfileAfterDelete.body, {
+    error: "Friend not found"
+  });
   assert.equal(lobbyAfterDelete.status, 200);
   assert.equal(lobbyAfterDelete.body.publicTrips.length, 0);
   assert.equal(joinAfterDelete.status, 403);
