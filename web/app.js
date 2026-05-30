@@ -831,13 +831,15 @@ function closeAvatarViewDialog() {
 
 function renderCurrentUser(user) {
   currentUserName.textContent = getDisplayName(user);
-  currentUserId.textContent = `@${getUserId(user)} · ${user.email}`;
+  currentUserId.textContent = "";
+  currentUserId.hidden = true;
   renderAvatar(currentUserAvatar, currentUserAvatarFallback, user);
 }
 
 function renderProfilePreview(user) {
   profilePreviewName.textContent = getDisplayName(user);
-  profilePreviewId.textContent = `@${getUserId(user)} · ${user.email || ""}`;
+  profilePreviewId.textContent = "";
+  profilePreviewId.hidden = true;
   renderAvatar(profileAvatarPreview, profileAvatarFallback, user);
 }
 
@@ -1474,7 +1476,11 @@ function renderFriendProfile(profile) {
   const { friend, publicTrips } = profile;
   friendProfileName.textContent = getDisplayName(friend);
   friendProfileDisplayName.textContent = getDisplayName(friend);
-  friendProfileId.textContent = `@${getUserId(friend)} · ${friend.email || ""}`;
+  friendProfileId.hidden = false;
+  friendProfileId.innerHTML = `
+    <span>@${escapeHtml(getUserId(friend))}</span>
+    ${friend.email ? `<span>${escapeHtml(friend.email)}</span>` : ""}
+  `;
   renderAvatar(friendProfileAvatar, friendProfileAvatarFallback, friend);
 
   if (!publicTrips.length) {

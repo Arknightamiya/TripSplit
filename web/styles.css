@@ -530,6 +530,7 @@ select {
 }
 
 .user-menu {
+  min-width: 0;
   align-self: flex-start;
   display: flex;
   align-items: center;
@@ -542,15 +543,29 @@ select {
 }
 
 .profile-summary > span {
+  min-width: 0;
   display: grid;
   gap: 0.1rem;
+  align-content: center;
 }
 
 #current-user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 700;
 }
 
+#current-user-id {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .profile-summary {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.65rem;
@@ -1554,6 +1569,19 @@ label.field input:disabled {
   background: var(--accent-soft);
 }
 
+.profile-preview > div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+}
+
+.profile-preview .hint span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .avatar-trigger {
   padding: 0;
   border: 0;
@@ -1697,6 +1725,12 @@ label.field input:disabled {
 
   .user-menu {
     grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .profile-summary,
+  #logout-button {
+    width: 100%;
   }
 
   .input-row {
