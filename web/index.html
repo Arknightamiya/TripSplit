@@ -146,11 +146,27 @@
                   <div class="date-range-field" aria-label="Trip dates">
                     <label>
                       <span>Start</span>
-                      <input name="startDate" type="date" />
+                      <span class="segmented-date" data-date-field data-name="startDate" data-label="Start date">
+                        <input class="date-segment" data-date-part="month" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Start month" />
+                        <span class="date-separator">/</span>
+                        <input class="date-segment" data-date-part="day" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="Start day" />
+                        <span class="date-separator">/</span>
+                        <input class="date-segment date-segment-year" data-date-part="year" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="Start year" />
+                        <input name="startDate" type="hidden" />
+                        <button class="date-picker" type="button" aria-label="Choose start date" aria-haspopup="dialog"></button>
+                      </span>
                     </label>
                     <label>
                       <span>End</span>
-                      <input name="endDate" type="date" />
+                      <span class="segmented-date" data-date-field data-name="endDate" data-label="End date">
+                        <input class="date-segment" data-date-part="month" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="End month" />
+                        <span class="date-separator">/</span>
+                        <input class="date-segment" data-date-part="day" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="End day" />
+                        <span class="date-separator">/</span>
+                        <input class="date-segment date-segment-year" data-date-part="year" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="End year" />
+                        <input name="endDate" type="hidden" />
+                        <button class="date-picker" type="button" aria-label="Choose end date" aria-haspopup="dialog"></button>
+                      </span>
                     </label>
                   </div>
                   <div class="create-trip-action-row">
@@ -202,11 +218,27 @@
                   <div class="date-range-field" aria-label="Trip dates">
                     <label>
                       <span>Start</span>
-                      <input name="startDate" type="date" />
+                      <span class="segmented-date" data-date-field data-name="startDate" data-label="Start date">
+                        <input class="date-segment" data-date-part="month" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Start month" />
+                        <span class="date-separator">/</span>
+                        <input class="date-segment" data-date-part="day" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="Start day" />
+                        <span class="date-separator">/</span>
+                        <input class="date-segment date-segment-year" data-date-part="year" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="Start year" />
+                        <input name="startDate" type="hidden" />
+                        <button class="date-picker" type="button" aria-label="Choose start date" aria-haspopup="dialog"></button>
+                      </span>
                     </label>
                     <label>
                       <span>End</span>
-                      <input name="endDate" type="date" />
+                      <span class="segmented-date" data-date-field data-name="endDate" data-label="End date">
+                        <input class="date-segment" data-date-part="month" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="End month" />
+                        <span class="date-separator">/</span>
+                        <input class="date-segment" data-date-part="day" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="End day" />
+                        <span class="date-separator">/</span>
+                        <input class="date-segment date-segment-year" data-date-part="year" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="End year" />
+                        <input name="endDate" type="hidden" />
+                        <button class="date-picker" type="button" aria-label="Choose end date" aria-haspopup="dialog"></button>
+                      </span>
                     </label>
                   </div>
                   <div id="trip-invite-form" class="trip-edit-action-row participant-actions">

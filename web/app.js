@@ -29,7 +29,7 @@ import {
   updateCurrentUserProfile,
   updateTrip
 } from "./api.js";
-import { setupDateInputs, setupTripForm, validateTripDates } from "./forms.js";
+import { setDateInputValue, setupDateInputs, setupTripForm, validateTripDates } from "./forms.js";
 import { renderBalances } from "./renderBalances.js";
 import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
@@ -2106,8 +2106,8 @@ function populateTripEditPanel(trip, isOrganizer) {
   }
 
   tripEditForm.elements.name.value = trip.name || trip.destination || "";
-  tripEditForm.elements.startDate.value = trip.startDate || "";
-  tripEditForm.elements.endDate.value = trip.endDate || "";
+  setDateInputValue(tripEditForm, "startDate", trip.startDate || "");
+  setDateInputValue(tripEditForm, "endDate", trip.endDate || "");
   tripEditForm.elements.isPrivate.checked = trip.visibility !== "public";
   updateTripInviteButton(trip);
   tripRemoveParticipantButton.disabled = getRemovableParticipants(trip).length === 0;
