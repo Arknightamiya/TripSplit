@@ -1,5 +1,6 @@
 import { getDatabase } from "../db/pool.js";
-import { splitCurrencyEvenly } from "../utils/currency.js";
+import { calculateBalances } from "../settlement.js";
+import { normalizeCurrencyAmount, splitCurrencyEvenly } from "../utils/currency.js";
 
 export function isExpenseRepositoryEnabled() {
   return getDatabase().enabled;
@@ -22,10 +23,10 @@ export async function listApprovedParticipantIdsRecord(tripId) {
 
 export async function createExpenseRecord(tripId, input) {
   const database = getDatabase();
-  const amount = roundCurrency(Number(input.amount));
+  const amount = normalizeCurrencyAmount(input.amount);
   const includedParticipantIds = input.expenseType === "personal_advance"
-    ? [input.payerId]
-    : [...input.includedParticipantIds];
+    ? [String(input.payerId)]
+    : uniqueStrings(input.includedParticipantIds || []);
   const expenseShares = splitCurrencyEvenly(amount, includedParticipantIds);
 
   const expenseId = await database.transaction(async (transaction) => {
@@ -203,28 +204,39 @@ export async function getBudgetSummaryRecordByTripId(tripId) {
 }
 
 export async function getBalancesRecord(tripId, { includeParticipant = false } = {}) {
+  const participants = await listApprovedParticipantRecords(tripId);
+  const expenses = await listExpenseRecordsForTrip(tripId);
+  const balances = calculateBalances({
+    participantIds: participants.map((participant) => participant.id),
+    expenses
+  }).map((balance) => {
+    if (!includeParticipant) {
+      return balance;
+    }
+
+    return {
+      ...balance,
+      participant: participants.find(
+        (participant) => participant.id === balance.participantId
+      )
+    };
+  });
+
+  return {
+    tripId: String(tripId),
+    balances
+  };
+}
+
+async function listApprovedParticipantRecords(tripId) {
   const result = await getDatabase().query(
     `
       SELECT
         tp.user_id AS participant_id,
         u.name,
-        u.email,
-        COALESCE(paid.actual_paid, 0) AS actual_paid,
-        COALESCE(shares.fair_share, 0) AS fair_share
+        u.email
       FROM trip_participants tp
       JOIN users u ON u.id = tp.user_id
-      LEFT JOIN (
-        SELECT payer_id, SUM(amount) AS actual_paid
-        FROM expenses
-        WHERE trip_id = $1
-        GROUP BY payer_id
-      ) paid ON paid.payer_id = tp.user_id
-      LEFT JOIN (
-        SELECT participant_id, SUM(share_amount) AS fair_share
-        FROM expense_shares
-        WHERE trip_id = $1
-        GROUP BY participant_id
-      ) shares ON shares.participant_id = tp.user_id
       WHERE tp.trip_id = $1
         AND tp.join_status = 'approved'
       ORDER BY tp.created_at ASC, tp.user_id ASC
@@ -232,10 +244,11 @@ export async function getBalancesRecord(tripId, { includeParticipant = false } =
     [tripId]
   );
 
-  return {
-    tripId: String(tripId),
-    balances: result.rows.map((row) => mapBalanceRow(row, includeParticipant))
-  };
+  return result.rows.map((row) => ({
+    id: String(row.participant_id),
+    name: row.name,
+    email: row.email
+  }));
 }
 
 async function listExpenseShareRecords(expenseId) {
@@ -256,6 +269,8 @@ async function listExpenseShareRecords(expenseId) {
 }
 
 function mapExpenseRow(row, expenseShares) {
+  const normalizedExpenseShares = normalizeExpenseShares(row, expenseShares);
+
   return {
     id: String(row.id),
     tripId: String(row.trip_id),
@@ -265,34 +280,42 @@ function mapExpenseRow(row, expenseShares) {
     expenseType: row.expense_type,
     payerId: String(row.payer_id),
     splitRule: row.split_rule,
-    includedParticipantIds: expenseShares.map((share) => share.participantId),
-    expenseShares,
+    includedParticipantIds: normalizedExpenseShares.map((share) => share.participantId),
+    expenseShares: normalizedExpenseShares,
     createdAt: formatTimestamp(row.created_at)
   };
 }
 
-function mapBalanceRow(row, includeParticipant) {
-  const actualPaid = toCurrencyNumber(row.actual_paid);
-  const fairShare = toCurrencyNumber(row.fair_share);
-  const balance = {
-    participantId: String(row.participant_id),
-    actualPaid,
-    fairShare,
-    netBalance: roundCurrency(actualPaid - fairShare)
-  };
+function normalizeExpenseShares(row, expenseShares) {
+  const amount = toCurrencyNumber(row.amount);
+  const payerId = String(row.payer_id);
 
-  if (!includeParticipant) {
-    return balance;
+  if (row.expense_type === "personal_advance") {
+    return splitCurrencyEvenly(amount, [payerId]);
   }
 
-  return {
-    ...balance,
-    participant: {
-      id: String(row.participant_id),
-      name: row.name,
-      email: row.email
-    }
-  };
+  if (!sharesNeedRecalculation(amount, expenseShares)) {
+    return expenseShares;
+  }
+
+  const participantIds = uniqueStrings(expenseShares.map((share) => share.participantId));
+  return splitCurrencyEvenly(amount, participantIds.length ? participantIds : [payerId]);
+}
+
+function sharesNeedRecalculation(amount, expenseShares) {
+  if (!expenseShares.length) {
+    return true;
+  }
+
+  const participantIds = expenseShares.map((share) => String(share.participantId));
+  if (new Set(participantIds).size !== participantIds.length) {
+    return true;
+  }
+
+  const shareTotal = roundCurrency(
+    expenseShares.reduce((sum, share) => sum + Number(share.shareAmount), 0)
+  );
+  return shareTotal !== roundCurrency(Number(amount));
 }
 
 function buildBudgetSummary(row) {
@@ -341,4 +364,8 @@ function toCurrencyNumber(value) {
 
 function roundCurrency(value) {
   return Number(value.toFixed(2));
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(values.map(String)));
 }

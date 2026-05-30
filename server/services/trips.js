@@ -231,9 +231,9 @@ export async function removeParticipantFromTrip(userId, tripId, participantId) {
 
   if (
     participant.joinStatus === "approved" &&
-    (trip.expenses || []).some((expense) => String(expense.payerId) === String(participantId))
+    participantHasExpenseHistory(participantId, trip.expenses || [])
   ) {
-    throw conflict("Cannot remove a participant who paid expenses");
+    throw conflict("Cannot remove a participant with expense history");
   }
 
   const updatedTrip = isTripRepositoryEnabled()
@@ -248,6 +248,28 @@ export async function removeParticipantFromTrip(userId, tripId, participantId) {
     removedParticipantId: String(participantId),
     trip: updatedTrip
   };
+}
+
+function participantHasExpenseHistory(participantId, expenses) {
+  const normalizedParticipantId = String(participantId);
+
+  return expenses.some((expense) => {
+    if (String(expense.payerId) === normalizedParticipantId) {
+      return true;
+    }
+
+    if (
+      (expense.includedParticipantIds || []).some(
+        (includedParticipantId) => String(includedParticipantId) === normalizedParticipantId
+      )
+    ) {
+      return true;
+    }
+
+    return (expense.expenseShares || []).some(
+      (share) => String(share.participantId) === normalizedParticipantId
+    );
+  });
 }
 
 export async function setTripBudget(userId, tripId, input = {}) {
