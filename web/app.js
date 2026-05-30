@@ -179,7 +179,10 @@ const MAX_AVATAR_FILE_SIZE = 8_000_000;
 const AVATAR_IMAGE_SIZE = 256;
 const AVATAR_IMAGE_QUALITY = 0.86;
 const SESSION_EXPIRED_MESSAGE = SESSION_EXPIRED_ERROR_MESSAGE;
+const APP_REFRESH_INTERVAL_MS = 5000;
 let sessionExpiredHandled = false;
+let appRefreshTimer = null;
+let appRefreshInFlight = false;
 
 setUnauthorizedHandler(handleSessionExpired);
 setupDateInputs(document);
@@ -252,6 +255,12 @@ deleteTripDialog.addEventListener("click", (event) => {
 deleteTripYes.addEventListener("click", confirmDeleteTrip);
 document.addEventListener("keydown", handleDeleteTripShortcut);
 document.addEventListener("keydown", handleModalEscape);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    refreshVisibleAppState();
+  }
+});
+window.addEventListener("focus", refreshVisibleAppState);
 friendsToggle.addEventListener("click", toggleFriendsSidebar);
 friendsSearch.addEventListener("input", renderFriendsList);
 addFriendButton.addEventListener("click", () => openAddFriendDialog());
@@ -351,6 +360,7 @@ async function loadStatus() {
 }
 
 function showAuthView(message = "") {
+  stopAppAutoRefresh();
   clearAuthSession();
   clearUiState();
   closeAuthenticatedDialogs();
@@ -404,6 +414,62 @@ function showAppView(user) {
   renderCurrentUser(user);
   authView.hidden = true;
   appView.hidden = false;
+  startAppAutoRefresh();
+}
+
+function startAppAutoRefresh() {
+  stopAppAutoRefresh();
+  appRefreshTimer = window.setInterval(refreshVisibleAppState, APP_REFRESH_INTERVAL_MS);
+}
+
+function stopAppAutoRefresh() {
+  if (appRefreshTimer) {
+    window.clearInterval(appRefreshTimer);
+  }
+  appRefreshTimer = null;
+  appRefreshInFlight = false;
+}
+
+async function refreshVisibleAppState() {
+  if (shouldSkipAppRefresh()) {
+    return;
+  }
+
+  appRefreshInFlight = true;
+  try {
+    await loadFriends();
+    await loadTrips();
+    if (activeMainTab === "lobby") {
+      await loadFriendPublicTripLobby();
+    }
+  } catch {
+    // Background refresh should not interrupt the current view; explicit actions still show errors.
+  } finally {
+    appRefreshInFlight = false;
+  }
+}
+
+function shouldSkipAppRefresh() {
+  return (
+    appView.hidden ||
+    document.hidden ||
+    appRefreshInFlight ||
+    hasOpenModal() ||
+    isEditingFormField()
+  );
+}
+
+function hasOpenModal() {
+  return Boolean(document.querySelector(".modal-overlay:not([hidden])"));
+}
+
+function isEditingFormField() {
+  const activeElement = document.activeElement;
+  return Boolean(
+    activeElement &&
+    activeElement.closest("form") &&
+    activeElement.matches("input, textarea, select")
+  );
 }
 
 function showAuthMode(mode) {

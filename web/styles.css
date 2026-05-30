@@ -854,13 +854,18 @@ button:hover {
 
 .visibility-switch {
   display: block;
+  position: relative;
   min-width: 0;
   min-height: 3.25rem;
   cursor: pointer;
 }
 
 .visibility-switch input {
+  inset: 0 auto auto 0;
+  margin: 0;
   position: absolute;
+  width: 1px;
+  height: 1px;
   opacity: 0;
   pointer-events: none;
 }
@@ -1735,5 +1740,54 @@ label.field input:disabled {
 
   .expense-row {
     grid-template-columns: 1fr auto;
+  }
+
+  .balance-table,
+  .balance-table tbody,
+  .balance-table tr,
+  .balance-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .balance-table thead {
+    display: none;
+  }
+
+  .balance-table tr {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .balance-table td {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0;
+    border-bottom: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .balance-table td::before {
+    color: var(--muted);
+    content: "Participant";
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .balance-table td:nth-child(2)::before {
+    content: "Paid";
+  }
+
+  .balance-table td:nth-child(3)::before {
+    content: "Fair share";
+  }
+
+  .balance-table td:nth-child(4)::before {
+    content: "Net";
   }
 }
