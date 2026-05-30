@@ -472,6 +472,19 @@
       </div>
     </div>
 
+    <div id="trip-remove-participant-error-dialog" class="modal-overlay" hidden>
+      <div class="modal participant-error-modal" role="dialog" aria-modal="true" aria-labelledby="trip-remove-participant-error-title">
+        <p class="eyebrow">Participants</p>
+        <h2 id="trip-remove-participant-error-title">Cannot remove participant</h2>
+        <p id="trip-remove-participant-error-message" class="modal-message">
+          Cannot remove a participant with expense history
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="trip-remove-participant-error-close" class="button-ghost">Close</button>
+        </div>
+      </div>
+    </div>
+
     <div id="avatar-view-dialog" class="modal-overlay avatar-view-overlay" hidden>
       <div class="avatar-view-modal" role="dialog" aria-modal="true" aria-label="Profile photo preview">
         <button type="button" id="avatar-view-close" class="avatar-view-close" aria-label="Close preview">

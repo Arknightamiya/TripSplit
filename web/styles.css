@@ -1476,6 +1476,17 @@ label.field input:disabled {
   width: min(520px, 100%);
 }
 
+.participant-error-modal {
+  width: min(440px, 100%);
+}
+
+.modal-message {
+  margin: 0.75rem 0 0;
+  color: var(--danger);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 .invite-friend-list {
   display: grid;
   gap: 0.55rem;

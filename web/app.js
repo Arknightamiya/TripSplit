@@ -150,6 +150,15 @@ const tripRemoveParticipantList = document.querySelector("#trip-remove-participa
 const tripRemoveParticipantBack = document.querySelector("#trip-remove-participant-back");
 const tripRemoveParticipantSend = document.querySelector("#trip-remove-participant-send");
 const tripRemoveParticipantError = document.querySelector("#trip-remove-participant-error");
+const tripRemoveParticipantErrorDialog = document.querySelector(
+  "#trip-remove-participant-error-dialog"
+);
+const tripRemoveParticipantErrorMessage = document.querySelector(
+  "#trip-remove-participant-error-message"
+);
+const tripRemoveParticipantErrorClose = document.querySelector(
+  "#trip-remove-participant-error-close"
+);
 
 let activeTripId = null;
 let activeTripDetail = null;
@@ -239,6 +248,12 @@ tripRemoveParticipantSend.addEventListener("click", removeSelectedParticipants);
 tripRemoveParticipantDialog.addEventListener("click", (event) => {
   if (event.target === tripRemoveParticipantDialog) {
     closeTripRemoveParticipantDialog();
+  }
+});
+tripRemoveParticipantErrorClose.addEventListener("click", closeTripRemoveParticipantErrorDialog);
+tripRemoveParticipantErrorDialog.addEventListener("click", (event) => {
+  if (event.target === tripRemoveParticipantErrorDialog) {
+    closeTripRemoveParticipantErrorDialog();
   }
 });
 detailClose.addEventListener("click", closeDetail);
@@ -390,6 +405,7 @@ function closeAuthenticatedDialogs() {
     createTripInviteDialog,
     tripInviteDialog,
     tripRemoveParticipantDialog,
+    tripRemoveParticipantErrorDialog,
     deleteTripDialog,
     deleteFriendDialog
   ].forEach((dialog) => {
@@ -1904,6 +1920,18 @@ function closeTripRemoveParticipantDialog() {
   tripRemoveParticipantSend.textContent = "Remove";
 }
 
+function openTripRemoveParticipantErrorDialog(message) {
+  tripRemoveParticipantErrorMessage.textContent =
+    message || "Unable to remove selected participants.";
+  tripRemoveParticipantErrorDialog.hidden = false;
+}
+
+function closeTripRemoveParticipantErrorDialog() {
+  tripRemoveParticipantErrorDialog.hidden = true;
+  tripRemoveParticipantErrorMessage.textContent =
+    "Cannot remove a participant with expense history";
+}
+
 function renderTripInviteDialog() {
   updateTripInviteSendState();
 
@@ -2045,8 +2073,7 @@ async function removeSelectedParticipants() {
     closeTripRemoveParticipantDialog();
     await loadTrips();
   } catch (error) {
-    setFormError(
-      tripRemoveParticipantError,
+    openTripRemoveParticipantErrorDialog(
       error.message || "Unable to remove selected participants."
     );
     tripRemoveParticipantSend.disabled = false;
@@ -2215,6 +2242,7 @@ function getTopOpenModalCloseAction() {
     [deleteFriendDialog, closeDeleteFriendDialog],
     [deleteTripDialog, closeDeleteTripDialog],
     [joinTripDialog, closeJoinTripDialog],
+    [tripRemoveParticipantErrorDialog, closeTripRemoveParticipantErrorDialog],
     [tripRemoveParticipantDialog, closeTripRemoveParticipantDialog],
     [tripInviteDialog, closeTripInviteDialog],
     [createTripInviteDialog, closeCreateTripInviteDialog],
