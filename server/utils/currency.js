@@ -3,8 +3,22 @@ export function roundCurrency(value) {
 }
 
 export function isValidCurrencyAmount(value) {
+  if (typeof value !== "number" && typeof value !== "string") {
+    return false;
+  }
+
+  if (typeof value === "string" && value.trim() === "") {
+    return false;
+  }
+
   const number = Number(value);
-  return Number.isFinite(number) && Math.round(number * 100) >= 1;
+  if (!Number.isFinite(number) || number <= 0) {
+    return false;
+  }
+
+  const cents = number * 100;
+  const roundedCents = Math.round(cents);
+  return roundedCents >= 1 && Math.abs(cents - roundedCents) < 1e-9;
 }
 
 export function normalizeCurrencyAmount(value) {

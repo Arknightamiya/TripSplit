@@ -1437,7 +1437,7 @@ test("budget API rejects non-cent and non-finite amounts", async () => {
   const { token } = await loginAsDemoUser();
   const tripId = await createTrip(token);
 
-  for (const totalBudget of [0.004, "Infinity", "NaN", 0, -5]) {
+  for (const totalBudget of [1.234, 0.005, 0.004, "Infinity", "NaN", 0, -5]) {
     const response = await request(`/api/trips/${tripId}/budget`, {
       method: "POST",
       headers: authHeaders(token),
@@ -1628,7 +1628,7 @@ test("expense API rejects non-cent and non-finite amounts", async () => {
   const { token, user } = await loginAsDemoUser();
   const tripId = await createTrip(token);
 
-  for (const amount of [0.004, "Infinity", "NaN", 0, -5]) {
+  for (const amount of [1.234, 0.005, 0.004, "Infinity", "NaN", 0, -5]) {
     const response = await request(`/api/trips/${tripId}/expenses`, {
       method: "POST",
       headers: authHeaders(token),
