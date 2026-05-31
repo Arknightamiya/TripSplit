@@ -182,6 +182,7 @@ let selectedRemoveParticipantIds = new Set();
 let profileAvatarDataUrl = "";
 let activeRequestTab = "friends";
 let highlightedTripInvitationId = null;
+let tripEditFormHydratedTripId = null;
 const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
 const UI_STATE_STORAGE_KEY = "tripsplit.uiState";
 const MAX_AVATAR_FILE_SIZE = 8_000_000;
@@ -1876,13 +1877,22 @@ async function handleTripEditSubmit(event) {
   submitButton.textContent = "Saving...";
 
   try {
-    await updateTrip(activeTripId, {
+    const { trip } = await updateTrip(activeTripId, {
       name,
       destination: name,
       startDate: startDate || null,
       endDate: endDate || null,
       visibility
     });
+    if (trip) {
+      activeTripDetail = trip;
+      populateTripEditPanel(trip, true, { force: true });
+      const approvedParticipants = (trip.participants || []).filter(
+        (participant) => participant.joinStatus === "approved"
+      );
+      detailTitle.textContent = trip.name;
+      detailMeta.textContent = formatTripMeta(trip, approvedParticipants.length);
+    }
     await loadTrips();
   } catch (error) {
     setFormError(tripEditError, error.message || "Unable to update trip.");
@@ -2232,12 +2242,19 @@ function resetTripInviteButton() {
   tripRemoveParticipantButton.disabled = true;
 }
 
-function populateTripEditPanel(trip, isOrganizer) {
+function populateTripEditPanel(trip, isOrganizer, options = {}) {
   tripEditForm.hidden = !isOrganizer;
   tripInviteForm.hidden = !isOrganizer;
 
   if (!isOrganizer) {
     resetTripInviteButton();
+    tripEditFormHydratedTripId = null;
+    return;
+  }
+
+  if (!options.force && shouldPreserveTripEditDraft(trip)) {
+    updateTripInviteButton(trip);
+    tripRemoveParticipantButton.disabled = getRemovableParticipants(trip).length === 0;
     return;
   }
 
@@ -2245,8 +2262,32 @@ function populateTripEditPanel(trip, isOrganizer) {
   setDateInputValue(tripEditForm, "startDate", trip.startDate || "");
   setDateInputValue(tripEditForm, "endDate", trip.endDate || "");
   tripEditForm.elements.isPrivate.checked = trip.visibility !== "public";
+  tripEditFormHydratedTripId = String(trip.id);
   updateTripInviteButton(trip);
   tripRemoveParticipantButton.disabled = getRemovableParticipants(trip).length === 0;
+}
+
+function shouldPreserveTripEditDraft(trip) {
+  if (
+    tripEditForm.hidden ||
+    !trip?.id ||
+    String(tripEditFormHydratedTripId || "") !== String(trip.id)
+  ) {
+    return false;
+  }
+
+  const formData = new FormData(tripEditForm);
+  const formName = String(formData.get("name") || "").trim();
+  const formStartDate = String(formData.get("startDate") || "").trim();
+  const formEndDate = String(formData.get("endDate") || "").trim();
+  const formVisibility = formData.get("isPrivate") === "on" ? "private" : "public";
+
+  return (
+    formName !== String(trip.name || trip.destination || "").trim() ||
+    formStartDate !== String(trip.startDate || "") ||
+    formEndDate !== String(trip.endDate || "") ||
+    formVisibility !== (trip.visibility === "public" ? "public" : "private")
+  );
 }
 
 async function loadTrips() {
@@ -2260,19 +2301,23 @@ async function loadTrips() {
 }
 
 async function openTrip(tripId) {
+  if (String(activeTripId || "") !== String(tripId || "")) {
+    tripEditFormHydratedTripId = null;
+  }
   activeTripId = tripId;
-  detailSection.hidden = false;
   storeUiState();
   document.querySelectorAll(".trip-card").forEach((card) => {
     card.classList.toggle("is-active", card.dataset.tripId === tripId);
   });
   await refreshDetail();
+  detailSection.hidden = false;
   detailSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function closeDetail() {
   activeTripId = null;
   activeTripDetail = null;
+  tripEditFormHydratedTripId = null;
   detailSection.hidden = true;
   storeUiState();
   closeDeleteTripDialog();
