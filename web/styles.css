@@ -502,6 +502,37 @@ select {
   line-height: 1.45;
 }
 
+.verification-code-field {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.verification-code-field legend {
+  margin-bottom: 0.35rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.verification-code-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 2.6rem));
+  gap: 0.45rem;
+}
+
+.verification-code-input {
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .link-button {
   width: fit-content;
   padding: 0;

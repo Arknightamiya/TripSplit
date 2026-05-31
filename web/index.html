@@ -81,17 +81,17 @@
               <p class="verification-copy">
                 Enter the 6-digit code we sent to <strong id="verification-email"></strong>.
               </p>
-              <label class="field">
-                Verification code
-                <input
-                  name="code"
-                  inputmode="numeric"
-                  autocomplete="one-time-code"
-                  pattern="[0-9]{6}"
-                  maxlength="6"
-                  required
-                />
-              </label>
+              <fieldset class="verification-code-field">
+                <legend>Verification code</legend>
+                <div class="verification-code-grid">
+                  <input name="code-1" class="verification-code-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]" maxlength="1" aria-label="Verification code digit 1" required />
+                  <input name="code-2" class="verification-code-input" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Verification code digit 2" required />
+                  <input name="code-3" class="verification-code-input" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Verification code digit 3" required />
+                  <input name="code-4" class="verification-code-input" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Verification code digit 4" required />
+                  <input name="code-5" class="verification-code-input" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Verification code digit 5" required />
+                  <input name="code-6" class="verification-code-input" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Verification code digit 6" required />
+                </div>
+              </fieldset>
               <p class="verification-copy">The code expires in 5 minutes.</p>
               <p id="verification-error" class="form-error" role="alert" hidden></p>
               <button type="submit" class="auth-submit">Verify and enter TripSplit</button>

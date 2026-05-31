@@ -31,14 +31,16 @@ const VERIFICATION_CODE_TTL_MINUTES = 5;
 const VERIFICATION_CODE_TTL_MS = VERIFICATION_CODE_TTL_MINUTES * 60 * 1000;
 const RESEND_INTERVAL_MS = 60 * 1000;
 const MAX_VERIFICATION_ATTEMPTS = 5;
+const PASSWORD_POLICY_ERROR =
+  "Password must be at least 8 characters long and include uppercase, lowercase, number, and symbol.";
 
 export async function registerUser(input = {}) {
   requireFields(input, ["name", "email", "password"]);
   const email = normalizeEmail(input.email);
   const name = String(input.name || "").trim();
 
-  if (String(input.password).length < 8) {
-    throw badRequest("Password must be at least 8 characters long");
+  if (!isStrongPassword(input.password)) {
+    throw badRequest(PASSWORD_POLICY_ERROR);
   }
 
   if (await findAuthUserByEmail(email)) {
@@ -200,6 +202,17 @@ export function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
   const hash = scryptSync(String(password), salt, 32).toString("hex");
   return `scrypt$${salt}$${hash}`;
+}
+
+export function isStrongPassword(password) {
+  const value = String(password || "");
+  return (
+    value.length >= 8 &&
+    /[A-Z]/.test(value) &&
+    /[a-z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
 }
 
 function generateVerificationCode() {

@@ -157,7 +157,7 @@ Request:
 {
   "name": "alex-organizer",
   "email": "alex@example.com",
-  "password": "demo-password"
+  "password": "Demo-password1!"
 }
 ```
 
@@ -228,7 +228,7 @@ Request:
 ```json
 {
   "identifier": "alex-organizer#1",
-  "password": "demo-password"
+  "password": "Demo-password1!"
 }
 ```
 

@@ -21,17 +21,17 @@ export async function seedStore() {
   const organizer = createUser({
     name: "Alex Organizer",
     email: "alex@example.com",
-    passwordHash: hashPassword("demo-password")
+    passwordHash: hashPassword("Demo-password1!")
   });
   const sam = createUser({
     name: "Sam Traveler",
     email: "sam@example.com",
-    passwordHash: hashPassword("demo-password")
+    passwordHash: hashPassword("Demo-password1!")
   });
   const jordan = createUser({
     name: "Jordan Budgeter",
     email: "jordan@example.com",
-    passwordHash: hashPassword("demo-password")
+    passwordHash: hashPassword("Demo-password1!")
   });
 
   const trip = createTrip({

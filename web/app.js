@@ -48,6 +48,7 @@ const registerError = document.querySelector("#register-error");
 const verificationError = document.querySelector("#verification-error");
 const verificationEmail = document.querySelector("#verification-email");
 const resendCodeButton = document.querySelector("#resend-code-button");
+const verificationCodeInputs = Array.from(document.querySelectorAll(".verification-code-input"));
 const differentAccountButton = document.querySelector("#different-account-button");
 const currentUserName = document.querySelector("#current-user-name");
 const currentUserId = document.querySelector("#current-user-id");
@@ -196,6 +197,8 @@ const AVATAR_IMAGE_SIZE = 256;
 const AVATAR_IMAGE_QUALITY = 0.86;
 const SESSION_EXPIRED_MESSAGE = SESSION_EXPIRED_ERROR_MESSAGE;
 const APP_REFRESH_INTERVAL_MS = 5000;
+const PASSWORD_POLICY_MESSAGE =
+  "Password must be at least 8 characters long and include uppercase, lowercase, number, and symbol.";
 let sessionExpiredHandled = false;
 let appRefreshTimer = null;
 let appRefreshInFlight = false;
@@ -211,6 +214,7 @@ loginForm.addEventListener("submit", handleLogin);
 registerForm.addEventListener("submit", handleRegister);
 verificationForm.addEventListener("submit", handleVerifyRegistration);
 resendCodeButton.addEventListener("click", handleResendRegistrationCode);
+setupVerificationCodeInputs();
 differentAccountButton.addEventListener("click", clearSavedLogin);
 profileButton.addEventListener("click", openProfileDialog);
 logoutButton.addEventListener("click", handleLogout);
@@ -568,6 +572,11 @@ async function handleRegister(event) {
     return;
   }
 
+  if (!isStrongPassword(password)) {
+    setFormError(registerError, PASSWORD_POLICY_MESSAGE);
+    return;
+  }
+
   const submitButton = registerForm.querySelector("button[type='submit']");
   setFormError(registerError, "");
   submitButton.disabled = true;
@@ -594,7 +603,13 @@ async function handleVerifyRegistration(event) {
     return;
   }
 
-  const formData = new FormData(verificationForm);
+  const code = getVerificationCode();
+  if (!/^\d{6}$/.test(code)) {
+    setFormError(verificationError, "Enter the 6-digit verification code.");
+    verificationCodeInputs.find((input) => !input.value)?.focus();
+    return;
+  }
+
   await submitAuthForm({
     form: verificationForm,
     errorNode: verificationError,
@@ -602,7 +617,7 @@ async function handleVerifyRegistration(event) {
     loadingText: "Verifying...",
     action: () => verifyRegistration({
       email: pendingRegistrationEmail,
-      code: String(formData.get("code") || "").trim()
+      code
     })
   });
 }
@@ -638,8 +653,11 @@ function showVerificationForm(email) {
   verificationForm.hidden = false;
   verificationEmail.textContent = email;
   verificationForm.reset();
+  verificationCodeInputs.forEach((input) => {
+    input.value = "";
+  });
   setFormError(verificationError, "");
-  verificationForm.elements.code.focus();
+  verificationCodeInputs[0]?.focus();
   startResendCooldown();
 }
 
@@ -650,6 +668,99 @@ function startResendCooldown() {
     resendCodeButton.disabled = false;
     resendCodeButton.textContent = "Resend code";
   }, 60000);
+}
+
+function setupVerificationCodeInputs() {
+  verificationCodeInputs.forEach((input, index) => {
+    input.addEventListener("beforeinput", handleVerificationCodeBeforeInput);
+    input.addEventListener("input", () => handleVerificationCodeInput(input, index));
+    input.addEventListener("keydown", (event) => handleVerificationCodeKeydown(event, index));
+    input.addEventListener("paste", (event) => handleVerificationCodePaste(event, index));
+    input.addEventListener("focus", () => input.select());
+  });
+}
+
+function handleVerificationCodeBeforeInput(event) {
+  if (event.inputType && !event.inputType.includes("insert")) {
+    return;
+  }
+
+  const data = event.data || "";
+  if (data && !/^\d+$/.test(data)) {
+    event.preventDefault();
+  }
+}
+
+function handleVerificationCodeInput(input, index) {
+  const digits = input.value.replace(/\D/g, "");
+
+  if (digits.length > 1) {
+    fillVerificationCode(digits, index);
+    return;
+  }
+
+  input.value = digits;
+
+  if (digits && index < verificationCodeInputs.length - 1) {
+    verificationCodeInputs[index + 1].focus();
+  }
+}
+
+function handleVerificationCodeKeydown(event, index) {
+  if (event.key === "ArrowLeft" && index > 0) {
+    event.preventDefault();
+    verificationCodeInputs[index - 1].focus();
+    return;
+  }
+
+  if (event.key === "ArrowRight" && index < verificationCodeInputs.length - 1) {
+    event.preventDefault();
+    verificationCodeInputs[index + 1].focus();
+    return;
+  }
+
+  if (event.key === "Backspace" && !event.currentTarget.value && index > 0) {
+    event.preventDefault();
+    verificationCodeInputs[index - 1].focus();
+    verificationCodeInputs[index - 1].value = "";
+  }
+}
+
+function handleVerificationCodePaste(event, index) {
+  const pastedDigits = event.clipboardData?.getData("text")?.replace(/\D/g, "") || "";
+
+  if (!pastedDigits) {
+    return;
+  }
+
+  event.preventDefault();
+  fillVerificationCode(pastedDigits, index);
+}
+
+function fillVerificationCode(code, startIndex = 0) {
+  const digits = code.replace(/\D/g, "").slice(0, verificationCodeInputs.length - startIndex);
+
+  digits.split("").forEach((digit, offset) => {
+    verificationCodeInputs[startIndex + offset].value = digit;
+  });
+
+  const nextIndex = Math.min(startIndex + digits.length, verificationCodeInputs.length - 1);
+  verificationCodeInputs[nextIndex]?.focus();
+}
+
+function getVerificationCode() {
+  return verificationCodeInputs.map((input) => input.value.trim()).join("");
+}
+
+function isStrongPassword(password) {
+  const value = String(password || "");
+  return (
+    value.length >= 8 &&
+    /[A-Z]/.test(value) &&
+    /[a-z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
 }
 
 async function submitAuthForm({
