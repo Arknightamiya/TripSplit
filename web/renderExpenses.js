@@ -5,6 +5,19 @@ import {
 import { deleteExpense, postExpense } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
 
+function categoryIcon(category) {
+    const icons = {
+      lodging: "🏨",
+      food: "🍽️",
+      transportation: "✈️",
+      tickets: "🎟️",
+      drinks: "🍹",
+      emergency: "🚨",
+      other: "📦"
+    };
+    return icons[category] || "📦";
+  }
+
 export function renderExpenses(panel, { trip, currentUserId, onChange }) {
   const approved = trip.participants.filter((p) => p.joinStatus === "approved");
   const isOrganizer = trip.organizerId === currentUserId;
@@ -12,7 +25,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
   panel.innerHTML = `
     <div class="panel-header">
       <h2>Expenses</h2>
-      <span class="hint">${trip.expenses.length} recorded</span>
+      <span class="expense-count-badge">${trip.expenses.length} recorded</span>
     </div>
     ${expenseFormHtml(approved, currentUserId)}
     <div class="expense-list">${
@@ -97,12 +110,12 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
   const payer = approved.find((p) => p.id === expense.payerId);
   const canDelete = isOrganizer || expense.payerId === currentUserId;
   const expenseSummary = expense.expenseType === "personal_advance"
-    ? `${escapeHtml(expense.category)} · paid by ${escapeHtml(displayName(payer))} · personal advance`
-    : `${escapeHtml(expense.category)} · paid by ${escapeHtml(displayName(payer))} · split between ${escapeHtml(splitParticipantNames(expense, approved))}`;
+  ? `paid by ${escapeHtml(displayName(payer))} · personal advance`
+  : `paid by ${escapeHtml(displayName(payer))} · split between ${escapeHtml(splitParticipantNames(expense, approved))}`;
   return `
     <div class="expense-row">
       <div>
-        <div class="expense-title">${escapeHtml(expense.title)}</div>
+        <div class="expense-title">${categoryIcon(expense.category)} ${escapeHtml(expense.title)}</div>
         <div class="expense-sub">
           ${expenseSummary}
         </div>
@@ -116,15 +129,15 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
 }
 
 function expenseFormHtml(approved, currentUserId) {
-  const payerOptions = approved
-    .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(displayName(p))}</option>`)
-    .join("");
-  const categoryOptions = EXPENSE_CATEGORIES
-    .map((c) => `<option value="${c}">${escapeHtml(c)}</option>`)
-    .join("");
-  const typeOptions = EXPENSE_TYPES
-    .map((t) => `<option value="${t}">${escapeHtml(t.replace("_", " "))}</option>`)
-    .join("");
+  const payerOptions = `<option value="" disabled selected>Select payer</option>` + approved
+  .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(displayName(p))}</option>`)
+  .join("");
+  const categoryOptions = `<option value="" disabled selected>Select category</option>` + EXPENSE_CATEGORIES
+  .map((c) => `<option value="${c}">${escapeHtml(c)}</option>`)
+  .join("");
+  const typeOptions = `<option value="" disabled selected>Select type</option>` + EXPENSE_TYPES
+  .map((t) => `<option value="${t}">${escapeHtml(t.replace("_", " "))}</option>`)
+  .join("");
   const participantChips = approved
     .map((p) => `
       <label>
@@ -139,11 +152,11 @@ function expenseFormHtml(approved, currentUserId) {
       <div class="form-grid-row">
         <label class="field">
           <span>Title</span>
-          <input type="text" name="title" placeholder="Dinner" required />
+          <input type="text" name="title" placeholder="e.g. Dinner" required />
         </label>
         <label class="field">
           <span>Amount ($)</span>
-          <input type="number" name="amount" min="0" step="0.01" required />
+          <input type="number" name="amount" min="0" step="0.01" placeholder="e.g. 100" required />
         </label>
       </div>
       <div class="form-grid-row">

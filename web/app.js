@@ -1118,7 +1118,7 @@ function renderFriendsList() {
   );
 
   if (!friends.length) {
-    friendsList.innerHTML = `<p class="empty friend-empty">${query ? "No matching friends." : "No friends yet."}</p>`;
+    friendsList.innerHTML = `<p class="empty friend-empty">${query ? "🔍 No matching friends." : "No friends yet. Add one now!"}</p>`;
     return;
   }
 
@@ -2329,8 +2329,9 @@ function formatTripMeta(trip, participantCount) {
 }
 
 function formatTripDates(startDate, endDate) {
-  if (startDate && endDate) return `${startDate} → ${endDate}`;
-  return startDate || endDate || "Dates TBD";
+  const fmt = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
+  if (startDate && endDate) return `${fmt(startDate)} → ${fmt(endDate)}`;
+  return fmt(startDate) || fmt(endDate) || "Dates TBD";
 }
 
 function renderTripParticipantChip(participant) {

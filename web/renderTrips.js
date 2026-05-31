@@ -40,9 +40,9 @@ export function renderTrips(trips, tripList, { activeTripId, onSelect } = {}) {
 }
 
 function formatDates(start, end) {
-  if (!start && !end) return "Dates TBD";
-  if (start && end) return `${start} → ${end}`;
-  return start || end;
+  const fmt = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
+  if (start && end) return `${fmt(start)} → ${fmt(end)}`;
+  return fmt(start) || fmt(end) || "Dates TBD";
 }
 
 export function formatMoney(value) {
@@ -52,7 +52,7 @@ export function formatMoney(value) {
 
 export function formatBudgetSummary(budgetSummary) {
   if (!budgetSummary) {
-    return "0 budget";
+    return "No budget set";
   }
 
   if (budgetSummary.mode === "per-person") {

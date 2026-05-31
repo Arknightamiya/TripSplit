@@ -10,10 +10,13 @@
   --on-accent: #4f2433;
   --border: #e9dce2;
   --shadow: 0 8px 28px rgba(38, 38, 38, 0.08);
+  --shadow-md: 0 12px 36px rgba(38, 38, 38, 0.12);
   --danger: #de6878;
   --danger-strong: #c64e61;
   --danger-soft: #fff0f2;
   --on-danger: #5e1724;
+  --radius: 12px;
+  --radius-sm: 8px;
 }
 
 * {
@@ -40,10 +43,12 @@ select {
   font: inherit;
 }
 
+/* ── page shell ── */
 .page {
   width: min(1240px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 1.5rem 0 4rem;
+  /* CHANGE 1: more top breathing room */
+  padding: 3rem 0 4rem;
 }
 
 .sr-only {
@@ -61,7 +66,7 @@ select {
 .app-shell {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 1.25rem;
+  gap: 2.5rem;
   align-items: start;
 }
 
@@ -73,6 +78,7 @@ select {
   min-width: 0;
 }
 
+/* ── friends sidebar ── */
 .friends-sidebar {
   position: sticky;
   top: 1rem;
@@ -81,7 +87,7 @@ select {
   gap: 0.75rem;
   padding: 0.8rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.78);
   box-shadow: var(--shadow);
   transition: width 180ms ease;
@@ -128,7 +134,7 @@ select {
   display: grid;
   place-items: center;
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent-strong);
   font-size: 1.35rem;
@@ -136,7 +142,7 @@ select {
 
 .friend-search input {
   padding: 0.58rem 0.7rem;
-  background: #fffafd;
+  background: var(--surface);
 }
 
 .request-entry {
@@ -149,6 +155,7 @@ select {
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .request-entry.has-requests {
@@ -188,7 +195,7 @@ select {
   align-items: center;
   padding: 0.62rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 
@@ -272,7 +279,7 @@ select {
   padding: 0.35rem;
   margin: 0.9rem 0 1rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
 }
 
@@ -360,7 +367,7 @@ select {
   display: grid;
   gap: 0.2rem;
   padding: 0.55rem 0.65rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--muted);
 }
@@ -409,7 +416,7 @@ select {
   align-items: center;
   justify-content: center;
   padding: 0.35rem 0.6rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: #eee7eb;
   color: var(--muted);
   font-size: 0.78rem;
@@ -425,12 +432,26 @@ select {
   font-weight: 700;
 }
 
+/* ── CHANGE 2: hero — more vertical rhythm, subtle bottom border ── */
 .hero {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1.25rem;
-  padding: 0 0 1.25rem;
+  padding: 0 0 1.5rem;
+  margin-bottom: 0.25rem;
+  border-bottom: none;
+  position: relative;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--accent), transparent);
 }
 
 .auth-view[hidden],
@@ -466,7 +487,7 @@ select {
   gap: 0.35rem;
   padding: 0.35rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
 }
 
@@ -515,6 +536,14 @@ select {
   display: none;
 }
 
+input[type="checkbox"] {
+  accent-color: var(--accent-strong);
+}
+
+input[type="radio"] {
+  accent-color: var(--accent-strong);
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -529,16 +558,22 @@ select {
   accent-color: var(--accent);
 }
 
+/* ── CHANGE 3: user menu — rounder, slightly more padding ── */
 .user-menu {
   align-self: flex-start;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
+}
+
+.user-menu .button-ghost {
+  padding: 0.4rem 0.65rem;
+  font-size: 0.88rem;
 }
 
 .profile-summary > span {
@@ -558,6 +593,7 @@ select {
   background: transparent;
   color: var(--text);
   text-align: left;
+  border-radius: var(--radius-sm);
 }
 
 .profile-summary:hover {
@@ -629,13 +665,16 @@ h1 {
   width: min(44rem, 100%);
   color: var(--muted);
   font-size: 1.05rem;
+  white-space: nowrap;
+  margin-top: 1rem;
 }
 
+/* ── CHANGE 4: panels — rounder corners ── */
 .panel {
-  margin-top: 1rem;
-  padding: 1.35rem;
+  margin-top: 1.25rem;
+  padding: 1.5rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
   container-type: inline-size;
@@ -664,6 +703,7 @@ h1 {
   white-space: nowrap;
 }
 
+/* ── CHANGE 5: main tab bar — rounder, active tab has shadow punch ── */
 .main-tab-bar {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -671,7 +711,7 @@ h1 {
   margin-bottom: 1.1rem;
   padding: 0.35rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
 }
 
@@ -682,11 +722,18 @@ h1 {
   font-weight: 800;
   font-size: 1rem;
   box-shadow: none;
+  border-radius: var(--radius-sm);
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .main-tab.is-active {
   background: var(--accent);
   color: var(--text);
+  box-shadow: 0 3px 10px rgba(229, 111, 151, 0.28);
+}
+
+.main-tab:hover {
+  background: rgba(243, 160, 184, 0.18);
 }
 
 [data-main-panel][hidden] {
@@ -734,8 +781,14 @@ h1 {
   display: block;
   padding: 0.95rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface-strong);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.trip-lobby-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .trip-lobby-card-main {
@@ -788,6 +841,7 @@ h1 {
   font-size: 0.84rem;
   font-weight: 800;
   text-align: center;
+  border-radius: var(--radius-sm);
 }
 
 .trip-lobby-state-button.is-disabled {
@@ -799,19 +853,52 @@ h1 {
   transform: none;
 }
 
+/* ── CHANGE 6: trip cards — rounder, stronger hover lift ── */
 .trip-card {
   width: 100%;
   display: grid;
   gap: 0.2rem;
-  padding: 0.95rem 1rem;
+  padding: 0.95rem 1.1rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface-strong);
   text-align: left;
+  border-left: 3px solid var(--accent);
+  position: relative;
+}
+
+.trip-card::after {
+  content: "→";
+  position: absolute;
+  right: 1rem;
+  top: auto;
+  bottom: 0.95rem;
+  transform: none;
+  color: var(--accent);
+  font-size: 1.1rem;
+  opacity: 0;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.trip-card:hover::after {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+.trip-card-meta:first-of-type::before {
+  content: "📅 ";
 }
 
 button:hover {
   transform: translateY(-1px);
+}
+
+/* ── CHANGE 7: inputs — pink focus ring ── */
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(243, 160, 184, 0.28);
 }
 
 .input-row {
@@ -826,6 +913,11 @@ button:hover {
   gap: 0.6rem;
 }
 
+.trip-input-row button[type="submit"] {
+  color: #fff;
+  font-weight: 700;
+}
+
 .date-range-field {
   min-width: 0;
   min-height: 3.25rem;
@@ -833,9 +925,15 @@ button:hover {
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   overflow: visible;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.date-range-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(243, 160, 184, 0.28);
 }
 
 .date-range-field label {
@@ -863,8 +961,14 @@ button:hover {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--text);
+  color: var(--muted);
   font-size: 0.92rem;
+  box-shadow: none;
+}
+
+.date-range-field input:focus {
+  border: 0;
+  box-shadow: none;
 }
 
 .visibility-switch {
@@ -890,7 +994,7 @@ button:hover {
   align-items: center;
   padding: 0.28rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: #f1ecef;
   color: var(--muted);
   transition: background 160ms ease, border-color 160ms ease;
@@ -925,47 +1029,60 @@ button:hover {
   color: var(--text);
 }
 
-.visibility-switch input:checked + .visibility-track {
+.visibility-switch input:not(:checked) + .visibility-track {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
 
+.visibility-switch input:not(:checked) + .visibility-track::before {
+  background: var(--accent);
+}
+
+.visibility-switch input:checked + .visibility-track {
+  background: #f1ecef;
+  border-color: var(--border);
+}
+
 .visibility-switch input:checked + .visibility-track::before {
   transform: translateX(100%);
-  background: var(--accent);
+  background: #e4dde1;
 }
 
 .visibility-switch input:checked + .visibility-track .visibility-public {
   color: var(--muted);
 }
 
-.visibility-switch input:checked + .visibility-track .visibility-private {
+.visibility-switch input:not(:checked) + .visibility-track .visibility-public {
   color: var(--on-accent);
 }
 
+.visibility-switch input:checked + .visibility-track .visibility-private {
+  color: var(--text);
+}
 button {
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.8rem 1rem;
   background: var(--accent);
   color: var(--on-accent);
   cursor: pointer;
-  transition: transform 160ms ease, opacity 160ms ease;
+  transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
 }
 
 input {
   width: 100%;
   padding: 0.85rem 0.95rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 select {
   width: 100%;
   padding: 0.85rem 0.95rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
 }
@@ -987,13 +1104,13 @@ input::placeholder {
 }
 
 .trip-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .trip-card.is-active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  box-shadow: 0 0 0 3px rgba(243, 160, 184, 0.22);
 }
 
 .trip-card-row {
@@ -1017,7 +1134,7 @@ input::placeholder {
   align-items: center;
   gap: 0.25rem;
   padding: 0.18rem 0.45rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent-strong);
   font-size: 0.78rem;
@@ -1040,20 +1157,22 @@ input::placeholder {
   flex: 0 0 auto;
   padding: 0.22rem 0.55rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
 }
 
 .trip-visibility.is-public {
-  background: #f1ecef;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .trip-visibility.is-private {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  background: #f1ecef;
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 .trip-detail {
@@ -1089,7 +1208,7 @@ input::placeholder {
   color: var(--danger);
   border: 1px solid var(--border);
   padding: 0.35rem 0.6rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.8rem;
 }
 
@@ -1102,7 +1221,7 @@ input::placeholder {
   color: var(--on-danger);
   border-color: var(--danger);
   padding: 0.8rem 1rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 1rem;
 }
 
@@ -1114,6 +1233,34 @@ input::placeholder {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+.detail-actions #detail-delete {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  font-size: 0.88rem;
+  padding: 0.4rem 0.75rem;
+}
+
+.detail-actions #detail-delete:hover {
+  background: var(--accent-strong);
+  color: #fff;
+}
+
+.detail-actions #detail-close {
+  font-size: 0.88rem;
+  padding: 0.4rem 0.75rem;
+}
+
+#trip-invite-button {
+  background: transparent;
+  color: var(--accent-strong);
+  border: 1px solid var(--accent-strong) !important;
+}
+
+#trip-invite-button:hover {
+  background: var(--accent-soft);
 }
 
 .trip-edit-form {
@@ -1136,19 +1283,32 @@ input::placeholder {
   white-space: nowrap;
 }
 
-.create-trip-action-row,
-.trip-edit-action-row {
-  display: grid;
-  gap: 0.6rem;
-  min-width: 0;
-}
-
 .create-trip-action-row {
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  align-items: center;
 }
 
 .trip-edit-action-row {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.trip-edit-action-row button[type="submit"] {
+  margin-left: auto;
+  padding: 0.4rem 1.25rem;
+  min-height: unset !important;
+  width: auto;
+  color: #fff;
+}
+
+.trip-input-row button,
+.trip-edit-form button {
+  min-width: 0;
+  min-height: 3.25rem;
+  white-space: nowrap;
 }
 
 .create-invite-button {
@@ -1187,6 +1347,22 @@ input::placeholder {
   margin: 0;
 }
 
+.participants-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.participants-header h3 {
+  margin: 0;
+}
+
+.participants-header .button-ghost {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.6rem;
+}
+
 .participant-groups {
   display: grid;
   gap: 0.8rem;
@@ -1201,8 +1377,20 @@ input::placeholder {
   color: var(--muted);
 }
 
-.participant-actions .button-ghost {
-  min-height: 3.25rem;
+.participant-action-buttons {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.participant-action-buttons .button-ghost {
+  font-size: 0.88rem;
+  padding: 0.4rem 0.75rem;
+}
+
+.participant-action-buttons #trip-invite-button {
+  border-color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .chip-row {
@@ -1219,7 +1407,7 @@ input::placeholder {
   max-width: min(100%, 16rem);
   min-width: 0;
   padding: 0.25rem 0.6rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent-strong);
   font-size: 0.8rem;
@@ -1259,6 +1447,60 @@ input::placeholder {
   color: #4f2c11;
 }
 
+.chip-remove-btn {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.6rem;
+  height: fit-content;
+  align-self: center;
+}
+
+select option[disabled] {
+  color: var(--muted);
+}
+
+select:has(option[value=""]:checked) {
+  color: rgba(128, 106, 117, 0.68);
+}
+
+.budget-visual {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.budget-top-row,
+.budget-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.budget-total-label {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.budget-bar-track {
+  width: 100%;
+  height: 1rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 600ms ease;
+}
+
+.budget-over-warning {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
 .budget-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1269,7 +1511,7 @@ input::placeholder {
 .budget-stat {
   padding: 0.7rem 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface-strong);
   display: grid;
   gap: 0.15rem;
@@ -1314,7 +1556,7 @@ label.field input {
   width: 100%;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font-size: 0.95rem;
@@ -1339,7 +1581,7 @@ label.field input:disabled {
   gap: 0.35rem;
   padding: 0.4rem 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   cursor: pointer;
   font-size: 0.85rem;
@@ -1366,10 +1608,21 @@ label.field input:disabled {
   gap: 0.35rem;
   padding: 0.3rem 0.6rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   cursor: pointer;
   font-size: 0.85rem;
+}
+
+.expense-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .expense-list {
@@ -1385,7 +1638,7 @@ label.field input:disabled {
   align-items: center;
   padding: 0.7rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface-strong);
 }
 
@@ -1401,6 +1654,16 @@ label.field input:disabled {
 .expense-amount {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+#expense-error:empty {
+  display: none;
+}
+
+.trip-edit-action-row button[type="submit"],
+#expense-form button[type="submit"],
+#budget-form button[type="submit"] {
+  color: #fff;
 }
 
 .balance-table {
@@ -1467,9 +1730,9 @@ label.field input:disabled {
   max-width: calc(100vw - 2rem);
   padding: 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface-strong);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
 }
 
 .modal.friend-requests-modal {
@@ -1518,7 +1781,7 @@ label.field input:disabled {
   align-items: center;
   padding: 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   text-align: left;
@@ -1577,7 +1840,7 @@ label.field input:disabled {
   padding: 0.8rem;
   margin-bottom: 1rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
 }
 
@@ -1797,4 +2060,43 @@ label.field input:disabled {
   .expense-row {
     grid-template-columns: 1fr auto;
   }
+}
+
+.destination-input-wrap {
+  position: relative;
+}
+
+.destination-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.destination-input-wrap input {
+  padding-left: 2.4rem;
+}
+
+.stack {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.friend-search-wrap {
+  position: relative;
+}
+
+.friend-search-icon {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+.friend-search-wrap input {
+  padding-left: 2rem;
 }

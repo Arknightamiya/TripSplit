@@ -4,7 +4,6 @@ export function renderBalances(panel, { balances, trip, currentUserId }) {
   panel.innerHTML = `
     <div class="panel-header">
       <h2>Balances</h2>
-      <span class="hint">Positive = owed money · Negative = owes</span>
     </div>
     ${balances.length ? tableHtml(balances, trip, currentUserId) : `<p class="empty">No balances yet — add expenses to see who owes what.</p>`}
   `;

@@ -11,10 +11,10 @@
       <section id="auth-view" class="auth-view">
         <div class="auth-layout">
           <section class="auth-brand">
-            <p class="eyebrow">TripSplit</p>
-            <h1>Sign in to plan trips together.</h1>
+            <p class="eyebrow" style="color: var(--accent-strong); font-weight: 800;">TripSplit</p>
+            <h1>Sign in &<br>plan trips together.</h1>
             <p class="hero-copy">
-              Use your own account to create trips, track shared spending, and keep your data in the cloud database.
+              Create trips, track shared spending, and split costs fairly.
             </p>
           </section>
 
@@ -94,20 +94,24 @@
             </div>
             <label class="friend-search">
               <span class="sr-only">Search friends</span>
-              <input id="friends-search" placeholder="Search friends" />
+              <div class="friend-search-wrap">
+                <span class="friend-search-icon">🔍</span>
+                <input id="friends-search" placeholder="Search friends" />
+              </div>
             </label>
             <button type="button" id="friend-requests-button" class="request-entry">
-              <span class="request-dot" id="friend-requests-dot" hidden></span>
-              Requests
-              <span id="friend-requests-count" class="request-count">0</span>
-            </button>
+  <span class="request-dot" id="friend-requests-dot" hidden></span>
+  Requests
+  <span id="friend-requests-count" class="expense-count-badge">0</span>
+  <span style="color: var(--muted); margin-left: auto;">›</span>
+</button>
             <div id="friends-list" class="friends-list"></div>
           </aside>
 
           <div class="app-main">
             <section class="hero">
               <div>
-                <h1>TripSplit</h1>
+                <h1>Trip<span style="color: var(--accent-strong)">Split</span></h1>
                 <p class="hero-copy">
                   Plan group trips, track shared spending, and settle balances fairly.
                 </p>
@@ -137,12 +141,15 @@
 
               <section id="your-trips-panel" data-main-panel="trips">
                 <form id="trip-form" class="input-row trip-input-row">
-                  <input
-                    id="trip-name"
-                    name="name"
-                    placeholder="Destination"
-                    required
-                  />
+                  <div class="destination-input-wrap">
+  <span class="destination-icon">📍</span>
+  <input
+    id="trip-name"
+    name="name"
+    placeholder="Destination"
+    required
+  />
+</div>
                   <div class="date-range-field" aria-label="Trip dates">
                     <label>
                       <span>Start</span>
@@ -218,8 +225,6 @@
                         <span class="visibility-option visibility-private">Private</span>
                       </span>
                     </label>
-                    <button type="button" id="trip-remove-participant-button" class="button-ghost">Remove</button>
-                    <button type="button" id="trip-invite-button">Invite</button>
                     <button type="submit">Save</button>
                   </div>
                 </form>
@@ -227,9 +232,15 @@
                 <div class="trip-management-row">
                   <div class="participant-groups">
                     <div>
-                      <h3>Participants</h3>
-                      <div id="detail-participants" class="chip-row"></div>
-                    </div>
+  <div class="participants-header">
+    <h3>Participants</h3>
+    <div class="participant-action-buttons">
+      <button type="button" id="trip-invite-button" class="button-ghost">Invite</button>
+      <button type="button" id="trip-remove-participant-button" class="button-ghost">Remove</button>
+    </div>
+  </div>
+  <div id="detail-participants" class="chip-row"></div>
+</div>
                     <div id="detail-pending-invitations-wrap" class="pending-invitations" hidden>
                       <h3>Pending invitations</h3>
                       <div id="detail-pending-invitations" class="chip-row"></div>
