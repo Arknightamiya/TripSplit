@@ -8,6 +8,7 @@ const DIGITS_ONLY_ERROR = "Use numbers only for dates.";
 const MONTH_RANGE_ERROR = "Month must be between 1 and 12.";
 const DAY_RANGE_ERROR = "Day must be between 1 and 31.";
 const YEAR_FORMAT_ERROR = "Year must be 4 digits.";
+const FUTURE_DATE_ERROR = "Choose today or a future date.";
 const MONTH_NAMES = [
     "January",
     "February",
@@ -368,7 +369,8 @@ function renderCalendar(field) {
     const year = Number(field.dataset.calendarYear);
     const month = Number(field.dataset.calendarMonth);
     const selected = parseIsoDate(getHiddenDateInput(field)?.value || "");
-    const today = parseIsoDate(getTodayIsoDate());
+    const todayIso = getTodayIsoDate();
+    const today = parseIsoDate(todayIso);
     const title = `${MONTH_NAMES[month - 1]} ${year}`;
 
     popover.hidden = false;
@@ -398,13 +400,16 @@ function renderCalendar(field) {
         const date = addDays(firstVisibleDate, index);
         const button = document.createElement("button");
         const isCurrentMonth = date.month === month && date.year === year;
-        const isSelectable = date.year >= 1 && date.year <= 9999;
+        const isoDate = isoFromDateParts(date);
+        const isPastDate = isoDate < todayIso;
+        const isSelectable = date.year >= 1 && date.year <= 9999 && !isPastDate;
         button.type = "button";
         button.className = "date-calendar-day";
         button.textContent = String(date.day);
-        button.dataset.isoDate = isSelectable ? isoFromDateParts(date) : "";
+        button.dataset.isoDate = isSelectable ? isoDate : "";
         button.disabled = !isSelectable;
         button.classList.toggle("is-outside-month", !isCurrentMonth);
+        button.classList.toggle("is-past-date", isPastDate);
         button.classList.toggle("is-selected", Boolean(selected && isSameDate(date, selected)));
         button.classList.toggle("is-today", isSameDate(date, today));
         button.classList.toggle("is-default-date", Boolean(!selected && isSameDate(date, today)));
@@ -483,6 +488,7 @@ function selectCalendarDate(field, value) {
     setDateFieldFromIso(field, value);
     validateDateField(field);
     closeCalendar(field);
+    getPickerButton(field)?.focus();
 }
 
 function getCalendarViewDate(field) {
@@ -538,6 +544,11 @@ function validateDateField(field) {
         const message = "Enter a valid date between 0001-01-01 and 9999-12-31.";
         setDateFieldValidity(field, message);
         return message;
+    }
+
+    if (isoDate < getTodayIsoDate()) {
+        setDateFieldValidity(field, FUTURE_DATE_ERROR);
+        return FUTURE_DATE_ERROR;
     }
 
     setDateFieldValidity(field, "");

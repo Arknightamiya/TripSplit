@@ -148,14 +148,18 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
       totalBudget: 300
     }
   });
+  const startTrip = await request(`/api/trips/${tripId}/start`, {
+    method: "POST",
+    headers: authHeaders(dw1.token)
+  });
   const dinner = await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
-    headers: authHeaders(dw2.token),
+    headers: authHeaders(dw1.token),
     body: {
       title: "Korean BBQ Dinner",
       amount: 180,
       category: "food",
-      expenseType: "shared",
+      expenseType: "budget_payment",
       payerId: dw1.user.id,
       splitRule: "equal",
       includedParticipantIds: [dw1.user.id, dw2.user.id, gogo.user.id]
@@ -169,6 +173,8 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
   assert.equal(initialBudget.status, 200);
   assert.equal(initialBudget.body.budgetSummary.totalBudget, 300);
   assert.equal(initialBudget.body.budgetSummary.participantCount, 3);
+  assert.equal(startTrip.status, 200);
+  assert.equal(typeof startTrip.body.trip.startedAt, "string");
   assert.equal(dinner.status, 201);
   assert.deepEqual(dinner.body.expense.expenseShares, [
     {
@@ -193,21 +199,21 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
   assertBalances(dinner.body.balances, [
     {
       participantId: dw1.user.id,
-      actualPaid: 180,
-      fairShare: 60,
-      netBalance: 120
+      actualPaid: 0,
+      fairShare: 0,
+      netBalance: 0
     },
     {
       participantId: dw2.user.id,
       actualPaid: 0,
-      fairShare: 60,
-      netBalance: -60
+      fairShare: 0,
+      netBalance: 0
     },
     {
       participantId: gogo.user.id,
       actualPaid: 0,
-      fairShare: 60,
-      netBalance: -60
+      fairShare: 0,
+      netBalance: 0
     }
   ]);
 
@@ -218,7 +224,7 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
       title: "UCLA Hotel",
       amount: 450,
       category: "lodging",
-      expenseType: "shared",
+      expenseType: "budget_payment",
       payerId: dw1.user.id,
       splitRule: "equal",
       includedParticipantIds: [dw1.user.id, dw2.user.id, gogo.user.id]
@@ -231,7 +237,7 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
       title: "Museum Tickets",
       amount: 99,
       category: "tickets",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: dw2.user.id,
       splitRule: "equal",
       includedParticipantIds: [dw1.user.id, dw2.user.id, gogo.user.id]
@@ -247,7 +253,7 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
       expenseType: "personal_advance",
       payerId: gogo.user.id,
       splitRule: "equal",
-      includedParticipantIds: [dw1.user.id, dw2.user.id, gogo.user.id]
+      includedParticipantIds: [gogo.user.id]
     }
   });
 
@@ -259,49 +265,14 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
       shareAmount: 33
     },
     {
-      participantId: dw2.user.id,
-      shareAmount: 33
-    },
-    {
       participantId: gogo.user.id,
       shareAmount: 33
     }
   ]);
-  assert.equal(personalDrink.status, 201);
-  assert.deepEqual(personalDrink.body.expense.includedParticipantIds, [gogo.user.id]);
-  assert.deepEqual(personalDrink.body.expense.expenseShares, [
-    {
-      participantId: gogo.user.id,
-      shareAmount: 45
-    }
-  ]);
-  assertBudget(personalDrink.body.budgetSummary, {
-    totalBudget: 300,
-    totalSpent: 774,
-    remainingBudget: 0,
-    overBudgetAmount: 474
+  assert.equal(personalDrink.status, 400);
+  assert.deepEqual(personalDrink.body, {
+    error: "Choose at least one person who should reimburse the payer"
   });
-  assertBalances(personalDrink.body.balances, [
-    {
-      participantId: dw1.user.id,
-      actualPaid: 630,
-      fairShare: 243,
-      netBalance: 387
-    },
-    {
-      participantId: dw2.user.id,
-      actualPaid: 99,
-      fairShare: 243,
-      netBalance: -144
-    },
-    {
-      participantId: gogo.user.id,
-      actualPaid: 45,
-      fairShare: 288,
-      netBalance: -243
-    }
-  ]);
-  assertNetBalancesConserved(personalDrink.body.balances);
 
   const lunch = await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
@@ -310,7 +281,7 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
       title: "Ackerman Lunch",
       amount: 75,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: dw2.user.id,
       splitRule: "equal",
       includedParticipantIds: [dw1.user.id, dw2.user.id]
@@ -322,36 +293,32 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
     {
       participantId: dw1.user.id,
       shareAmount: 37.5
-    },
-    {
-      participantId: dw2.user.id,
-      shareAmount: 37.5
     }
   ]);
   assertBudget(lunch.body.budgetSummary, {
     totalBudget: 300,
-    totalSpent: 849,
+    totalSpent: 630,
     remainingBudget: 0,
-    overBudgetAmount: 549
+    overBudgetAmount: 330
   });
   assertBalances(lunch.body.balances, [
     {
       participantId: dw1.user.id,
-      actualPaid: 630,
-      fairShare: 280.5,
-      netBalance: 349.5
+      actualPaid: 0,
+      fairShare: 70.5,
+      netBalance: -70.5
     },
     {
       participantId: dw2.user.id,
       actualPaid: 174,
-      fairShare: 280.5,
-      netBalance: -106.5
+      fairShare: 70.5,
+      netBalance: 103.5
     },
     {
       participantId: gogo.user.id,
-      actualPaid: 45,
-      fairShare: 288,
-      netBalance: -243
+      actualPaid: 0,
+      fairShare: 33,
+      netBalance: -33
     }
   ]);
   assertNetBalancesConserved(lunch.body.balances);
@@ -371,13 +338,6 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
       perPersonBudget: 200
     }
   });
-  const gogoDeleteOwnDrink = await request(
-    `/api/trips/${tripId}/expenses/${personalDrink.body.expense.id}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(gogo.token)
-    }
-  );
   const dw2DeleteOwnLunch = await request(`/api/trips/${tripId}/expenses/${lunch.body.expense.id}`, {
     method: "DELETE",
     headers: authHeaders(dw2.token)
@@ -388,8 +348,6 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
     error: "Only the expense payer or trip organizer can delete this expense"
   });
   assert.equal(gogoBudgetAttempt.status, 403);
-  assert.equal(gogoDeleteOwnDrink.status, 200);
-  assert.equal(gogoDeleteOwnDrink.body.deletedExpenseId, personalDrink.body.expense.id);
   assert.equal(dw2DeleteOwnLunch.status, 200);
   assert.equal(dw2DeleteOwnLunch.body.deletedExpenseId, lunch.body.expense.id);
   assertNetBalancesConserved(dw2DeleteOwnLunch.body.balances);
@@ -398,12 +356,12 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
     method: "DELETE",
     headers: authHeaders(dw1.token)
   });
-  const perPersonBudget = await request(`/api/trips/${tripId}/budget`, {
+  const additionalBudget = await request(`/api/trips/${tripId}/budget`, {
     method: "POST",
     headers: authHeaders(dw1.token),
     body: {
-      mode: "per-person",
-      perPersonBudget: 200
+      mode: "total",
+      totalBudget: 600
     }
   });
   const editTrip = await request(`/api/trips/${tripId}`, {
@@ -447,9 +405,9 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
 
   assert.equal(organizerDeleteHotel.status, 200);
   assert.equal(organizerDeleteHotel.body.deletedExpenseId, hotel.body.expense.id);
-  assert.equal(perPersonBudget.status, 200);
-  assert.equal(perPersonBudget.body.budgetSummary.perPersonBudget, 200);
-  assert.equal(perPersonBudget.body.budgetSummary.totalBudget, 600);
+  assert.equal(additionalBudget.status, 200);
+  assert.equal(additionalBudget.body.budgetSummary.mode, "total");
+  assert.equal(additionalBudget.body.budgetSummary.totalBudget, 600);
   assert.equal(editTrip.status, 200);
   assert.equal(editTrip.body.trip.name, "UCLA Los Angeles Weekend");
   assert.equal(editTrip.body.trip.visibility, "private");
@@ -461,7 +419,7 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
   });
   assert.equal(removeParticipantWithHistory.status, 409);
   assert.deepEqual(removeParticipantWithHistory.body, {
-    error: "Cannot remove a participant with expense history"
+    error: "Trip has already started; participants cannot be removed"
   });
 });
 
@@ -498,6 +456,10 @@ test("extra registered outsider is blocked from private data and invalid expense
       userId: dw2.user.id
     }
   });
+  await request(`/api/trips/${tripId}/start`, {
+    method: "POST",
+    headers: authHeaders(dw1.token)
+  });
 
   const outsiderTripAccess = await request(`/api/trips/${tripId}`, {
     headers: authHeaders(outsider.token)
@@ -513,7 +475,7 @@ test("extra registered outsider is blocked from private data and invalid expense
       title: "Blocked Outsider Payer",
       amount: 24,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: outsider.user.id,
       splitRule: "equal",
       includedParticipantIds: [dw1.user.id, dw2.user.id]
@@ -526,7 +488,7 @@ test("extra registered outsider is blocked from private data and invalid expense
       title: "Blocked Outsider Split",
       amount: 24,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: dw1.user.id,
       splitRule: "equal",
       includedParticipantIds: [dw1.user.id, outsider.user.id]
@@ -579,6 +541,10 @@ test("participant cannot use organizer-only trip controls but can record and del
       totalBudget: 500
     }
   });
+  await request(`/api/trips/${tripId}/start`, {
+    method: "POST",
+    headers: authHeaders(dw1.token)
+  });
 
   const editAttempt = await request(`/api/trips/${tripId}`, {
     method: "PATCH",
@@ -617,7 +583,7 @@ test("participant cannot use organizer-only trip controls but can record and del
       title: "Participant Lunch",
       amount: 75,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: dw2.user.id,
       splitRule: "equal",
       includedParticipantIds: [dw1.user.id, dw2.user.id]
@@ -643,10 +609,6 @@ test("participant cannot use organizer-only trip controls but can record and del
   assert.deepEqual(participantExpense.body.expense.expenseShares, [
     {
       participantId: dw1.user.id,
-      shareAmount: 37.5
-    },
-    {
-      participantId: dw2.user.id,
       shareAmount: 37.5
     }
   ]);

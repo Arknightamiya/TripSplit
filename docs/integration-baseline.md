@@ -86,6 +86,9 @@ Key integrity rules:
   - `total` uses `total_budget`
   - `per-person` uses `per_person_budget`
 - Expense category, expense type, and split rule values are constrained to the shared MVP values.
+- Expense type meanings are:
+  - `budget_payment`: organizer-only expense paid from the shared trip budget. It increases `budgetSummary.totalSpent` and participant `budgetSpent`.
+  - `personal_advance`: participant-paid out-of-pocket expense split across selected participants. It affects personal reimbursement fields `actualPaid`, `fairShare`, and `netBalance`, but not `budgetSummary.totalSpent`.
 
 These rules are important because settlement and access control both depend on trip membership being correct.
 

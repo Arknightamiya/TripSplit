@@ -1,6 +1,7 @@
 import {
   clearAuthSession,
   deleteTrip,
+  endTrip,
   fetchBalances,
   fetchCurrentUserProfile,
   fetchFriendProfile,
@@ -24,6 +25,7 @@ import {
   sendFriendRequest,
   SESSION_EXPIRED_ERROR_MESSAGE,
   setUnauthorizedHandler,
+  startTrip,
   storeAuthSession,
   storeCurrentUser,
   updateCurrentUserProfile,
@@ -72,6 +74,8 @@ const tripEditForm = document.querySelector("#trip-edit-form");
 const tripInviteForm = document.querySelector("#trip-invite-form");
 const tripInviteButton = document.querySelector("#trip-invite-button");
 const tripRemoveParticipantButton = document.querySelector("#trip-remove-participant-button");
+const tripStartRow = document.querySelector("#trip-start-row");
+const tripStartButton = document.querySelector("#trip-start-button");
 const tripEditError = document.querySelector("#trip-edit-error");
 const deleteTripDialog = document.querySelector("#delete-trip-dialog");
 const deleteTripYes = document.querySelector("#delete-trip-yes");
@@ -188,7 +192,6 @@ const MAX_AVATAR_FILE_SIZE = 8_000_000;
 const AVATAR_IMAGE_SIZE = 256;
 const AVATAR_IMAGE_QUALITY = 0.86;
 const SESSION_EXPIRED_MESSAGE = SESSION_EXPIRED_ERROR_MESSAGE;
-const APP_REFRESH_INTERVAL_MS = 5000;
 let sessionExpiredHandled = false;
 let appRefreshTimer = null;
 let appRefreshInFlight = false;
@@ -239,6 +242,7 @@ createTripInviteDialog.addEventListener("click", (event) => {
 tripEditForm.addEventListener("submit", handleTripEditSubmit);
 tripInviteButton.addEventListener("click", openTripInviteDialog);
 tripRemoveParticipantButton.addEventListener("click", openTripRemoveParticipantDialog);
+tripStartButton.addEventListener("click", handleStartTrip);
 tripInviteBack.addEventListener("click", closeTripInviteDialog);
 tripInviteSend.addEventListener("click", sendTripInvites);
 tripInviteDialog.addEventListener("click", (event) => {
@@ -352,7 +356,7 @@ async function restoreAuthSession() {
     switchMainTab(savedUiState.activeMainTab, { skipLoad: true, skipPersist: true });
     await loadFriends();
     activeTripId = savedUiState.activeTripId || null;
-    detailSection.hidden = !activeTripId;
+    syncDetailVisibility();
     await loadTrips();
     if (activeMainTab === "lobby") {
       await loadFriendPublicTripLobby();
@@ -440,8 +444,8 @@ function showAppView(user) {
 }
 
 function startAppAutoRefresh() {
+  // Keep the current scroll/detail position stable. Manual changes still refresh affected panels.
   stopAppAutoRefresh();
-  appRefreshTimer = window.setInterval(refreshVisibleAppState, APP_REFRESH_INTERVAL_MS);
 }
 
 function stopAppAutoRefresh() {
@@ -477,6 +481,7 @@ function shouldSkipAppRefresh() {
     document.hidden ||
     appRefreshInFlight ||
     hasOpenModal() ||
+    hasOpenDateCalendar() ||
     isEditingFormField()
   );
 }
@@ -485,12 +490,16 @@ function hasOpenModal() {
   return Boolean(document.querySelector(".modal-overlay:not([hidden])"));
 }
 
+function hasOpenDateCalendar() {
+  return Boolean(document.querySelector(".date-calendar:not([hidden])"));
+}
+
 function isEditingFormField() {
   const activeElement = document.activeElement;
   return Boolean(
     activeElement &&
     activeElement.closest("form") &&
-    activeElement.matches("input, textarea, select")
+    activeElement.matches("input, textarea, select, button")
   );
 }
 
@@ -1082,6 +1091,8 @@ function switchMainTab(tabName, options = {}) {
     panel.hidden = panel.dataset.mainPanel !== activeMainTab;
   });
 
+  syncDetailVisibility();
+
   if (activeMainTab === "lobby" && !options.skipLoad) {
     loadFriendPublicTripLobby();
   }
@@ -1091,6 +1102,10 @@ function switchMainTab(tabName, options = {}) {
   }
 }
 
+function syncDetailVisibility() {
+  detailSection.hidden = activeMainTab !== "trips" || !activeTripId;
+}
+
 async function loadFriendPublicTripLobby() {
   setFormError(tripLobbyError, "");
   tripLobbyList.innerHTML = `<p class="empty">Loading public trips...</p>`;
@@ -1098,7 +1113,7 @@ async function loadFriendPublicTripLobby() {
 
   try {
     const { publicTrips } = await fetchFriendPublicTrips();
-    publicTripLobbyItems = publicTrips || [];
+    publicTripLobbyItems = filterTripLobbyItems(publicTrips || []);
     renderFriendPublicTripLobby();
   } catch (error) {
     publicTripLobbyItems = [];
@@ -1144,6 +1159,23 @@ function renderFriendPublicTripLobby() {
         openAvatarPreview(user);
       }
     });
+  });
+}
+
+function filterTripLobbyItems(publicTrips) {
+  const currentUser = getStoredCurrentUser();
+  const currentUserIdValue = currentUser?.id ? String(currentUser.id) : "";
+
+  return publicTrips.filter((trip) => {
+    if (trip.isParticipant) {
+      return false;
+    }
+
+    if (currentUserIdValue && String(trip.organizerId || "") === currentUserIdValue) {
+      return false;
+    }
+
+    return true;
   });
 }
 
@@ -1853,6 +1885,11 @@ async function handleTripEditSubmit(event) {
     return;
   }
 
+  if (activeTripDetail?.startedAt) {
+    setFormError(tripEditError, "Trip has already started; trip details are locked.");
+    return;
+  }
+
   const formData = new FormData(tripEditForm);
   const name = String(formData.get("name") || "").trim();
   const startDate = String(formData.get("startDate") || "").trim();
@@ -1890,6 +1927,64 @@ async function handleTripEditSubmit(event) {
     submitButton.disabled = false;
     submitButton.textContent = "Save";
   }
+}
+
+async function handleStartTrip() {
+  if (!activeTripId || tripStartButton.disabled) {
+    return;
+  }
+
+  const startPayload = getTripEditFormPayload();
+  if (!startPayload.name) {
+    setFormError(tripEditError, "Set a destination before starting the trip.");
+    return;
+  }
+
+  if (!startPayload.startDate || !startPayload.endDate) {
+    setFormError(tripEditError, "Set both start and end dates before starting the trip.");
+    return;
+  }
+
+  const dateError = validateTripDates(tripEditForm);
+  if (dateError) {
+    setFormError(tripEditError, dateError);
+    return;
+  }
+
+  setFormError(tripEditError, "");
+  tripStartButton.disabled = true;
+  tripStartButton.textContent = "Starting...";
+
+  try {
+    await updateTrip(activeTripId, {
+      name: startPayload.name,
+      destination: startPayload.name,
+      startDate: startPayload.startDate,
+      endDate: startPayload.endDate,
+      visibility: startPayload.visibility
+    });
+    await startTrip(activeTripId);
+    await loadTrips();
+  } catch (error) {
+    setFormError(tripEditError, error.message || "Unable to start this trip.");
+    tripStartButton.disabled = false;
+    tripStartButton.textContent = "Start Trip";
+  }
+}
+
+function getTripEditFormPayload() {
+  const formData = new FormData(tripEditForm);
+  const name = String(formData.get("name") || "").trim();
+  const startDate = String(formData.get("startDate") || "").trim();
+  const endDate = String(formData.get("endDate") || "").trim();
+  const visibility = formData.get("isPrivate") === "on" ? "private" : "public";
+
+  return {
+    name,
+    startDate,
+    endDate,
+    visibility
+  };
 }
 
 async function openCreateTripInviteDialog() {
@@ -1986,6 +2081,11 @@ async function openTripInviteDialog() {
     return;
   }
 
+  if (activeTripDetail?.startedAt) {
+    setFormError(tripEditError, "Trip has already started; invitations are locked.");
+    return;
+  }
+
   setFormError(tripInviteError, "");
   selectedInviteFriendIds = new Set();
   tripInviteDialog.hidden = false;
@@ -2015,6 +2115,11 @@ function closeTripInviteDialog() {
 
 function openTripRemoveParticipantDialog() {
   if (!activeTripDetail) {
+    return;
+  }
+
+  if (activeTripDetail.startedAt) {
+    setFormError(tripEditError, "Trip has already started; participants cannot be removed.");
     return;
   }
 
@@ -2230,23 +2335,51 @@ function resetTripInviteButton() {
   tripInviteButton.textContent = "Invite";
   tripInviteButton.removeAttribute("aria-label");
   tripRemoveParticipantButton.disabled = true;
+  tripRemoveParticipantButton.classList.remove("is-disabled");
+  tripStartRow.hidden = true;
+  tripStartButton.disabled = false;
+  tripStartButton.textContent = "Start Trip";
+  tripStartButton.classList.remove("is-disabled");
 }
 
 function populateTripEditPanel(trip, isOrganizer) {
   tripEditForm.hidden = !isOrganizer;
   tripInviteForm.hidden = !isOrganizer;
+  tripStartRow.hidden = !isOrganizer;
 
   if (!isOrganizer) {
     resetTripInviteButton();
     return;
   }
 
+  const tripStarted = Boolean(trip.startedAt);
+  const tripEnded = Boolean(trip.endedAt);
   tripEditForm.elements.name.value = trip.name || trip.destination || "";
   setDateInputValue(tripEditForm, "startDate", trip.startDate || "");
   setDateInputValue(tripEditForm, "endDate", trip.endDate || "");
   tripEditForm.elements.isPrivate.checked = trip.visibility !== "public";
   updateTripInviteButton(trip);
-  tripRemoveParticipantButton.disabled = getRemovableParticipants(trip).length === 0;
+  setTripEditLocked(tripStarted || tripEnded);
+  tripRemoveParticipantButton.disabled =
+    tripStarted || tripEnded || getRemovableParticipants(trip).length === 0;
+  tripRemoveParticipantButton.classList.toggle("is-disabled", tripStarted || tripEnded);
+  tripStartButton.disabled = tripStarted || tripEnded;
+  tripStartButton.textContent = tripEnded ? "Trip Ended" : tripStarted ? "Trip Started" : "Start Trip";
+  tripStartButton.classList.toggle("is-disabled", tripStarted || tripEnded);
+}
+
+function setTripEditLocked(isLocked) {
+  tripEditForm.classList.toggle("is-locked", isLocked);
+  tripEditForm
+    .querySelectorAll("input, button, select")
+    .forEach((control) => {
+      control.disabled = isLocked;
+    });
+  tripEditForm
+    .querySelectorAll(".visibility-switch")
+    .forEach((control) => {
+      control.classList.toggle("is-disabled", isLocked);
+    });
 }
 
 async function loadTrips() {
@@ -2261,7 +2394,7 @@ async function loadTrips() {
 
 async function openTrip(tripId) {
   activeTripId = tripId;
-  detailSection.hidden = false;
+  syncDetailVisibility();
   storeUiState();
   document.querySelectorAll(".trip-card").forEach((card) => {
     card.classList.toggle("is-active", card.dataset.tripId === tripId);
@@ -2282,6 +2415,11 @@ function closeDetail() {
 }
 
 function openDeleteTripDialog() {
+  if (activeTripDetail?.startedAt) {
+    setFormError(tripEditError, "Trip has already started; trip deletion is locked.");
+    return;
+  }
+
   const tripId = detailDelete.dataset.tripId || activeTripId;
   setDeleteTripError("");
   deleteTripDialog.dataset.tripId = tripId || "";
@@ -2420,13 +2558,30 @@ async function refreshDetail() {
     .join("");
 
   const isOrganizer = trip.organizerId === currentUser?.id;
+  const tripStarted = Boolean(trip.startedAt);
+  const tripEnded = Boolean(trip.endedAt);
   detailDelete.hidden = !isOrganizer;
+  detailDelete.disabled = tripStarted || tripEnded;
+  detailDelete.classList.toggle("is-disabled", tripStarted || tripEnded);
   detailDelete.dataset.tripId = String(trip.id);
   populateTripEditPanel(trip, isOrganizer);
   setFormError(tripEditError, "");
   renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips });
   renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips });
-  renderBalances(balancesPanel, { balances, trip, currentUserId: currentUser?.id });
+  renderBalances(balancesPanel, {
+    balances,
+    trip,
+    currentUserId: currentUser?.id,
+    isOrganizer,
+    onEndTrip: handleEndTrip
+  });
+}
+
+async function handleEndTrip() {
+  if (!activeTripId) return;
+
+  await endTrip(activeTripId);
+  await loadTrips();
 }
 
 function formatTripMeta(trip, participantCount) {

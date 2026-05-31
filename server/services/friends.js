@@ -191,12 +191,14 @@ export async function getFriendPublicTrips(userId) {
 
   const friends = listFriendsForUser(userId);
   const publicTrips = friends.flatMap((friend) =>
-    listPublicTripsForFriend(userId, friend.id).map((trip) => ({
-      ...trip,
-      organizerId: friend.id,
-      organizerName: friend.displayName || friend.name,
-      organizer: friend
-    }))
+    listPublicTripsForFriend(userId, friend.id)
+      .filter((trip) => !trip.isParticipant)
+      .map((trip) => ({
+        ...trip,
+        organizerId: friend.id,
+        organizerName: friend.displayName || friend.name,
+        organizer: friend
+      }))
   );
 
   return { publicTrips };

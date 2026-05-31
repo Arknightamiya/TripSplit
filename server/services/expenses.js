@@ -5,6 +5,7 @@ import {
   getBalances,
   getBudgetSummaryByTripId,
   getExpense,
+  getTripById,
   isValidExpenseInput
 } from "../store.js";
 import {
@@ -16,40 +17,60 @@ import {
   isExpenseRepositoryEnabled,
   listApprovedParticipantIdsRecord
 } from "../repositories/expenses.js";
+import { findTripRecordById } from "../repositories/trips.js";
 import { badRequest, forbidden, notFound } from "../utils/errors.js";
 import { requireFields } from "../validators/request.js";
 import { ensureApprovedParticipant, ensureOrganizer } from "./trips.js";
 
 export async function createExpenseForTrip(userId, tripId, input = {}) {
   await ensureApprovedParticipant(userId, tripId);
-  requireFields(input, ["title", "amount", "category", "payerId"]);
+  requireFields(input, ["title", "amount", "category"]);
+  await ensureTripStartedForExpenses(tripId);
 
-  if (!isValidExpenseInput(input)) {
+  const expenseType = normalizeExpenseType(input.expenseType || input.type);
+  const payerId = expenseType === "budget_payment" ? String(userId) : input.payerId;
+  const normalizedInput = {
+    ...input,
+    expenseType,
+    payerId,
+    splitRule: input.splitRule || "equal"
+  };
+
+  if (!payerId) {
+    throw badRequest("Expense payer is required");
+  }
+
+  if (!isValidExpenseInput(normalizedInput)) {
     throw badRequest("Invalid expense input");
   }
 
-  const participantIds = await getApprovedParticipantIds(tripId);
-  const expenseType = input.expenseType || input.type;
-  const includedParticipantIds = expenseType === "personal_advance"
-    ? [String(input.payerId)]
-    : Array.isArray(input.includedParticipantIds)
-    ? uniqueStrings(input.includedParticipantIds)
-    : [];
-
-  if (expenseType === "shared" && !includedParticipantIds.length) {
-    throw badRequest("At least one split participant is required");
+  if (expenseType === "budget_payment") {
+    await ensureOrganizer(userId, tripId);
   }
 
-  ensureTripParticipant(input.payerId, participantIds, "Expense payer");
+  const participantIds = await getApprovedParticipantIds(tripId);
+  const includedParticipantIds = normalizeIncludedParticipantIds(
+    input.includedParticipantIds,
+    expenseType,
+    payerId
+  );
+
+  if (!includedParticipantIds.length) {
+    throw badRequest(
+      expenseType === "personal_advance"
+        ? "Choose at least one person who should reimburse the payer"
+        : "At least one split participant is required"
+    );
+  }
+
+  ensureTripParticipant(payerId, participantIds, "Expense payer");
 
   for (const participantId of includedParticipantIds) {
     ensureTripParticipant(participantId, participantIds, "Expense split participant");
   }
 
   const expenseInput = {
-    ...input,
-    expenseType,
-    splitRule: input.splitRule || "equal",
+    ...normalizedInput,
     includedParticipantIds
   };
 
@@ -64,8 +85,27 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
   };
 }
 
+async function ensureTripStartedForExpenses(tripId) {
+  const trip = isExpenseRepositoryEnabled()
+    ? await findTripRecordById(tripId)
+    : getTripById(tripId);
+
+  if (!trip) {
+    throw notFound("Trip not found");
+  }
+
+  if (!trip.startedAt) {
+    throw badRequest("Start the trip before recording expenses");
+  }
+
+  if (trip.endedAt) {
+    throw badRequest("Trip has ended; expenses are locked");
+  }
+}
+
 export async function deleteExpenseFromTrip(userId, tripId, expenseId) {
   await ensureApprovedParticipant(userId, tripId);
+  await ensureTripOpenForExpenseDeletion(tripId);
 
   const expense = isExpenseRepositoryEnabled()
     ? await findExpenseRecord(tripId, expenseId)
@@ -97,6 +137,20 @@ export async function deleteExpenseFromTrip(userId, tripId, expenseId) {
   };
 }
 
+async function ensureTripOpenForExpenseDeletion(tripId) {
+  const trip = isExpenseRepositoryEnabled()
+    ? await findTripRecordById(tripId)
+    : getTripById(tripId);
+
+  if (!trip) {
+    throw notFound("Trip not found");
+  }
+
+  if (trip.endedAt) {
+    throw badRequest("Trip has ended; expenses are locked");
+  }
+}
+
 export async function getBalancesForTrip(userId, tripId) {
   await ensureApprovedParticipant(userId, tripId);
 
@@ -113,6 +167,22 @@ function ensureTripParticipant(userId, participantIds, label) {
 
 function uniqueStrings(values) {
   return Array.from(new Set(values.map(String)));
+}
+
+function normalizeIncludedParticipantIds(values, expenseType, payerId) {
+  const participantIds = Array.isArray(values)
+    ? uniqueStrings(values)
+    : [];
+
+  if (expenseType !== "personal_advance") {
+    return participantIds;
+  }
+
+  return participantIds.filter((participantId) => participantId !== String(payerId));
+}
+
+function normalizeExpenseType(expenseType) {
+  return expenseType === "shared" ? "personal_advance" : expenseType;
 }
 
 async function getApprovedParticipantIds(tripId) {

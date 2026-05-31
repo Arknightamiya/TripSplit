@@ -193,6 +193,34 @@ export async function updateTripRecord(tripId, {
   return result.rows[0] ? findTripRecordById(tripId) : null;
 }
 
+export async function startTripRecord(tripId) {
+  const result = await getDatabase().query(
+    `
+      UPDATE trips
+      SET started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+      WHERE id = $1
+      RETURNING id
+    `,
+    [tripId]
+  );
+
+  return result.rows[0] ? findTripRecordById(tripId) : null;
+}
+
+export async function endTripRecord(tripId) {
+  const result = await getDatabase().query(
+    `
+      UPDATE trips
+      SET ended_at = COALESCE(ended_at, CURRENT_TIMESTAMP)
+      WHERE id = $1
+      RETURNING id
+    `,
+    [tripId]
+  );
+
+  return result.rows[0] ? findTripRecordById(tripId) : null;
+}
+
 export async function setBudgetRecord(tripId, budgetInput) {
   const mode = budgetInput.mode;
   const totalBudget =
@@ -250,6 +278,8 @@ export async function listTripSummaryRecordsForUser(userId) {
         t.end_date,
         t.visibility,
         t.organizer_id,
+        t.started_at,
+        t.ended_at,
         organizer.name AS organizer_name,
         organizer.display_name AS organizer_display_name,
         b.mode,
@@ -270,6 +300,7 @@ export async function listTripSummaryRecordsForUser(userId) {
           SELECT SUM(e.amount)
           FROM expenses e
           WHERE e.trip_id = t.id
+            AND e.expense_type = 'budget_payment'
         ), 0) AS total_spent
       FROM trips t
       JOIN trip_participants tp ON tp.trip_id = t.id
@@ -296,6 +327,8 @@ export async function findTripRecordById(tripId) {
         t.end_date,
         t.visibility,
         t.organizer_id,
+        t.started_at,
+        t.ended_at,
         b.mode,
         b.total_budget,
         b.per_person_budget,
@@ -303,6 +336,7 @@ export async function findTripRecordById(tripId) {
           SELECT SUM(e.amount)
           FROM expenses e
           WHERE e.trip_id = t.id
+            AND e.expense_type = 'budget_payment'
         ), 0) AS total_spent
       FROM trips t
       LEFT JOIN budgets b ON b.trip_id = t.id
@@ -418,6 +452,8 @@ function mapTripSummaryRow(row) {
     visibility: row.visibility || "private",
     organizerId: String(row.organizer_id),
     organizerName: row.organizer_display_name || row.organizer_name || "Organizer",
+    startedAt: formatTimestamp(row.started_at),
+    endedAt: formatTimestamp(row.ended_at),
     participantCount,
     expenseCount: Number(row.expense_count),
     budgetSummary: buildBudgetSummary(row, participantCount, totalSpent)
@@ -435,6 +471,8 @@ function mapTripDetailRow(row, participants, participantCount, expenses = []) {
     endDate: formatDate(row.end_date),
     visibility: row.visibility || "private",
     organizerId: String(row.organizer_id),
+    startedAt: formatTimestamp(row.started_at),
+    endedAt: formatTimestamp(row.ended_at),
     participantIds: participants
       .filter((participant) => participant.joinStatus === "approved")
       .map((participant) => participant.id),
@@ -478,6 +516,18 @@ function formatDate(value) {
   }
 
   return value.toISOString().slice(0, 10);
+}
+
+function formatTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return value.toISOString();
 }
 
 function toNullableCurrencyNumber(value) {
