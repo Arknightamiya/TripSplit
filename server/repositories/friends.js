@@ -187,8 +187,8 @@ export async function removeFriendshipRecord(userId, friendId) {
   const result = await getDatabase().query(
     `
       DELETE FROM friendships
-      WHERE user_id = $1
-        AND friend_id = $2
+      WHERE (user_id = $1 AND friend_id = $2)
+         OR (user_id = $2 AND friend_id = $1)
     `,
     [userId, friendId]
   );
