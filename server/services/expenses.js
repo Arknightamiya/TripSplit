@@ -32,9 +32,13 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
   const expenseType = input.expenseType || input.type;
   const includedParticipantIds = expenseType === "personal_advance"
     ? [String(input.payerId)]
-    : input.includedParticipantIds?.length
-    ? input.includedParticipantIds.map(String)
-    : participantIds;
+    : Array.isArray(input.includedParticipantIds)
+    ? uniqueStrings(input.includedParticipantIds)
+    : [];
+
+  if (expenseType === "shared" && !includedParticipantIds.length) {
+    throw badRequest("At least one split participant is required");
+  }
 
   ensureTripParticipant(input.payerId, participantIds, "Expense payer");
 
@@ -105,6 +109,10 @@ function ensureTripParticipant(userId, participantIds, label) {
   if (!participantIds.includes(String(userId))) {
     throw badRequest(`${label} must be an approved trip participant`);
   }
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(values.map(String)));
 }
 
 async function getApprovedParticipantIds(tripId) {
