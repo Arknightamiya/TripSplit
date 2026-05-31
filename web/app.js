@@ -784,23 +784,23 @@ async function openProfileDialog(options = {}) {
     return;
   }
 
+  populateProfileForm(storedUser);
+  profileDialog.hidden = false;
+  if (!options.skipPersist) {
+    storeUiState();
+  }
+
   try {
     const { user } = await fetchCurrentUserProfile();
     storeCurrentUser(user);
     renderCurrentUser(user);
     populateProfileForm(user);
-    profileDialog.hidden = false;
-    if (!options.skipPersist) {
-      storeUiState();
-    }
   } catch (error) {
     if (isSessionExpiredError(error)) {
       return;
     }
 
     setFormError(profileError, error.message || "Unable to load profile.");
-    populateProfileForm(storedUser);
-    profileDialog.hidden = false;
   }
 }
 
@@ -2367,8 +2367,9 @@ async function confirmDeleteTrip() {
 function handleDeleteTripShortcut(event) {
   if (
     deleteTripDialog.hidden ||
-    event.code !== "Space" ||
+    (event.key !== "Enter" && event.code !== "Space") ||
     event.repeat ||
+    event.isComposing ||
     event.metaKey ||
     event.ctrlKey ||
     event.altKey ||
