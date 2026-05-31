@@ -1,5 +1,6 @@
 export const DEFAULT_CURRENCY_CODE = "USD";
 
+//NOTE: last minute patch for frontend done by BE2 dev; new currency addition based on LLM for quick addition
 export const FALLBACK_CURRENCY_INFO = {
   baseCurrencyCode: DEFAULT_CURRENCY_CODE,
   fetchedAt: null,
