@@ -1,5 +1,9 @@
 import { getDatabase } from "../db/pool.js";
-import { splitCurrencyEvenly } from "../utils/currency.js";
+import {
+  DEFAULT_CURRENCY_CODE,
+  normalizeCurrencyCode,
+  splitCurrencyEvenly
+} from "../utils/currency.js";
 
 export function isExpenseRepositoryEnabled() {
   return getDatabase().enabled;
@@ -20,9 +24,11 @@ export async function listApprovedParticipantIdsRecord(tripId) {
   return result.rows.map((row) => String(row.user_id));
 }
 
+//ADDED: currency exchange
 export async function createExpenseRecord(tripId, input) {
   const database = getDatabase();
   const amount = roundCurrency(Number(input.amount));
+  const currencyCode = normalizeCurrencyCode(input.currencyCode);
   const includedParticipantIds = input.expenseType === "personal_advance"
     ? [input.payerId]
     : [...input.includedParticipantIds];
@@ -47,10 +53,11 @@ export async function createExpenseRecord(tripId, input) {
           amount,
           category,
           expense_type,
+          currency_code,
           payer_id,
           split_rule_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING
           id,
           trip_id,
@@ -58,6 +65,7 @@ export async function createExpenseRecord(tripId, input) {
           amount,
           category,
           expense_type,
+          currency_code,
           payer_id,
           created_at
       `,
@@ -67,6 +75,7 @@ export async function createExpenseRecord(tripId, input) {
         amount,
         input.category,
         input.expenseType,
+        currencyCode,
         input.payerId,
         splitRuleId
       ]
@@ -105,6 +114,7 @@ export async function findExpenseRecord(tripId, expenseId) {
         e.amount,
         e.category,
         e.expense_type,
+        COALESCE(e.currency_code, $3) AS currency_code,
         e.payer_id,
         sr.type AS split_rule,
         e.created_at
@@ -113,7 +123,7 @@ export async function findExpenseRecord(tripId, expenseId) {
       WHERE e.trip_id = $1
         AND e.id = $2
     `,
-    [tripId, expenseId]
+    [tripId, expenseId, DEFAULT_CURRENCY_CODE]
   );
 
   if (!result.rows[0]) {
@@ -134,6 +144,7 @@ export async function listExpenseRecordsForTrip(tripId) {
         e.amount,
         e.category,
         e.expense_type,
+        COALESCE(e.currency_code, $2) AS currency_code,
         e.payer_id,
         sr.type AS split_rule,
         e.created_at
@@ -142,7 +153,7 @@ export async function listExpenseRecordsForTrip(tripId) {
       WHERE e.trip_id = $1
       ORDER BY e.created_at ASC, e.id ASC
     `,
-    [tripId]
+    [tripId, DEFAULT_CURRENCY_CODE]
   );
 
   return Promise.all(
@@ -178,6 +189,7 @@ export async function getBudgetSummaryRecordByTripId(tripId) {
         b.mode,
         b.total_budget,
         b.per_person_budget,
+        COALESCE(b.currency_code, $2) AS currency_code,
         (
           SELECT COUNT(*)
           FROM trip_participants tp
@@ -192,7 +204,7 @@ export async function getBudgetSummaryRecordByTripId(tripId) {
       FROM budgets b
       WHERE b.trip_id = $1
     `,
-    [tripId]
+    [tripId, DEFAULT_CURRENCY_CODE]
   );
 
   if (!result.rows[0]) {
@@ -263,6 +275,7 @@ function mapExpenseRow(row, expenseShares) {
     amount: toCurrencyNumber(row.amount),
     category: row.category,
     expenseType: row.expense_type,
+    currencyCode: String(row.currency_code || DEFAULT_CURRENCY_CODE).trim(),
     payerId: String(row.payer_id),
     splitRule: row.split_rule,
     includedParticipantIds: expenseShares.map((share) => share.participantId),
@@ -308,6 +321,7 @@ function buildBudgetSummary(row) {
     mode: row.mode,
     totalBudget,
     perPersonBudget,
+    currencyCode: String(row.currency_code || DEFAULT_CURRENCY_CODE).trim(),
     participantCount,
     totalSpent,
     remainingBudget: roundCurrency(Math.max(totalBudget - totalSpent, 0)),

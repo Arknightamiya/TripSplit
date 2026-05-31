@@ -129,12 +129,55 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_join_requests_pending_unique
   ON trip_join_requests (trip_id, requester_id)
   WHERE status = 'pending';
 
+CREATE TABLE IF NOT EXISTS currencies (
+  code CHAR(3) PRIMARY KEY,
+  name TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  decimal_places INTEGER NOT NULL DEFAULT 2 CHECK (decimal_places >= 0),
+  is_supported BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO currencies (code, name, symbol, decimal_places)
+VALUES
+  ('USD', 'US Dollar', '$', 2),
+  ('CAD', 'Canadian Dollar', 'CA$', 2),
+  ('AUD', 'Australian Dollar', 'A$', 2),
+  ('JPY', 'Japanese Yen', '¥', 0),
+  ('CNY', 'Chinese Yuan', '¥', 2),
+  ('GBP', 'British Pound', '£', 2),
+  ('EUR', 'Euro', '€', 2),
+  ('MXN', 'Mexican Peso', 'MX$', 2),
+  ('CHF', 'Swiss Franc', 'CHF', 2),
+  ('NZD', 'New Zealand Dollar', 'NZ$', 2),
+  ('SGD', 'Singapore Dollar', 'S$', 2),
+  ('HKD', 'Hong Kong Dollar', 'HK$', 2),
+  ('KRW', 'South Korean Won', '₩', 0),
+  ('INR', 'Indian Rupee', '₹', 2),
+  ('THB', 'Thai Baht', '฿', 2),
+  ('BRL', 'Brazilian Real', 'R$', 2),
+  ('ZAR', 'South African Rand', 'R', 2)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  symbol = EXCLUDED.symbol,
+  decimal_places = EXCLUDED.decimal_places,
+  is_supported = TRUE;
+
+CREATE TABLE IF NOT EXISTS currency_exchange_rates (
+  base_currency_code CHAR(3) NOT NULL REFERENCES currencies(code),
+  quote_currency_code CHAR(3) NOT NULL REFERENCES currencies(code),
+  rate NUMERIC(18, 8) NOT NULL CHECK (rate > 0),
+  provider TEXT NOT NULL,
+  fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (base_currency_code, quote_currency_code)
+);
+
 CREATE TABLE IF NOT EXISTS budgets (
   trip_id INTEGER PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
   mode TEXT NOT NULL CHECK (mode IN ('total', 'per-person')),
   total_budget NUMERIC(12, 2) CHECK (total_budget >= 0),
   per_person_budget NUMERIC(12, 2) CHECK (per_person_budget >= 0),
-  currency_code CHAR(3) NOT NULL DEFAULT 'USD',
+  currency_code CHAR(3) NOT NULL DEFAULT 'USD' REFERENCES currencies(code),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK (
@@ -143,6 +186,13 @@ CREATE TABLE IF NOT EXISTS budgets (
     (mode = 'per-person' AND total_budget IS NULL AND per_person_budget IS NOT NULL)
   )
 );
+
+ALTER TABLE budgets
+  ADD COLUMN IF NOT EXISTS currency_code CHAR(3) NOT NULL DEFAULT 'USD';
+
+UPDATE budgets
+SET currency_code = 'USD'
+WHERE currency_code IS NULL OR TRIM(currency_code) = '';
 
 CREATE TABLE IF NOT EXISTS split_rules (
   id SERIAL PRIMARY KEY,
@@ -172,6 +222,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   ),
   expense_type TEXT NOT NULL DEFAULT 'shared'
     CHECK (expense_type IN ('shared', 'personal_advance')),
+  currency_code CHAR(3) NOT NULL DEFAULT 'USD' REFERENCES currencies(code),
   payer_id INTEGER NOT NULL,
   split_rule_id INTEGER NOT NULL REFERENCES split_rules(id),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -179,6 +230,13 @@ CREATE TABLE IF NOT EXISTS expenses (
   FOREIGN KEY (trip_id, payer_id)
     REFERENCES trip_participants(trip_id, user_id)
 );
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS currency_code CHAR(3) NOT NULL DEFAULT 'USD';
+
+UPDATE expenses
+SET currency_code = 'USD'
+WHERE currency_code IS NULL OR TRIM(currency_code) = '';
 
 CREATE TABLE IF NOT EXISTS expense_shares (
   expense_id INTEGER NOT NULL,
@@ -212,5 +270,8 @@ CREATE TABLE IF NOT EXISTS balance_summaries (
 CREATE INDEX IF NOT EXISTS idx_trips_organizer_id ON trips(organizer_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_trip_id ON expenses(trip_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_payer_id ON expenses(payer_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_currency_code ON expenses(currency_code);
 CREATE INDEX IF NOT EXISTS idx_expense_shares_trip_id ON expense_shares(trip_id);
 CREATE INDEX IF NOT EXISTS idx_expense_shares_participant_id ON expense_shares(participant_id);
+CREATE INDEX IF NOT EXISTS idx_currency_exchange_rates_fetched_at
+  ON currency_exchange_rates(fetched_at);

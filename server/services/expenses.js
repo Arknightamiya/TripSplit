@@ -17,6 +17,7 @@ import {
   listApprovedParticipantIdsRecord
 } from "../repositories/expenses.js";
 import { badRequest, forbidden, notFound } from "../utils/errors.js";
+import { isSupportedCurrencyCode, normalizeCurrencyCode } from "../utils/currency.js";
 import { requireFields } from "../validators/request.js";
 import { ensureApprovedParticipant, ensureOrganizer } from "./trips.js";
 
@@ -45,6 +46,7 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
   const expenseInput = {
     ...input,
     expenseType,
+    currencyCode: normalizeExpenseCurrencyCode(input.currencyCode),
     splitRule: input.splitRule || "equal",
     includedParticipantIds
   };
@@ -58,6 +60,15 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
     budgetSummary: await getBudgetSummary(tripId),
     balances: (await getTripBalances(tripId)).balances
   };
+}
+
+function normalizeExpenseCurrencyCode(currencyCode) {
+  const normalizedCurrencyCode = normalizeCurrencyCode(currencyCode);
+  if (!isSupportedCurrencyCode(normalizedCurrencyCode)) {
+    throw badRequest("Unsupported expense currency");
+  }
+
+  return normalizedCurrencyCode;
 }
 
 export async function deleteExpenseFromTrip(userId, tripId, expenseId) {

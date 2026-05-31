@@ -5,7 +5,11 @@ import {
   SPLIT_RULES
 } from "../shared/contracts.js";
 import { calculateBalances } from "./settlement.js";
-import { splitCurrencyEvenly } from "./utils/currency.js";
+import {
+  DEFAULT_CURRENCY_CODE,
+  normalizeCurrencyCode,
+  splitCurrencyEvenly
+} from "./utils/currency.js";
 
 const state = {
   nextId: 1,
@@ -417,7 +421,8 @@ export function setBudget(tripId, budgetInput) {
     mode,
     totalBudget: mode === "total" ? roundCurrency(Number(totalBudget)) : null,
     perPersonBudget:
-      mode === "per-person" ? roundCurrency(Number(perPersonBudget)) : null
+      mode === "per-person" ? roundCurrency(Number(perPersonBudget)) : null,
+    currencyCode: normalizeCurrencyCode(budgetInput.currencyCode)
   };
 
   return getBudgetSummary(trip);
@@ -445,6 +450,7 @@ export function addExpense(tripId, expenseInput) {
     amount,
     category: expenseInput.category,
     expenseType,
+    currencyCode: normalizeCurrencyCode(expenseInput.currencyCode),
     payerId: expenseInput.payerId,
     splitRule: expenseInput.splitRule || "equal",
     includedParticipantIds,
@@ -674,6 +680,7 @@ function getBudgetSummary(trip) {
     mode: trip.budget.mode,
     totalBudget,
     perPersonBudget: trip.budget.perPersonBudget,
+    currencyCode: trip.budget.currencyCode || DEFAULT_CURRENCY_CODE,
     participantCount,
     totalSpent,
     remainingBudget,

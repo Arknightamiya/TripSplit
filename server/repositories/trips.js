@@ -1,5 +1,6 @@
 import { getDatabase } from "../db/pool.js";
 import { listExpenseRecordsForTrip } from "./expenses.js";
+import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from "../utils/currency.js";
 
 export function isTripRepositoryEnabled() {
   return getDatabase().enabled;
@@ -202,19 +203,21 @@ export async function setBudgetRecord(tripId, budgetInput) {
     mode === "per-person"
       ? roundCurrency(Number(budgetInput.perPersonBudget ?? budgetInput.amount))
       : null;
+  const currencyCode = normalizeCurrencyCode(budgetInput.currencyCode);
 
   await getDatabase().query(
     `
-      INSERT INTO budgets (trip_id, mode, total_budget, per_person_budget)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO budgets (trip_id, mode, total_budget, per_person_budget, currency_code)
+      VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (trip_id)
       DO UPDATE SET
         mode = EXCLUDED.mode,
         total_budget = EXCLUDED.total_budget,
         per_person_budget = EXCLUDED.per_person_budget,
+        currency_code = EXCLUDED.currency_code,
         updated_at = CURRENT_TIMESTAMP
     `,
-    [tripId, mode, totalBudget, perPersonBudget]
+    [tripId, mode, totalBudget, perPersonBudget, currencyCode]
   );
 
   return (await findTripRecordById(tripId))?.budgetSummary ?? null;
@@ -254,6 +257,7 @@ export async function listTripSummaryRecordsForUser(userId) {
         b.mode,
         b.total_budget,
         b.per_person_budget,
+        COALESCE(b.currency_code, $2) AS currency_code,
         (
           SELECT COUNT(*)
           FROM trip_participants approved_tp
@@ -278,7 +282,7 @@ export async function listTripSummaryRecordsForUser(userId) {
         AND tp.join_status = 'approved'
       ORDER BY t.created_at DESC, t.id DESC
     `,
-    [userId]
+    [userId, DEFAULT_CURRENCY_CODE]
   );
 
   return result.rows.map(mapTripSummaryRow);
@@ -298,6 +302,7 @@ export async function findTripRecordById(tripId) {
         b.mode,
         b.total_budget,
         b.per_person_budget,
+        COALESCE(b.currency_code, $2) AS currency_code,
         COALESCE((
           SELECT SUM(e.amount)
           FROM expenses e
@@ -307,7 +312,7 @@ export async function findTripRecordById(tripId) {
       LEFT JOIN budgets b ON b.trip_id = t.id
       WHERE t.id = $1
     `,
-    [tripId]
+    [tripId, DEFAULT_CURRENCY_CODE]
   );
 
   if (!tripResult.rows[0]) {
@@ -449,6 +454,7 @@ function buildBudgetSummary(row, participantCount, totalSpent) {
   }
 
   const perPersonBudget = toNullableCurrencyNumber(row.per_person_budget);
+  const currencyCode = String(row.currency_code || DEFAULT_CURRENCY_CODE).trim();
   const totalBudget =
     row.mode === "per-person"
       ? roundCurrency(perPersonBudget * participantCount)
@@ -460,6 +466,7 @@ function buildBudgetSummary(row, participantCount, totalSpent) {
     mode: row.mode,
     totalBudget,
     perPersonBudget,
+    currencyCode,
     participantCount,
     totalSpent,
     remainingBudget,

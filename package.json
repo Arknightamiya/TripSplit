@@ -9,6 +9,8 @@
     "dev": "node server/index.js",
     "db:check": "node scripts/db/check.js",
     "db:schema": "node scripts/db/apply-schema.js",
+    "db:currency:refresh": "node scripts/db/refresh-currency-rates.js",
+    "db:currency:convert": "node scripts/db/convert-currency.js",
     "test": "node --test"
   },
   "engines": {

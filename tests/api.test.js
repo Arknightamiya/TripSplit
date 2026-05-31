@@ -57,6 +57,7 @@ test("login returns JWT and lists trips for the authenticated participant", asyn
   assert.equal(response.body.trips.length, 1);
   assert.equal(response.body.trips[0].name, "San Diego Weekend");
   assert.equal(response.body.trips[0].budgetSummary.totalBudget, 900);
+  assert.equal(response.body.trips[0].budgetSummary.currencyCode, "USD");
 });
 
 test("login accepts username or email as the identifier", async () => {
@@ -1409,6 +1410,7 @@ test("expense API creates equal shares and recalculates balances", async () => {
   });
 
   assert.equal(response.status, 201);
+  assert.equal(response.body.expense.currencyCode, "USD");
   assert.equal(response.body.expense.expenseShares[0].shareAmount, 30);
   assert.equal(response.body.balances[0].actualPaid, 30);
   assert.equal(response.body.balances[0].fairShare, 30);
