@@ -1530,6 +1530,9 @@ async function handleFriendRequestAction(requestId, action) {
   try {
     await respondToFriendRequest(requestId, action);
     await loadFriends();
+    if (activeMainTab === "lobby") {
+      await loadFriendPublicTripLobby({ showLoading: false });
+    }
   } catch (error) {
     setFormError(friendRequestsError, error.message || "Unable to update request.");
   }
