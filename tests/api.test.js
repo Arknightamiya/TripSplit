@@ -260,6 +260,33 @@ test("friend request flow adds friends for both users", async () => {
   assert.equal(bobOverview.body.friends[0].id, alice.user.id);
 });
 
+test("friend search matches display names", async () => {
+  const alice = await registerUser({
+    name: "SearchAlice",
+    email: "search-alice@example.com"
+  });
+  const bob = await registerUser({
+    name: "SearchBob",
+    email: "search-bob@example.com"
+  });
+
+  await request("/api/me", {
+    method: "PATCH",
+    headers: authHeaders(bob.token),
+    body: {
+      displayName: "Weekend Buddy",
+      avatarUrl: ""
+    }
+  });
+  const searchResponse = await request("/api/friends/search?query=Weekend", {
+    headers: authHeaders(alice.token)
+  });
+
+  assert.equal(searchResponse.status, 200);
+  assert.equal(searchResponse.body.users.length, 1);
+  assert.equal(searchResponse.body.users[0].id, bob.user.id);
+});
+
 test("declined friend request does not create friendship", async () => {
   const alice = await registerUser({
     name: "DeclineAlice",
@@ -712,6 +739,22 @@ test("duplicate registration is rejected", async () => {
   assert.equal(response.status, 409);
   assert.deepEqual(response.body, {
     error: "An account with this email already exists"
+  });
+});
+
+test("registration rejects passwords shorter than eight characters", async () => {
+  const response = await request("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Short Password",
+      email: "short-password@example.com",
+      password: "short"
+    }
+  });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    error: "Password must be at least 8 characters long"
   });
 });
 

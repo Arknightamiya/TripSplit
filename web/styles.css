@@ -530,6 +530,7 @@ select {
 }
 
 .user-menu {
+  min-width: 0;
   align-self: flex-start;
   display: flex;
   align-items: center;
@@ -542,15 +543,29 @@ select {
 }
 
 .profile-summary > span {
+  min-width: 0;
   display: grid;
   gap: 0.1rem;
+  align-content: center;
 }
 
 #current-user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 700;
 }
 
+#current-user-id {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .profile-summary {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.65rem;
@@ -849,22 +864,245 @@ button:hover {
   border-left: 1px solid var(--border);
 }
 
-.date-range-field span {
+.date-range-field > label > span:first-child {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
 }
 
-.date-range-field input {
+.segmented-date {
   min-width: 0;
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding-right: 1.4rem;
+}
+
+.date-separator {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.date-range-field .date-segment {
+  flex: 0 0 2.75ch;
+  width: 2.75ch;
+  min-width: 2.75ch;
   height: auto;
-  padding: 0 0.2rem 0 0;
+  padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.date-range-field .date-segment-year {
+  flex-basis: 4.4ch;
+  width: 4.4ch;
+  min-width: 4.4ch;
+}
+
+.date-range-field .date-segment:focus,
+.date-range-field .date-segment.is-focused {
+  outline: 0;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1.5px var(--accent) !important;
+}
+
+.date-range-field .date-picker {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 1.25rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.date-range-field .date-picker:focus {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
+.date-range-field .date-picker::before {
+  width: 0.86rem;
+  height: 0.78rem;
+  border: 1.6px solid currentColor;
+  border-top-width: 3px;
+  border-radius: 2px;
+  content: "";
+}
+
+.date-range-field .date-picker:hover {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+@media (max-width: 420px) {
+  .segmented-date {
+    gap: 0.06rem;
+    padding-right: 1.08rem;
+  }
+
+  .date-separator {
+    font-size: 0.82rem;
+  }
+
+  .date-range-field .date-segment {
+    flex-basis: 2.55ch;
+    width: 2.55ch;
+    min-width: 2.55ch;
+    font-size: 0.8rem;
+  }
+
+  .date-range-field .date-segment-year {
+    flex-basis: 4.25ch;
+    width: 4.25ch;
+    min-width: 4.25ch;
+  }
+
+  .date-range-field .date-picker {
+    width: 1rem;
+    min-width: 1rem;
+    height: 1rem;
+  }
+
+  .date-range-field .date-picker::before {
+    width: 0.72rem;
+    height: 0.66rem;
+  }
+}
+
+.date-calendar {
+  position: absolute;
+  z-index: 100;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 18px 42px rgba(31, 20, 27, 0.18);
+}
+
+.date-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.date-calendar-header strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.date-calendar-nav {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.date-calendar-nav-button,
+.date-calendar-actions button,
+.date-calendar-day {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.date-calendar-nav-button {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.date-calendar-weekdays,
+.date-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+}
+
+.date-calendar-weekdays {
+  margin-bottom: 0.35rem;
+  color: var(--text);
+  font-weight: 700;
+  text-align: center;
+}
+
+.date-calendar-weekdays span {
+  padding: 0.35rem 0;
+}
+
+.date-calendar-day {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 6px;
   font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.date-calendar-day.is-outside-month {
+  color: var(--muted);
+  opacity: 0.62;
+}
+
+.date-calendar-day.is-today {
+  box-shadow: inset 0 0 0 2px var(--accent-soft);
+}
+
+.date-calendar-day.is-default-date {
+  background: var(--accent);
+  color: white;
+}
+
+.date-calendar-day.is-selected {
+  background: var(--accent);
+  color: white;
+}
+
+.date-calendar-day:hover,
+.date-calendar-nav-button:hover,
+.date-calendar-actions button:hover {
+  background: var(--surface-strong);
+}
+
+.date-calendar-day.is-default-date:hover,
+.date-calendar-day.is-selected:hover {
+  background: var(--accent-strong);
+  color: white;
+}
+
+.date-calendar-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+}
+
+.date-calendar-actions button {
+  padding: 0.35rem 0.45rem;
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .visibility-switch {
@@ -1583,6 +1821,15 @@ label.field input:disabled {
 
 .profile-preview > div {
   min-width: 0;
+  display: grid;
+  align-content: center;
+}
+
+.profile-preview .hint span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profile-preview strong,
@@ -1742,6 +1989,12 @@ label.field input:disabled {
 
   .user-menu {
     grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .profile-summary,
+  #logout-button {
+    width: 100%;
   }
 
   .input-row {

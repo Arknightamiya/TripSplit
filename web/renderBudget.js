@@ -25,6 +25,8 @@ export function renderBudget(panel, { trip, isOrganizer, onChange }) {
     amountLabel.textContent = mode === "total" ? "Total budget ($)" : "Per-person budget ($)";
   }
   modeInputs.forEach((input) => input.addEventListener("change", syncLabel));
+  amountInput.addEventListener("keydown", preventInvalidNumberKey);
+  amountInput.addEventListener("input", sanitizeNumberInput);
   syncLabel();
 
   form.addEventListener("submit", async (event) => {
@@ -104,4 +106,14 @@ function budgetFormHtml(summary) {
 
 function labelForMode(mode) {
   return mode === "per-person" ? "per-person mode" : "total mode";
+}
+
+function preventInvalidNumberKey(event) {
+  if (["e", "E", "+", "-"].includes(event.key)) {
+    event.preventDefault();
+  }
+}
+
+function sanitizeNumberInput(event) {
+  event.target.value = event.target.value.replace(/[eE+-]/g, "");
 }

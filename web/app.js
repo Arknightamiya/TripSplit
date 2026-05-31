@@ -29,7 +29,7 @@ import {
   updateCurrentUserProfile,
   updateTrip
 } from "./api.js";
-import { setupDateInputs, setupTripForm, validateTripDates } from "./forms.js";
+import { setDateInputValue, setupDateInputs, setupTripForm, validateTripDates } from "./forms.js";
 import { renderBalances } from "./renderBalances.js";
 import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
@@ -266,6 +266,7 @@ deleteTripDialog.addEventListener("click", (event) => {
 });
 deleteTripYes.addEventListener("click", confirmDeleteTrip);
 document.addEventListener("keydown", handleDeleteTripShortcut);
+document.addEventListener("keydown", handleDeleteFriendShortcut);
 document.addEventListener("keydown", handleModalEscape);
 friendsToggle.addEventListener("click", toggleFriendsSidebar);
 friendsSearch.addEventListener("input", renderFriendsList);
@@ -448,6 +449,10 @@ function showAuthMode(mode) {
 
 async function handleLogin(event) {
   event.preventDefault();
+  if (!loginForm.reportValidity()) {
+    return;
+  }
+
   const formData = new FormData(loginForm);
   const rememberLogin = formData.get("rememberLogin") === "on";
 
@@ -472,6 +477,10 @@ async function handleLogin(event) {
 
 async function handleRegister(event) {
   event.preventDefault();
+  if (!registerForm.reportValidity()) {
+    return;
+  }
+
   const formData = new FormData(registerForm);
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
@@ -852,13 +861,17 @@ function closeAvatarViewDialog() {
 
 function renderCurrentUser(user) {
   currentUserName.textContent = getDisplayName(user);
-  currentUserId.textContent = `@${getUserId(user)} · ${user.email}`;
+  currentUserId.textContent = "";
+  currentUserId.hidden = true;
   renderAvatar(currentUserAvatar, currentUserAvatarFallback, user);
 }
 
 function renderProfilePreview(user) {
-  setTruncatedCopyText(profilePreviewName, getDisplayName(user));
-  setTruncatedCopyText(profilePreviewId, `@${getUserId(user)} · ${user.email || ""}`);
+  profilePreviewName.textContent = getDisplayName(user);
+  profilePreviewId.textContent = "";
+  profilePreviewId.hidden = true;
+  profilePreviewId.dataset.fullText = "";
+  profilePreviewId.classList.remove("truncated-copy");
   renderAvatar(profileAvatarPreview, profileAvatarFallback, user);
 }
 
@@ -1112,7 +1125,7 @@ function toggleFriendsSidebar() {
 function renderFriendsList() {
   const query = String(friendsSearch.value || "").trim().toLowerCase();
   const friends = (friendsState.friends || []).filter((friend) =>
-    [getDisplayName(friend), getUserId(friend), friend.email]
+    [getDisplayName(friend), getUserId(friend)]
       .filter(Boolean)
       .some((value) => value.toLowerCase().includes(query))
   );
@@ -1154,7 +1167,7 @@ function renderFriendRequestIndicator() {
 function openAddFriendDialog(options = {}) {
   setFormError(addFriendError, "");
   addFriendForm.reset();
-  addFriendResults.innerHTML = `<p class="empty">Search by full User ID or email.</p>`;
+  addFriendResults.innerHTML = `<p class="empty">Search by User ID, nickname, or email.</p>`;
   addFriendDialog.hidden = false;
   if (!options.skipPersist) {
     storeUiState();
@@ -1515,9 +1528,17 @@ async function openFriendProfile(friendId, options = {}) {
 
 function renderFriendProfile(profile) {
   const { friend, publicTrips } = profile;
+  const friendIdentity = `@${getUserId(friend)} · ${friend.email || ""}`;
   setTruncatedCopyText(friendProfileName, getDisplayName(friend));
   setTruncatedCopyText(friendProfileDisplayName, getDisplayName(friend));
-  setTruncatedCopyText(friendProfileId, `@${getUserId(friend)} · ${friend.email || ""}`);
+  friendProfileId.hidden = false;
+  friendProfileId.title = friendIdentity;
+  friendProfileId.dataset.fullText = friendIdentity;
+  friendProfileId.classList.add("truncated-copy");
+  friendProfileId.innerHTML = `
+    <span>@${escapeHtml(getUserId(friend))}</span>
+    ${friend.email ? `<span>${escapeHtml(friend.email)}</span>` : ""}
+  `;
   renderAvatar(friendProfileAvatar, friendProfileAvatarFallback, friend);
 
   if (!publicTrips.length) {
@@ -1602,6 +1623,7 @@ function openDeleteFriendDialog() {
 
   setDeleteFriendError("");
   deleteFriendDialog.hidden = false;
+  deleteFriendYes.focus();
 }
 
 function closeDeleteFriendDialog() {
@@ -2154,8 +2176,8 @@ function populateTripEditPanel(trip, isOrganizer) {
   }
 
   tripEditForm.elements.name.value = trip.name || trip.destination || "";
-  tripEditForm.elements.startDate.value = trip.startDate || "";
-  tripEditForm.elements.endDate.value = trip.endDate || "";
+  setDateInputValue(tripEditForm, "startDate", trip.startDate || "");
+  setDateInputValue(tripEditForm, "endDate", trip.endDate || "");
   tripEditForm.elements.isPrivate.checked = trip.visibility !== "public";
   updateTripInviteButton(trip);
   tripRemoveParticipantButton.disabled = getRemovableParticipants(trip).length === 0;
@@ -2246,6 +2268,25 @@ function handleDeleteTripShortcut(event) {
 
   event.preventDefault();
   confirmDeleteTrip();
+}
+
+function handleDeleteFriendShortcut(event) {
+  if (
+    deleteFriendDialog.hidden ||
+    event.key !== "Enter" ||
+    event.repeat ||
+    event.isComposing ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    deleteFriendYes.disabled
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  confirmDeleteFriend();
 }
 
 function handleModalEscape(event) {
