@@ -228,7 +228,7 @@ setupTripForm(tripForm, loadTrips, {
 mainTabButtons.forEach((button) => {
   button.addEventListener("click", () => switchMainTab(button.dataset.mainTab));
 });
-tripLobbyRefresh.addEventListener("click", loadFriendPublicTripLobby);
+tripLobbyRefresh.addEventListener("click", () => loadFriendPublicTripLobby({ showLoading: true }));
 createTripInviteButton.addEventListener("click", openCreateTripInviteDialog);
 createTripInviteBack.addEventListener("click", closeCreateTripInviteDialog);
 createTripInviteDone.addEventListener("click", closeCreateTripInviteDialog);
@@ -356,7 +356,7 @@ async function restoreAuthSession() {
     detailSection.hidden = !activeTripId;
     await loadTrips();
     if (activeMainTab === "lobby") {
-      await loadFriendPublicTripLobby();
+      await loadFriendPublicTripLobby({ showLoading: true });
     }
     await restoreUiOverlay(savedUiState);
     storeUiState();
@@ -463,7 +463,7 @@ async function refreshVisibleAppState() {
     await loadFriends();
     await loadTrips();
     if (activeMainTab === "lobby") {
-      await loadFriendPublicTripLobby();
+      await loadFriendPublicTripLobby({ showLoading: false });
     }
   } catch {
     // Background refresh should not interrupt the current view; explicit actions still show errors.
@@ -1084,7 +1084,7 @@ function switchMainTab(tabName, options = {}) {
   });
 
   if (activeMainTab === "lobby" && !options.skipLoad) {
-    loadFriendPublicTripLobby();
+    loadFriendPublicTripLobby({ showLoading: true });
   }
 
   if (!options.skipPersist) {
@@ -1092,9 +1092,12 @@ function switchMainTab(tabName, options = {}) {
   }
 }
 
-async function loadFriendPublicTripLobby() {
+async function loadFriendPublicTripLobby(options = {}) {
+  const showLoading = options.showLoading !== false;
   setFormError(tripLobbyError, "");
-  tripLobbyList.innerHTML = `<p class="empty">Loading public trips...</p>`;
+  if (showLoading) {
+    tripLobbyList.innerHTML = `<p class="empty">Loading public trips...</p>`;
+  }
   tripLobbyRefresh.disabled = true;
 
   try {
@@ -1103,7 +1106,9 @@ async function loadFriendPublicTripLobby() {
     renderFriendPublicTripLobby();
   } catch (error) {
     publicTripLobbyItems = [];
-    tripLobbyList.innerHTML = "";
+    if (showLoading) {
+      tripLobbyList.innerHTML = "";
+    }
     setFormError(tripLobbyError, error.message || "Unable to load trip lobby.");
   } finally {
     tripLobbyRefresh.disabled = false;
