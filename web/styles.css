@@ -244,7 +244,7 @@ select {
 }
 
 .friend-modal {
-  width: min(560px, 100%);
+  width: min(560px, calc(100vw - 2rem));
 }
 
 .friend-requests-modal {
@@ -252,7 +252,7 @@ select {
 }
 
 .friend-profile-modal {
-  width: min(620px, 100%);
+  width: min(620px, calc(100vw - 2rem));
 }
 
 .compact-header {
@@ -662,6 +662,21 @@ h1 {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.panel-header > div {
+  min-width: 0;
+}
+
+.panel-header h2 {
+  overflow-wrap: anywhere;
+}
+
+.friend-profile-modal .panel-header h2 {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .main-tab-bar {
@@ -1686,7 +1701,8 @@ label.field input:disabled {
 }
 
 .modal {
-  width: min(420px, 100%);
+  width: min(420px, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
   padding: 1.25rem;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1712,6 +1728,17 @@ label.field input:disabled {
 
 .invite-modal {
   width: min(520px, 100%);
+}
+
+.participant-error-modal {
+  width: min(440px, 100%);
+}
+
+.modal-message {
+  margin: 0.75rem 0 0;
+  color: var(--danger);
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .invite-friend-list {
@@ -1805,7 +1832,21 @@ label.field input:disabled {
   white-space: nowrap;
 }
 
+.profile-preview strong,
+.profile-preview .hint {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truncated-copy {
+  cursor: default;
+}
+
 .avatar-trigger {
+  flex: 0 0 auto;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -1988,6 +2029,22 @@ label.field input:disabled {
   .detail-actions button,
   .modal-actions button {
     flex: 1;
+  }
+
+  .friend-profile-modal .panel-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .friend-profile-modal .modal-header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .friend-profile-modal .modal-header-actions button {
+    width: 100%;
   }
 
   .expense-row {

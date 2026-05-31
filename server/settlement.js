@@ -22,7 +22,7 @@ export function calculateBalances(trip) {
       payer.actualPaid = roundCurrency(payer.actualPaid + expense.amount);
     }
 
-    const expenseShares = expense.expenseShares?.length
+    const expenseShares = shouldUseStoredShares(expense)
       ? expense.expenseShares
       : createEqualShares(expense);
 
@@ -43,8 +43,37 @@ export function calculateBalances(trip) {
 }
 
 function createEqualShares(expense) {
-  const includedParticipantIds = expense.expenseType === "personal_advance"
-    ? [expense.payerId]
-    : expense.includedParticipantIds || [];
+  const includedParticipantIds = getFallbackParticipantIds(expense);
   return splitCurrencyEvenly(expense.amount, includedParticipantIds);
+}
+
+function shouldUseStoredShares(expense) {
+  const expenseShares = expense.expenseShares || [];
+
+  if (!expenseShares.length || expense.expenseType === "personal_advance") {
+    return false;
+  }
+
+  const participantIds = expenseShares.map((share) => String(share.participantId));
+  if (new Set(participantIds).size !== participantIds.length) {
+    return false;
+  }
+
+  const shareTotal = roundCurrency(
+    expenseShares.reduce((sum, share) => sum + Number(share.shareAmount), 0)
+  );
+  return shareTotal === roundCurrency(Number(expense.amount));
+}
+
+function getFallbackParticipantIds(expense) {
+  if (expense.expenseType === "personal_advance") {
+    return [expense.payerId];
+  }
+
+  const includedParticipantIds = uniqueStrings(expense.includedParticipantIds || []);
+  return includedParticipantIds.length ? includedParticipantIds : [expense.payerId];
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(values.map(String)));
 }

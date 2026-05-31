@@ -150,6 +150,15 @@ const tripRemoveParticipantList = document.querySelector("#trip-remove-participa
 const tripRemoveParticipantBack = document.querySelector("#trip-remove-participant-back");
 const tripRemoveParticipantSend = document.querySelector("#trip-remove-participant-send");
 const tripRemoveParticipantError = document.querySelector("#trip-remove-participant-error");
+const tripRemoveParticipantErrorDialog = document.querySelector(
+  "#trip-remove-participant-error-dialog"
+);
+const tripRemoveParticipantErrorMessage = document.querySelector(
+  "#trip-remove-participant-error-message"
+);
+const tripRemoveParticipantErrorClose = document.querySelector(
+  "#trip-remove-participant-error-close"
+);
 
 let activeTripId = null;
 let activeTripDetail = null;
@@ -241,6 +250,12 @@ tripRemoveParticipantDialog.addEventListener("click", (event) => {
     closeTripRemoveParticipantDialog();
   }
 });
+tripRemoveParticipantErrorClose.addEventListener("click", closeTripRemoveParticipantErrorDialog);
+tripRemoveParticipantErrorDialog.addEventListener("click", (event) => {
+  if (event.target === tripRemoveParticipantErrorDialog) {
+    closeTripRemoveParticipantErrorDialog();
+  }
+});
 detailClose.addEventListener("click", closeDetail);
 detailDelete.addEventListener("click", openDeleteTripDialog);
 deleteTripNo.addEventListener("click", closeDeleteTripDialog);
@@ -285,6 +300,11 @@ friendProfileDialog.addEventListener("click", (event) => {
 });
 friendAvatarTrigger.addEventListener("click", openFriendAvatarViewDialog);
 removeFriendButton.addEventListener("click", openDeleteFriendDialog);
+profilePreviewName.addEventListener("click", copyFullTruncatedText);
+profilePreviewId.addEventListener("click", copyFullTruncatedText);
+friendProfileName.addEventListener("click", copyFullTruncatedText);
+friendProfileDisplayName.addEventListener("click", copyFullTruncatedText);
+friendProfileId.addEventListener("click", copyFullTruncatedText);
 deleteFriendNo.addEventListener("click", closeDeleteFriendDialog);
 deleteFriendYes.addEventListener("click", confirmDeleteFriend);
 deleteFriendDialog.addEventListener("click", (event) => {
@@ -391,6 +411,7 @@ function closeAuthenticatedDialogs() {
     createTripInviteDialog,
     tripInviteDialog,
     tripRemoveParticipantDialog,
+    tripRemoveParticipantErrorDialog,
     deleteTripDialog,
     deleteFriendDialog
   ].forEach((dialog) => {
@@ -849,7 +870,31 @@ function renderProfilePreview(user) {
   profilePreviewName.textContent = getDisplayName(user);
   profilePreviewId.textContent = "";
   profilePreviewId.hidden = true;
+  profilePreviewId.dataset.fullText = "";
+  profilePreviewId.classList.remove("truncated-copy");
   renderAvatar(profileAvatarPreview, profileAvatarFallback, user);
+}
+
+function setTruncatedCopyText(node, text) {
+  const value = String(text || "");
+  node.textContent = value;
+  node.title = value;
+  node.dataset.fullText = value;
+  node.classList.toggle("truncated-copy", Boolean(value));
+}
+
+async function copyFullTruncatedText(event) {
+  const value = event.currentTarget.dataset.fullText;
+
+  if (!value || !navigator.clipboard?.writeText) {
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    // Hover title still exposes the full value when clipboard access is unavailable.
+  }
 }
 
 function renderAvatar(imageNode, fallbackNode, user) {
@@ -1483,9 +1528,13 @@ async function openFriendProfile(friendId, options = {}) {
 
 function renderFriendProfile(profile) {
   const { friend, publicTrips } = profile;
-  friendProfileName.textContent = getDisplayName(friend);
-  friendProfileDisplayName.textContent = getDisplayName(friend);
+  const friendIdentity = `@${getUserId(friend)} · ${friend.email || ""}`;
+  setTruncatedCopyText(friendProfileName, getDisplayName(friend));
+  setTruncatedCopyText(friendProfileDisplayName, getDisplayName(friend));
   friendProfileId.hidden = false;
+  friendProfileId.title = friendIdentity;
+  friendProfileId.dataset.fullText = friendIdentity;
+  friendProfileId.classList.add("truncated-copy");
   friendProfileId.innerHTML = `
     <span>@${escapeHtml(getUserId(friend))}</span>
     ${friend.email ? `<span>${escapeHtml(friend.email)}</span>` : ""}
@@ -1920,6 +1969,18 @@ function closeTripRemoveParticipantDialog() {
   tripRemoveParticipantSend.textContent = "Remove";
 }
 
+function openTripRemoveParticipantErrorDialog(message) {
+  tripRemoveParticipantErrorMessage.textContent =
+    message || "Unable to remove selected participants.";
+  tripRemoveParticipantErrorDialog.hidden = false;
+}
+
+function closeTripRemoveParticipantErrorDialog() {
+  tripRemoveParticipantErrorDialog.hidden = true;
+  tripRemoveParticipantErrorMessage.textContent =
+    "Cannot remove a participant with expense history";
+}
+
 function renderTripInviteDialog() {
   updateTripInviteSendState();
 
@@ -2061,8 +2122,7 @@ async function removeSelectedParticipants() {
     closeTripRemoveParticipantDialog();
     await loadTrips();
   } catch (error) {
-    setFormError(
-      tripRemoveParticipantError,
+    openTripRemoveParticipantErrorDialog(
       error.message || "Unable to remove selected participants."
     );
     tripRemoveParticipantSend.disabled = false;
@@ -2250,6 +2310,7 @@ function getTopOpenModalCloseAction() {
     [deleteFriendDialog, closeDeleteFriendDialog],
     [deleteTripDialog, closeDeleteTripDialog],
     [joinTripDialog, closeJoinTripDialog],
+    [tripRemoveParticipantErrorDialog, closeTripRemoveParticipantErrorDialog],
     [tripRemoveParticipantDialog, closeTripRemoveParticipantDialog],
     [tripInviteDialog, closeTripInviteDialog],
     [createTripInviteDialog, closeCreateTripInviteDialog],

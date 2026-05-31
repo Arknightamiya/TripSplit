@@ -5,7 +5,11 @@ import {
   SPLIT_RULES
 } from "../shared/contracts.js";
 import { calculateBalances } from "./settlement.js";
-import { splitCurrencyEvenly } from "./utils/currency.js";
+import {
+  isValidCurrencyAmount,
+  normalizeCurrencyAmount,
+  splitCurrencyEvenly
+} from "./utils/currency.js";
 
 const state = {
   nextId: 1,
@@ -419,9 +423,9 @@ export function setBudget(tripId, budgetInput) {
 
   trip.budget = {
     mode,
-    totalBudget: mode === "total" ? roundCurrency(Number(totalBudget)) : null,
+    totalBudget: mode === "total" ? normalizeCurrencyAmount(totalBudget) : null,
     perPersonBudget:
-      mode === "per-person" ? roundCurrency(Number(perPersonBudget)) : null
+      mode === "per-person" ? normalizeCurrencyAmount(perPersonBudget) : null
   };
 
   return getBudgetSummary(trip);
@@ -435,11 +439,11 @@ export function addExpense(tripId, expenseInput) {
 
   const expenseType = expenseInput.expenseType || expenseInput.type;
   const includedParticipantIds = expenseType === "personal_advance"
-    ? [expenseInput.payerId]
+    ? [String(expenseInput.payerId)]
     : expenseInput.includedParticipantIds?.length
-    ? [...expenseInput.includedParticipantIds]
-    : approvedParticipantIds(trip);
-  const amount = roundCurrency(Number(expenseInput.amount));
+    ? uniqueStrings(expenseInput.includedParticipantIds)
+    : [];
+  const amount = normalizeCurrencyAmount(expenseInput.amount);
   const expenseShares = createExpenseShares(amount, includedParticipantIds);
 
   const expense = {
@@ -587,10 +591,10 @@ export function isValidBudgetInput(input) {
   }
 
   if (input.mode === "total") {
-    return Number(input.totalBudget ?? input.amount) > 0;
+    return isValidCurrencyAmount(input.totalBudget ?? input.amount);
   }
 
-  return Number(input.perPersonBudget ?? input.amount) > 0;
+  return isValidCurrencyAmount(input.perPersonBudget ?? input.amount);
 }
 
 export function isValidExpenseInput(input) {
@@ -599,7 +603,7 @@ export function isValidExpenseInput(input) {
   const splitRule = input.splitRule || "equal";
 
   return (
-    Number(input.amount) > 0 &&
+    isValidCurrencyAmount(input.amount) &&
     EXPENSE_CATEGORIES.includes(category) &&
     EXPENSE_TYPES.includes(expenseType) &&
     SPLIT_RULES.includes(splitRule)
@@ -687,6 +691,10 @@ function getBudgetSummary(trip) {
 
 function createExpenseShares(amount, includedParticipantIds) {
   return splitCurrencyEvenly(amount, includedParticipantIds);
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(values.map(String)));
 }
 
 function approvedParticipantIds(trip) {

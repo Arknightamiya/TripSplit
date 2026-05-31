@@ -1,4 +1,5 @@
 import { getDatabase } from "../db/pool.js";
+import { normalizeCurrencyAmount } from "../utils/currency.js";
 import { listExpenseRecordsForTrip } from "./expenses.js";
 
 export function isTripRepositoryEnabled() {
@@ -196,11 +197,11 @@ export async function setBudgetRecord(tripId, budgetInput) {
   const mode = budgetInput.mode;
   const totalBudget =
     mode === "total"
-      ? roundCurrency(Number(budgetInput.totalBudget ?? budgetInput.amount))
+      ? normalizeCurrencyAmount(budgetInput.totalBudget ?? budgetInput.amount)
       : null;
   const perPersonBudget =
     mode === "per-person"
-      ? roundCurrency(Number(budgetInput.perPersonBudget ?? budgetInput.amount))
+      ? normalizeCurrencyAmount(budgetInput.perPersonBudget ?? budgetInput.amount)
       : null;
 
   await getDatabase().query(
