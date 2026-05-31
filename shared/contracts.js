@@ -5,6 +5,7 @@ export const API_ROUTES = {
   authRegister: `${API_BASE}/auth/register`,
   authLogin: `${API_BASE}/auth/login`,
   me: `${API_BASE}/me`,
+  currencies: `${API_BASE}/currencies`,
   friends: `${API_BASE}/friends`,
   friendSearch: `${API_BASE}/friends/search`,
   friendPublicTrips: `${API_BASE}/friends/public-trips`,

@@ -1,3 +1,5 @@
+import { formatMoney as formatCurrencyMoney } from "./currency.js";
+
 export function renderTrips(trips, tripList, { activeTripId, onSelect } = {}) {
   if (!trips.length) {
     tripList.innerHTML = `<p class="empty">No trips yet. Add one above to get started.</p>`;
@@ -45,9 +47,8 @@ function formatDates(start, end) {
   return start || end;
 }
 
-export function formatMoney(value) {
-  const n = Number(value || 0);
-  return `$${n.toFixed(2)}`;
+export function formatMoney(value, currencyCode, currencyInfo) {
+  return formatCurrencyMoney(value, currencyCode, currencyInfo);
 }
 
 export function formatBudgetSummary(budgetSummary) {
@@ -56,10 +57,10 @@ export function formatBudgetSummary(budgetSummary) {
   }
 
   if (budgetSummary.mode === "per-person") {
-    return `${formatMoney(budgetSummary.perPersonBudget)} budget per person`;
+    return `${formatMoney(budgetSummary.perPersonBudget, budgetSummary.currencyCode)} budget per person`;
   }
 
-  return `${formatMoney(budgetSummary.totalBudget)} budget`;
+  return `${formatMoney(budgetSummary.totalBudget, budgetSummary.currencyCode)} budget`;
 }
 
 export function pluralize(count, singular, plural) {

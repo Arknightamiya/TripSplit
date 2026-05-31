@@ -4,8 +4,14 @@ import {
 } from "/shared/contracts.js";
 import { deleteExpense, postExpense } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
+import {
+  DEFAULT_CURRENCY_CODE,
+  currencyOptionsHtml,
+  normalizeCurrencyInfo
+} from "./currency.js";
 
-export function renderExpenses(panel, { trip, currentUserId, onChange }) {
+export function renderExpenses(panel, { trip, currentUserId, onChange, currencyInfo }) {
+  const normalizedCurrencyInfo = normalizeCurrencyInfo(currencyInfo);
   const approved = trip.participants.filter((p) => p.joinStatus === "approved");
   const isOrganizer = trip.organizerId === currentUserId;
 
@@ -14,10 +20,10 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
       <h2>Expenses</h2>
       <span class="hint">${trip.expenses.length} recorded</span>
     </div>
-    ${expenseFormHtml(approved, currentUserId)}
+    ${expenseFormHtml(approved, currentUserId, normalizedCurrencyInfo)}
     <div class="expense-list">${
       trip.expenses.length
-        ? trip.expenses.map((e) => expenseRowHtml(e, approved, currentUserId, isOrganizer)).join("")
+        ? trip.expenses.map((e) => expenseRowHtml(e, approved, currentUserId, isOrganizer, normalizedCurrencyInfo)).join("")
         : `<p class="empty">No expenses yet.</p>`
     }</div>
   `;
@@ -67,6 +73,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
         amount,
         category: formData.get("category"),
         expenseType,
+        currencyCode: formData.get("currencyCode") || DEFAULT_CURRENCY_CODE,
         payerId,
         splitRule: "equal",
         includedParticipantIds
@@ -93,9 +100,10 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
   });
 }
 
-function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
+function expenseRowHtml(expense, approved, currentUserId, isOrganizer, currencyInfo) {
   const payer = approved.find((p) => p.id === expense.payerId);
   const canDelete = isOrganizer || expense.payerId === currentUserId;
+  const currencyCode = expense.currencyCode || DEFAULT_CURRENCY_CODE;
   const expenseSummary = expense.expenseType === "personal_advance"
     ? `${escapeHtml(expense.category)} · paid by ${escapeHtml(displayName(payer))} · personal advance`
     : `${escapeHtml(expense.category)} · paid by ${escapeHtml(displayName(payer))} · split between ${escapeHtml(splitParticipantNames(expense, approved))}`;
@@ -107,7 +115,7 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
           ${expenseSummary}
         </div>
       </div>
-      <div class="expense-amount">${formatMoney(expense.amount)}</div>
+      <div class="expense-amount">${formatMoney(expense.amount, currencyCode, currencyInfo)}</div>
       ${canDelete
         ? `<button type="button" class="button-danger" data-delete-expense="${expense.id}">Delete</button>`
         : `<span></span>`}
@@ -115,7 +123,7 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
   `;
 }
 
-function expenseFormHtml(approved, currentUserId) {
+function expenseFormHtml(approved, currentUserId, currencyInfo) {
   const payerOptions = approved
     .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(displayName(p))}</option>`)
     .join("");
@@ -125,6 +133,9 @@ function expenseFormHtml(approved, currentUserId) {
   const typeOptions = EXPENSE_TYPES
     .map((t) => `<option value="${t}">${escapeHtml(t.replace("_", " "))}</option>`)
     .join("");
+  const currencyOptions = currencyOptionsHtml(currencyInfo, {
+    selectedCode: DEFAULT_CURRENCY_CODE
+  });
   const participantChips = approved
     .map((p) => `
       <label>
@@ -142,8 +153,12 @@ function expenseFormHtml(approved, currentUserId) {
           <input type="text" name="title" placeholder="Dinner" required />
         </label>
         <label class="field">
-          <span>Amount ($)</span>
+          <span>Amount</span>
           <input type="number" name="amount" min="0" step="0.01" required />
+        </label>
+        <label class="field">
+          <span>Currency</span>
+          <select name="currencyCode">${currencyOptions}</select>
         </label>
       </div>
       <div class="form-grid-row">

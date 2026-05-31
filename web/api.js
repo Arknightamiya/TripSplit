@@ -115,6 +115,10 @@ export async function fetchHealth(){
       return apiRequest(API_ROUTES.health);
 }
 
+export async function fetchCurrencies() {
+  return apiRequest(API_ROUTES.currencies);
+}
+
 export async function fetchTrips(){
     return apiRequest(API_ROUTES.trips);
 }

@@ -1,14 +1,16 @@
 import { postBudget } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
+import { DEFAULT_CURRENCY_CODE, normalizeCurrencyInfo } from "./currency.js";
 
-export function renderBudget(panel, { trip, isOrganizer, onChange }) {
+export function renderBudget(panel, { trip, isOrganizer, onChange, currencyInfo }) {
+  const normalizedCurrencyInfo = normalizeCurrencyInfo(currencyInfo);
   const summary = trip.budgetSummary;
   panel.innerHTML = `
     <div class="panel-header">
       <h2>Budget</h2>
       <span class="hint">${summary ? labelForMode(summary.mode) : "Not set"}</span>
     </div>
-    ${summary ? statsHtml(summary) : `<p class="empty">No budget yet. ${isOrganizer ? "Set one below." : "Ask the organizer to set one."}</p>`}
+    ${summary ? statsHtml(summary, normalizedCurrencyInfo) : `<p class="empty">No budget yet. ${isOrganizer ? "Set one below." : "Ask the organizer to set one."}</p>`}
     ${isOrganizer ? budgetFormHtml(summary) : ""}
   `;
 
@@ -48,30 +50,31 @@ export function renderBudget(panel, { trip, isOrganizer, onChange }) {
   });
 }
 
-function statsHtml(s) {
+function statsHtml(s, currencyInfo) {
   const overClass = s.overBudgetAmount > 0 ? " is-over" : "";
+  const currencyCode = s.currencyCode || DEFAULT_CURRENCY_CODE;
   return `
     <div class="budget-grid">
       <div class="budget-stat">
         <span class="budget-stat-label">Total Budget</span>
-        <span class="budget-stat-value">${formatMoney(s.totalBudget)}</span>
+        <span class="budget-stat-value">${formatMoney(s.totalBudget, currencyCode, currencyInfo)}</span>
       </div>
       ${s.perPersonBudget != null ? `
         <div class="budget-stat">
           <span class="budget-stat-label">Per Person</span>
-          <span class="budget-stat-value">${formatMoney(s.perPersonBudget)}</span>
+          <span class="budget-stat-value">${formatMoney(s.perPersonBudget, currencyCode, currencyInfo)}</span>
         </div>` : ""}
       <div class="budget-stat">
         <span class="budget-stat-label">Spent</span>
-        <span class="budget-stat-value">${formatMoney(s.totalSpent)}</span>
+        <span class="budget-stat-value">${formatMoney(s.totalSpent, currencyCode, currencyInfo)}</span>
       </div>
       <div class="budget-stat">
         <span class="budget-stat-label">Remaining</span>
-        <span class="budget-stat-value">${formatMoney(s.remainingBudget)}</span>
+        <span class="budget-stat-value">${formatMoney(s.remainingBudget, currencyCode, currencyInfo)}</span>
       </div>
       <div class="budget-stat${overClass}">
         <span class="budget-stat-label">Over Budget</span>
-        <span class="budget-stat-value">${formatMoney(s.overBudgetAmount)}</span>
+        <span class="budget-stat-value">${formatMoney(s.overBudgetAmount, currencyCode, currencyInfo)}</span>
       </div>
     </div>
   `;

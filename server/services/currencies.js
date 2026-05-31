@@ -1,5 +1,6 @@
 import {
   getLatestExchangeRateMap,
+  getLatestExchangeRateRecords,
   isCurrencyRepositoryEnabled,
   listCurrencyRecords,
   upsertExchangeRateRecords,
@@ -14,18 +15,42 @@ import {
 } from "../utils/currency.js";
 import { badRequest } from "../utils/errors.js";
 
+//FROM ONLINE DB FOR CURRENCY EXCHANGES TO USD!
 const DEFAULT_EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD";
 
 export async function listSupportedCurrencies() {
   if (!isCurrencyRepositoryEnabled()) {
     return {
-      currencies: SUPPORTED_CURRENCIES
+      baseCurrencyCode: DEFAULT_CURRENCY_CODE,
+      fetchedAt: null,
+      rates: { [DEFAULT_CURRENCY_CODE]: 1 },
+      currencies: SUPPORTED_CURRENCIES.map((currency) => ({
+        ...currency,
+        rate: currency.code === DEFAULT_CURRENCY_CODE ? 1 : null,
+        fetchedAt: null
+      }))
     };
   }
 
   await upsertSupportedCurrencyRecords();
+  const ratesByCode = await getLatestExchangeRateMap(DEFAULT_CURRENCY_CODE);
+  ratesByCode[DEFAULT_CURRENCY_CODE] = ratesByCode[DEFAULT_CURRENCY_CODE] || 1;
+  const rateRecords = await getLatestExchangeRateRecords(DEFAULT_CURRENCY_CODE);
+  const rateMetaByCode = Object.fromEntries(
+    rateRecords.map((record) => [record.quoteCurrencyCode, record])
+  );
+  const currencies = await listCurrencyRecords();
+
   return {
-    currencies: await listCurrencyRecords()
+    baseCurrencyCode: DEFAULT_CURRENCY_CODE,
+    fetchedAt: rateRecords[0]?.fetchedAt || null,
+    rates: ratesByCode,
+    currencies: currencies.map((currency) => ({
+      ...currency,
+      rate: ratesByCode[currency.code] ?? null,
+      provider: rateMetaByCode[currency.code]?.provider || null,
+      fetchedAt: rateMetaByCode[currency.code]?.fetchedAt || null
+    }))
   };
 }
 

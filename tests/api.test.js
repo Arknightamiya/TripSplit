@@ -23,6 +23,17 @@ test("private trip APIs require bearer auth", async () => {
   });
 });
 
+test("currency API lists supported travel currencies and fallback USD rate", async () => {
+  const response = await request("/api/currencies");
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.baseCurrencyCode, "USD");
+  assert.equal(response.body.rates.USD, 1);
+  assert.ok(response.body.currencies.length < 20);
+  assert.ok(response.body.currencies.some((currency) => currency.code === "EUR"));
+  assert.ok(response.body.currencies.some((currency) => currency.code === "JPY"));
+});
+
 test("invalid and expired tokens return explicit 401 session errors", async () => {
   const { user } = await loginAsDemoUser();
   const invalidTokenResponse = await request("/api/me", {

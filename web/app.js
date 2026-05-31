@@ -2,6 +2,7 @@ import {
   clearAuthSession,
   deleteTrip,
   fetchBalances,
+  fetchCurrencies,
   fetchCurrentUserProfile,
   fetchFriendProfile,
   fetchFriendPublicTrips,
@@ -34,6 +35,7 @@ import { renderBalances } from "./renderBalances.js";
 import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
 import { escapeHtml, formatBudgetSummary, pluralize, renderTrips } from "./renderTrips.js";
+import { FALLBACK_CURRENCY_INFO, normalizeCurrencyInfo } from "./currency.js";
 
 const authView = document.querySelector("#auth-view");
 const appView = document.querySelector("#app-view");
@@ -173,6 +175,7 @@ let selectedRemoveParticipantIds = new Set();
 let profileAvatarDataUrl = "";
 let activeRequestTab = "friends";
 let highlightedTripInvitationId = null;
+let currencyInfo = FALLBACK_CURRENCY_INFO;
 const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
 const UI_STATE_STORAGE_KEY = "tripsplit.uiState";
 const MAX_AVATAR_FILE_SIZE = 8_000_000;
@@ -2108,12 +2111,21 @@ function populateTripEditPanel(trip, isOrganizer) {
 }
 
 async function loadTrips() {
+  await loadCurrencyInfo();
   const { trips } = await fetchTrips();
   renderTrips(trips, tripList, { activeTripId, onSelect: openTrip });
   if (activeTripId && !trips.find((t) => t.id === activeTripId)) {
     closeDetail();
   } else if (activeTripId) {
     await refreshDetail();
+  }
+}
+
+async function loadCurrencyInfo() {
+  try {
+    currencyInfo = normalizeCurrencyInfo(await fetchCurrencies());
+  } catch {
+    currencyInfo = FALLBACK_CURRENCY_INFO;
   }
 }
 
@@ -2262,9 +2274,9 @@ async function refreshDetail() {
   detailDelete.dataset.tripId = String(trip.id);
   populateTripEditPanel(trip, isOrganizer);
   setFormError(tripEditError, "");
-  renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips });
-  renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips });
-  renderBalances(balancesPanel, { balances, trip, currentUserId: currentUser?.id });
+  renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips, currencyInfo });
+  renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips, currencyInfo });
+  renderBalances(balancesPanel, { balances, trip, currentUserId: currentUser?.id, currencyInfo });
 }
 
 function formatTripMeta(trip, participantCount) {

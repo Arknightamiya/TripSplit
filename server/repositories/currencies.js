@@ -82,6 +82,7 @@ export async function upsertExchangeRateRecords({
   });
 }
 
+//NEW EXCHANGE RATE ADDITION: using USD as base map/old data
 export async function getLatestExchangeRateMap(baseCurrencyCode = DEFAULT_CURRENCY_CODE) {
   const baseCode = normalizeCurrencyCode(baseCurrencyCode);
   const result = await getDatabase().query(
@@ -96,6 +97,37 @@ export async function getLatestExchangeRateMap(baseCurrencyCode = DEFAULT_CURREN
   return Object.fromEntries(
     result.rows.map((row) => [String(row.quote_currency_code).trim(), Number(row.rate)])
   );
+}
+
+export async function getLatestExchangeRateRecords(baseCurrencyCode = DEFAULT_CURRENCY_CODE) {
+  const baseCode = normalizeCurrencyCode(baseCurrencyCode);
+  const result = await getDatabase().query(
+    `
+      SELECT quote_currency_code, rate, provider, fetched_at
+      FROM currency_exchange_rates
+      WHERE base_currency_code = $1
+    `,
+    [baseCode]
+  );
+
+  return result.rows.map((row) => ({
+    quoteCurrencyCode: String(row.quote_currency_code).trim(),
+    rate: Number(row.rate),
+    provider: row.provider,
+    fetchedAt: formatTimestamp(row.fetched_at)
+  }));
+}
+
+function formatTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return new Date(value).toISOString();
+  }
+
+  return value.toISOString();
 }
 
 function mapCurrencyRow(row) {

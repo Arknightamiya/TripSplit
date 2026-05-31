@@ -1,5 +1,6 @@
 export const DEFAULT_CURRENCY_CODE = "USD";
 
+//CURRENCY NOTE: fetch and population of this list done by LLM for ~20 currencies
 export const SUPPORTED_CURRENCIES = [
   { code: "USD", name: "US Dollar", symbol: "$", decimalPlaces: 2 },
   { code: "CAD", name: "Canadian Dollar", symbol: "CA$", decimalPlaces: 2 },
