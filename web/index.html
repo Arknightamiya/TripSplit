@@ -76,6 +76,29 @@
               <p id="register-error" class="form-error" role="alert" hidden></p>
               <button type="submit" class="auth-submit">Create account</button>
             </form>
+
+            <form id="verification-form" class="auth-form" hidden>
+              <p class="verification-copy">
+                Enter the 6-digit code we sent to <strong id="verification-email"></strong>.
+              </p>
+              <label class="field">
+                Verification code
+                <input
+                  name="code"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxlength="6"
+                  required
+                />
+              </label>
+              <p class="verification-copy">The code expires in 5 minutes.</p>
+              <p id="verification-error" class="form-error" role="alert" hidden></p>
+              <button type="submit" class="auth-submit">Verify and enter TripSplit</button>
+              <button type="button" id="resend-code-button" class="link-button">
+                Resend code
+              </button>
+            </form>
           </section>
         </div>
       </section>

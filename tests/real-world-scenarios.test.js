@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { Readable, Writable } from "node:stream";
 import { beforeEach, test } from "node:test";
 import { createApp } from "../server/app.js";
+import { getLastRegistrationVerificationCode } from "../server/services/email.js";
 import { resetStore } from "../server/store.js";
 
 let app;
@@ -751,12 +752,22 @@ async function sendAndAcceptFriendRequest({ requester, recipient }) {
 }
 
 async function registerUser({ name, email, password }) {
-  const response = await request("/api/auth/register", {
+  const startResponse = await request("/api/auth/register", {
     method: "POST",
     body: {
       name,
       email,
       password
+    }
+  });
+
+  assert.equal(startResponse.status, 202);
+
+  const response = await request("/api/auth/register/verify", {
+    method: "POST",
+    body: {
+      email,
+      code: getLastRegistrationVerificationCode(email)
     }
   });
 

@@ -100,6 +100,20 @@ export async function register({ name, email, password }) {
   });
 }
 
+export async function verifyRegistration({ email, code }) {
+  return apiRequest(API_ROUTES.authRegisterVerify, {
+    method: "POST",
+    body: { email, code }
+  });
+}
+
+export async function resendRegistrationCode({ email }) {
+  return apiRequest(API_ROUTES.authRegisterResendCode, {
+    method: "POST",
+    body: { email }
+  });
+}
+
 export async function fetchCurrentUserProfile(options = {}) {
   return apiRequest(API_ROUTES.me, options);
 }

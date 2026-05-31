@@ -161,7 +161,37 @@ Request:
 }
 ```
 
-The requested `name` is the base User ID. The backend stores and returns the final immutable User ID with an automatic discriminator, such as `alex-organizer#1`.
+Starts registration and emails a 6-digit verification code. The requested `name` is the base User ID; the final immutable User ID is assigned only after email verification.
+
+Response:
+
+```json
+{
+  "email": "alex@example.com",
+  "expiresAt": "2026-05-31T20:05:00.000Z",
+  "resendAvailableAt": "2026-05-31T20:01:00.000Z",
+  "message": "Verification code sent"
+}
+```
+
+Errors:
+
+- duplicate account
+- invalid input
+- missing fields
+
+### POST `/api/auth/register/verify`
+
+Request:
+
+```json
+{
+  "email": "alex@example.com",
+  "code": "123456"
+}
+```
+
+Verifies the pending registration, creates the user, and returns the normal auth session.
 
 Response:
 
@@ -179,11 +209,17 @@ Response:
 }
 ```
 
-Errors:
+### POST `/api/auth/register/resend-code`
 
-- duplicate account
-- invalid input
-- missing fields
+Request:
+
+```json
+{
+  "email": "alex@example.com"
+}
+```
+
+Refreshes the pending registration code. Resends are limited to once per 60 seconds.
 
 ### POST `/api/auth/login`
 

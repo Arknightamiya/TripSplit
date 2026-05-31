@@ -495,6 +495,13 @@ select {
   width: 100%;
 }
 
+.verification-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
 .link-button {
   width: fit-content;
   padding: 0;

@@ -14,6 +14,7 @@ import {
   inviteParticipant,
   login,
   register,
+  resendRegistrationCode,
   removeFriend,
   removeTripParticipant,
   requestTripJoin,
@@ -27,7 +28,8 @@ import {
   storeAuthSession,
   storeCurrentUser,
   updateCurrentUserProfile,
-  updateTrip
+  updateTrip,
+  verifyRegistration
 } from "./api.js";
 import { setDateInputValue, setupDateInputs, setupTripForm, validateTripDates } from "./forms.js";
 import { renderBalances } from "./renderBalances.js";
@@ -40,8 +42,12 @@ const appView = document.querySelector("#app-view");
 const authTabs = document.querySelectorAll("[data-auth-mode]");
 const loginForm = document.querySelector("#login-form");
 const registerForm = document.querySelector("#register-form");
+const verificationForm = document.querySelector("#verification-form");
 const loginError = document.querySelector("#login-error");
 const registerError = document.querySelector("#register-error");
+const verificationError = document.querySelector("#verification-error");
+const verificationEmail = document.querySelector("#verification-email");
+const resendCodeButton = document.querySelector("#resend-code-button");
 const differentAccountButton = document.querySelector("#different-account-button");
 const currentUserName = document.querySelector("#current-user-name");
 const currentUserId = document.querySelector("#current-user-id");
@@ -193,6 +199,7 @@ const APP_REFRESH_INTERVAL_MS = 5000;
 let sessionExpiredHandled = false;
 let appRefreshTimer = null;
 let appRefreshInFlight = false;
+let pendingRegistrationEmail = "";
 
 setUnauthorizedHandler(handleSessionExpired);
 setupDateInputs(document);
@@ -202,6 +209,8 @@ authTabs.forEach((tab) => {
 });
 loginForm.addEventListener("submit", handleLogin);
 registerForm.addEventListener("submit", handleRegister);
+verificationForm.addEventListener("submit", handleVerifyRegistration);
+resendCodeButton.addEventListener("click", handleResendRegistrationCode);
 differentAccountButton.addEventListener("click", clearSavedLogin);
 profileButton.addEventListener("click", openProfileDialog);
 logoutButton.addEventListener("click", handleLogout);
@@ -500,8 +509,10 @@ function showAuthMode(mode) {
 
   loginForm.hidden = isRegister;
   registerForm.hidden = !isRegister;
+  verificationForm.hidden = true;
   setFormError(loginError, "");
   setFormError(registerError, "");
+  setFormError(verificationError, "");
 
   authTabs.forEach((tab) => {
     const isActive = tab.dataset.authMode === mode;
@@ -557,17 +568,88 @@ async function handleRegister(event) {
     return;
   }
 
-  await submitAuthForm({
-    form: registerForm,
-    errorNode: registerError,
-    submitText: "Create account",
-    loadingText: "Creating account...",
-    action: () => register({
+  const submitButton = registerForm.querySelector("button[type='submit']");
+  setFormError(registerError, "");
+  submitButton.disabled = true;
+  submitButton.textContent = "Sending code...";
+
+  try {
+    const result = await register({
       name: String(formData.get("name") || "").trim(),
       email: String(formData.get("email") || "").trim(),
       password
+    });
+    showVerificationForm(result.email || String(formData.get("email") || "").trim());
+  } catch (error) {
+    setFormError(registerError, error.message || "Unable to create account.");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Create account";
+  }
+}
+
+async function handleVerifyRegistration(event) {
+  event.preventDefault();
+  if (!verificationForm.reportValidity()) {
+    return;
+  }
+
+  const formData = new FormData(verificationForm);
+  await submitAuthForm({
+    form: verificationForm,
+    errorNode: verificationError,
+    submitText: "Verify and enter TripSplit",
+    loadingText: "Verifying...",
+    action: () => verifyRegistration({
+      email: pendingRegistrationEmail,
+      code: String(formData.get("code") || "").trim()
     })
   });
+}
+
+async function handleResendRegistrationCode() {
+  if (!pendingRegistrationEmail) {
+    return;
+  }
+
+  setFormError(verificationError, "");
+  resendCodeButton.disabled = true;
+  resendCodeButton.textContent = "Sending...";
+
+  try {
+    await resendRegistrationCode({ email: pendingRegistrationEmail });
+    setFormError(verificationError, "New code sent. Please check your email.");
+    window.setTimeout(() => {
+      if (verificationError.textContent === "New code sent. Please check your email.") {
+        setFormError(verificationError, "");
+      }
+    }, 3000);
+  } catch (error) {
+    setFormError(verificationError, error.message || "Unable to resend code.");
+  } finally {
+    startResendCooldown();
+  }
+}
+
+function showVerificationForm(email) {
+  pendingRegistrationEmail = email;
+  loginForm.hidden = true;
+  registerForm.hidden = true;
+  verificationForm.hidden = false;
+  verificationEmail.textContent = email;
+  verificationForm.reset();
+  setFormError(verificationError, "");
+  verificationForm.elements.code.focus();
+  startResendCooldown();
+}
+
+function startResendCooldown() {
+  resendCodeButton.disabled = true;
+  resendCodeButton.textContent = "Resend available soon";
+  window.setTimeout(() => {
+    resendCodeButton.disabled = false;
+    resendCodeButton.textContent = "Resend code";
+  }, 60000);
 }
 
 async function submitAuthForm({

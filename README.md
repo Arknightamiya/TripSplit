@@ -106,6 +106,8 @@ The system will use REST APIs between the React frontend and Express backend.
 Important planned endpoints include:
 
 - POST /auth/register
+- POST /auth/register/verify
+- POST /auth/register/resend-code
 - POST /auth/login
 - GET /trips
 - POST /trips

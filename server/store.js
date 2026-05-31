@@ -14,6 +14,7 @@ import {
 const state = {
   nextId: 1,
   users: [],
+  pendingRegistrations: [],
   trips: [],
   friendRequests: [],
   friendships: [],
@@ -23,6 +24,7 @@ const state = {
 export function resetStore() {
   state.nextId = 1;
   state.users = [];
+  state.pendingRegistrations = [];
   state.trips = [];
   state.friendRequests = [];
   state.friendships = [];
@@ -46,6 +48,80 @@ export function createUser({ name, email, passwordHash, displayName, avatarUrl }
 
   state.users.push(user);
   return clone(toSafeUser(user));
+}
+
+export function upsertPendingRegistration({
+  email,
+  name,
+  passwordHash,
+  verificationCodeHash,
+  expiresAt,
+  resendAvailableAt
+}) {
+  const normalizedEmail = normalizeEmail(email);
+  const existing = state.pendingRegistrations.find((entry) => entry.email === normalizedEmail);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    existing.name = normalizeText(name);
+    existing.passwordHash = passwordHash;
+    existing.verificationCodeHash = verificationCodeHash;
+    existing.expiresAt = expiresAt;
+    existing.resendAvailableAt = resendAvailableAt;
+    existing.attemptCount = 0;
+    existing.updatedAt = now;
+    return clone(existing);
+  }
+
+  const pendingRegistration = {
+    id: createId("pending_registration"),
+    email: normalizedEmail,
+    name: normalizeText(name),
+    passwordHash,
+    verificationCodeHash,
+    expiresAt,
+    resendAvailableAt,
+    attemptCount: 0,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  state.pendingRegistrations.push(pendingRegistration);
+  return clone(pendingRegistration);
+}
+
+export function findPendingRegistrationByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  const pendingRegistration = state.pendingRegistrations.find(
+    (entry) => entry.email === normalizedEmail
+  );
+  return pendingRegistration ? clone(pendingRegistration) : null;
+}
+
+export function updatePendingRegistration(email, updates = {}) {
+  const normalizedEmail = normalizeEmail(email);
+  const pendingRegistration = state.pendingRegistrations.find(
+    (entry) => entry.email === normalizedEmail
+  );
+
+  if (!pendingRegistration) {
+    return null;
+  }
+
+  Object.assign(pendingRegistration, {
+    ...updates,
+    updatedAt: new Date().toISOString()
+  });
+  return clone(pendingRegistration);
+}
+
+export function deletePendingRegistration(email) {
+  const normalizedEmail = normalizeEmail(email);
+  const beforeCount = state.pendingRegistrations.length;
+  state.pendingRegistrations = state.pendingRegistrations.filter(
+    (entry) => entry.email !== normalizedEmail
+  );
+  return state.pendingRegistrations.length !== beforeCount;
 }
 
 export function updateUserProfile(userId, { displayName, avatarUrl }) {
