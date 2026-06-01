@@ -104,15 +104,11 @@ For per-person budgets:
   "title": "Hotel",
   "amount": 450,
   "category": "lodging",
-  "expenseType": "shared",
+  "expenseType": "personal_advance",
   "payerId": "user_1",
   "splitRule": "equal",
-  "includedParticipantIds": ["user_1", "user_2", "user_3"],
+  "includedParticipantIds": ["user_2", "user_3"],
   "expenseShares": [
-    {
-      "participantId": "user_1",
-      "shareAmount": 150
-    },
     {
       "participantId": "user_2",
       "shareAmount": 150
@@ -784,6 +780,7 @@ Rules:
 - Pending invitations can be removed before the invitee accepts.
 - Approved members can be removed if they have not paid expenses in the trip.
 - Removing a pending invitation removes it from the invitee's Requests view.
+- After the trip has started, approved participants cannot be removed.
 
 ## Budget APIs
 
@@ -830,7 +827,7 @@ Response:
 }
 ```
 
-Only an organizer can set or update the budget in the MVP.
+Only an organizer can set or update the budget in the MVP. Before the trip starts, the organizer can modify the budget mode and amount. After the trip starts, the organizer can only increase the existing budget amount using the same budget mode.
 
 ## Expense APIs
 
@@ -849,12 +846,14 @@ Request:
   "title": "Hotel",
   "amount": 450,
   "category": "lodging",
-  "expenseType": "shared",
+  "expenseType": "personal_advance",
   "payerId": "user_1",
   "splitRule": "equal",
-  "includedParticipantIds": ["user_1", "user_2", "user_3"]
+  "includedParticipantIds": ["user_2", "user_3"]
 }
 ```
+
+Expenses can only be recorded after the organizer starts the trip. Before start, the backend returns `400` with `Start the trip before recording expenses`.
 
 Response:
 
@@ -866,15 +865,11 @@ Response:
     "title": "Hotel",
     "amount": 450,
     "category": "lodging",
-    "expenseType": "shared",
+    "expenseType": "personal_advance",
     "payerId": "user_1",
     "splitRule": "equal",
-    "includedParticipantIds": ["user_1", "user_2", "user_3"],
+    "includedParticipantIds": ["user_2", "user_3"],
     "expenseShares": [
-      {
-        "participantId": "user_1",
-        "shareAmount": 150
-      },
       {
         "participantId": "user_2",
         "shareAmount": 150
@@ -891,22 +886,42 @@ Response:
     "totalBudget": 900,
     "perPersonBudget": null,
     "participantCount": 3,
-    "totalSpent": 540,
-    "remainingBudget": 360,
+    "totalSpent": 0,
+    "remainingBudget": 900,
     "overBudgetAmount": 0
   },
   "balances": [
     {
       "participantId": "user_1",
+      "budgetSpent": 0,
       "actualPaid": 450,
-      "fairShare": 180,
-      "netBalance": 270
+      "fairShare": 150,
+      "netBalance": 300
+    },
+    {
+      "participantId": "user_2",
+      "budgetSpent": 0,
+      "actualPaid": 0,
+      "fairShare": 150,
+      "netBalance": -150
+    },
+    {
+      "participantId": "user_3",
+      "budgetSpent": 0,
+      "actualPaid": 0,
+      "fairShare": 150,
+      "netBalance": -150
     }
   ]
 }
 ```
 
-Any approved trip participant can record an expense. The backend must reject requests where the payer or any included split participant is not an approved participant in the trip.
+`expenseType` has two supported meanings:
+
+- `budget_payment`: paid from the shared trip budget. Only the organizer can create this type. It increases `budgetSummary.totalSpent` and each selected participant's `budgetSpent`, but it does not create personal reimbursement balances.
+- `personal_advance`: paid out of pocket by a participant for selected trip participants. It does not increase `budgetSummary.totalSpent`; it updates `actualPaid`, `fairShare`, and `netBalance`.
+
+For `budget_payment`, the payer is the organizer/current authenticated user and `includedParticipantIds` means everyone who used the shared budget expense. For `personal_advance`, `includedParticipantIds` means the people who should reimburse the payer; the payer is excluded from the stored split shares. Any approved trip participant can record a `personal_advance`. The backend must reject requests where the payer or any included split participant is not an approved participant in the trip.
 
 ### DELETE `/api/trips/:tripId/expenses/:expenseId`
 
@@ -926,8 +941,8 @@ Response:
     "totalBudget": 900,
     "perPersonBudget": null,
     "participantCount": 3,
-    "totalSpent": 90,
-    "remainingBudget": 810,
+    "totalSpent": 0,
+    "remainingBudget": 900,
     "overBudgetAmount": 0
   },
   "balances": []
@@ -960,9 +975,10 @@ Response:
   "balances": [
     {
       "participantId": "user_1",
+      "budgetSpent": 0,
       "actualPaid": 450,
-      "fairShare": 180,
-      "netBalance": 270,
+      "fairShare": 150,
+      "netBalance": 300,
       "participant": {
         "id": "user_1",
         "name": "Alex Organizer",
@@ -973,7 +989,7 @@ Response:
 }
 ```
 
-Balances are calculated from expenses and expense shares. Positive `netBalance` means the participant paid more than their fair share. Negative `netBalance` means the participant paid less than their fair share.
+Balances are calculated from expenses and expense shares. `budgetSpent` records how much of the shared trip budget was used for that participant. Positive `netBalance` means the participant paid out of pocket more than their personal fair share and should be reimbursed. Negative `netBalance` means the participant owes reimbursement to others.
 
 ## Shared Constants
 
@@ -992,7 +1008,7 @@ other
 Expense types:
 
 ```text
-shared
+budget_payment
 personal_advance
 ```
 

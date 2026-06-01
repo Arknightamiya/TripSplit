@@ -49,9 +49,13 @@ BEGIN
   LIMIT 1;
 
   IF v_trip_id IS NULL THEN
-    INSERT INTO trips (name, destination, start_date, end_date, organizer_id)
-    VALUES ('San Diego Weekend', 'San Diego', '2026-06-05', '2026-06-07', v_alex_id)
+    INSERT INTO trips (name, destination, start_date, end_date, organizer_id, started_at)
+    VALUES ('San Diego Weekend', 'San Diego', '2026-06-05', '2026-06-07', v_alex_id, CURRENT_TIMESTAMP)
     RETURNING id INTO v_trip_id;
+  ELSE
+    UPDATE trips
+    SET started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+    WHERE id = v_trip_id;
   END IF;
 
   INSERT INTO trip_participants (trip_id, user_id, role, join_status)
@@ -88,7 +92,7 @@ BEGIN
       payer_id,
       split_rule_id
     )
-    VALUES (v_trip_id, 'Hotel', 450, 'lodging', 'shared', v_alex_id, v_equal_rule_id)
+    VALUES (v_trip_id, 'Hotel', 450, 'lodging', 'personal_advance', v_alex_id, v_equal_rule_id)
     RETURNING id INTO v_hotel_expense_id;
 
     INSERT INTO expense_shares (expense_id, trip_id, participant_id, share_amount)
@@ -115,7 +119,7 @@ BEGIN
       payer_id,
       split_rule_id
     )
-    VALUES (v_trip_id, 'Dinner', 90, 'food', 'shared', v_sam_id, v_equal_rule_id)
+    VALUES (v_trip_id, 'Dinner', 90, 'food', 'personal_advance', v_sam_id, v_equal_rule_id)
     RETURNING id INTO v_dinner_expense_id;
 
     INSERT INTO expense_shares (expense_id, trip_id, participant_id, share_amount)

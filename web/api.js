@@ -229,6 +229,18 @@ export async function deleteTrip(tripId) {
   });
 }
 
+export async function startTrip(tripId) {
+  return apiRequest(API_ROUTES.tripStart(tripId), {
+    method: "POST"
+  });
+}
+
+export async function endTrip(tripId) {
+  return apiRequest(API_ROUTES.tripEnd(tripId), {
+    method: "POST"
+  });
+}
+
 export async function inviteParticipant(tripId, userId) {
   return apiRequest(API_ROUTES.tripInvitations(tripId), {
     method: "POST",

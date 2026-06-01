@@ -10,6 +10,7 @@ export function calculateBalances(trip) {
   for (const participantId of trip.participantIds) {
     balances.set(participantId, {
       participantId,
+      budgetSpent: 0,
       actualPaid: 0,
       fairShare: 0,
       netBalance: 0
@@ -17,14 +18,32 @@ export function calculateBalances(trip) {
   }
 
   for (const expense of trip.expenses) {
-    const payer = balances.get(expense.payerId);
-    if (payer) {
-      payer.actualPaid = roundCurrency(payer.actualPaid + expense.amount);
-    }
-
     const expenseShares = shouldUseStoredShares(expense)
       ? expense.expenseShares
       : createEqualShares(expense);
+
+    if (expense.expenseType === "budget_payment") {
+      for (const share of expenseShares) {
+        const entry = balances.get(share.participantId);
+        if (!entry) {
+          continue;
+        }
+
+        entry.budgetSpent = roundCurrency(entry.budgetSpent + share.shareAmount);
+      }
+      continue;
+    }
+
+    const payer = balances.get(expense.payerId);
+    const reimbursableTotal = roundCurrency(
+      expenseShares.reduce((sum, share) => sum + Number(share.shareAmount), 0)
+    );
+    const payerOwnShare = roundCurrency(Number(expense.amount) - reimbursableTotal);
+
+    if (payer) {
+      payer.actualPaid = roundCurrency(payer.actualPaid + expense.amount);
+      payer.fairShare = roundCurrency(payer.fairShare + payerOwnShare);
+    }
 
     for (const share of expenseShares) {
       const entry = balances.get(share.participantId);
@@ -43,14 +62,17 @@ export function calculateBalances(trip) {
 }
 
 function createEqualShares(expense) {
-  const includedParticipantIds = getFallbackParticipantIds(expense);
-  return splitCurrencyEvenly(expense.amount, includedParticipantIds);
+  if (expense.expenseType === "personal_advance") {
+    return createPersonalAdvanceShares(expense);
+  }
+
+  return splitCurrencyEvenly(expense.amount, getFallbackParticipantIds(expense));
 }
 
 function shouldUseStoredShares(expense) {
   const expenseShares = expense.expenseShares || [];
 
-  if (!expenseShares.length || expense.expenseType === "personal_advance") {
+  if (!expenseShares.length) {
     return false;
   }
 
@@ -62,16 +84,40 @@ function shouldUseStoredShares(expense) {
   const shareTotal = roundCurrency(
     expenseShares.reduce((sum, share) => sum + Number(share.shareAmount), 0)
   );
+
+  if (expense.expenseType === "personal_advance") {
+    if (participantIds.includes(String(expense.payerId))) {
+      return false;
+    }
+
+    const expectedTotal = roundCurrency(
+      createPersonalAdvanceShares(expense).reduce(
+        (sum, share) => sum + Number(share.shareAmount),
+        0
+      )
+    );
+    return shareTotal === expectedTotal;
+  }
+
   return shareTotal === roundCurrency(Number(expense.amount));
 }
 
 function getFallbackParticipantIds(expense) {
-  if (expense.expenseType === "personal_advance") {
-    return [expense.payerId];
-  }
-
   const includedParticipantIds = uniqueStrings(expense.includedParticipantIds || []);
   return includedParticipantIds.length ? includedParticipantIds : [expense.payerId];
+}
+
+function createPersonalAdvanceShares(expense) {
+  const payerId = String(expense.payerId);
+  const debtorIds = uniqueStrings(expense.includedParticipantIds || [])
+    .filter((participantId) => participantId !== payerId);
+
+  if (!debtorIds.length) {
+    return [];
+  }
+
+  return splitCurrencyEvenly(expense.amount, [payerId, ...debtorIds])
+    .filter((share) => String(share.participantId) !== payerId);
 }
 
 function uniqueStrings(values) {

@@ -4,11 +4,13 @@ import {
   addParticipantToTrip,
   createTripForUser,
   deleteTripForUser,
+  endTripForUser,
   getTripForUser,
   inviteParticipantToTrip,
   listTripsForUser,
   removeParticipantFromTrip,
   setTripBudget,
+  startTripForUser,
   updateTripForUser
 } from "../services/trips.js";
 
@@ -52,6 +54,22 @@ export function createTripsRouter() {
   router.patch("/:tripId", async (req, res, next) => {
     try {
       res.status(200).json(await updateTripForUser(req.user.id, req.params.tripId, req.body));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:tripId/start", async (req, res, next) => {
+    try {
+      res.status(200).json(await startTripForUser(req.user.id, req.params.tripId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:tripId/end", async (req, res, next) => {
+    try {
+      res.status(200).json(await endTripForUser(req.user.id, req.params.tripId));
     } catch (error) {
       next(error);
     }

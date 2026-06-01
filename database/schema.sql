@@ -110,12 +110,20 @@ CREATE TABLE IF NOT EXISTS trips (
   visibility TEXT NOT NULL DEFAULT 'private'
     CHECK (visibility IN ('private', 'public')),
   organizer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  started_at TIMESTAMP,
+  ended_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
 );
 
 ALTER TABLE trips
   ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'private';
+
+ALTER TABLE trips
+  ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
+
+ALTER TABLE trips
+  ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS trip_participants (
   trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
@@ -183,8 +191,8 @@ CREATE TABLE IF NOT EXISTS expenses (
       'other'
     )
   ),
-  expense_type TEXT NOT NULL DEFAULT 'shared'
-    CHECK (expense_type IN ('shared', 'personal_advance')),
+  expense_type TEXT NOT NULL DEFAULT 'personal_advance'
+    CHECK (expense_type IN ('budget_payment', 'personal_advance')),
   payer_id INTEGER NOT NULL,
   split_rule_id INTEGER NOT NULL REFERENCES split_rules(id),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -192,6 +200,31 @@ CREATE TABLE IF NOT EXISTS expenses (
   FOREIGN KEY (trip_id, payer_id)
     REFERENCES trip_participants(trip_id, user_id)
 );
+
+DO $$
+BEGIN
+  IF to_regclass('expenses') IS NOT NULL THEN
+    UPDATE expenses
+    SET expense_type = 'personal_advance'
+    WHERE expense_type = 'shared';
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_constraint
+      WHERE conrelid = 'expenses'::regclass
+        AND conname = 'expenses_expense_type_check'
+    ) THEN
+      ALTER TABLE expenses DROP CONSTRAINT expenses_expense_type_check;
+    END IF;
+
+    ALTER TABLE expenses
+      ADD CONSTRAINT expenses_expense_type_check
+      CHECK (expense_type IN ('budget_payment', 'personal_advance'));
+
+    ALTER TABLE expenses
+      ALTER COLUMN expense_type SET DEFAULT 'personal_advance';
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS expense_shares (
   expense_id INTEGER NOT NULL,

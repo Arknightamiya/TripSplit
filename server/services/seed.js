@@ -5,7 +5,8 @@ import {
   createUser,
   findUserByEmail,
   getTripById,
-  setBudget
+  setBudget,
+  startTrip
 } from "../store.js";
 import { hashPassword } from "./auth.js";
 
@@ -47,12 +48,13 @@ export async function seedStore() {
 
   const hydratedTrip = getTripById(trip.id);
   setBudget(trip.id, { mode: "total", totalBudget: 900 });
+  startTrip(trip.id);
 
   addExpense(trip.id, {
     title: "Hotel",
     amount: 450,
     category: "lodging",
-    expenseType: "shared",
+    expenseType: "personal_advance",
     payerId: organizer.id,
     splitRule: "equal",
     includedParticipantIds: hydratedTrip.participantIds
@@ -62,7 +64,7 @@ export async function seedStore() {
     title: "Dinner",
     amount: 90,
     category: "food",
-    expenseType: "shared",
+    expenseType: "personal_advance",
     payerId: sam.id,
     splitRule: "equal",
     includedParticipantIds: hydratedTrip.participantIds

@@ -229,6 +229,7 @@ export async function listPublicTripRecordsForFriend(viewerId, friendId) {
           SELECT SUM(e.amount)
           FROM expenses e
           WHERE e.trip_id = t.id
+            AND e.expense_type = 'budget_payment'
         ), 0) AS total_spent,
         tjr.status AS join_request_status,
         pending_invite.join_status AS invitation_status,
@@ -297,6 +298,7 @@ export async function listFriendPublicTripRecords(viewerId) {
           SELECT SUM(e.amount)
           FROM expenses e
           WHERE e.trip_id = t.id
+            AND e.expense_type = 'budget_payment'
         ), 0) AS total_spent,
         tjr.status AS join_request_status,
         pending_invite.join_status AS invitation_status,
@@ -323,6 +325,7 @@ export async function listFriendPublicTripRecords(viewerId) {
         AND pending_invite.user_id = $1
         AND pending_invite.join_status = 'pending'
       WHERE t.visibility = 'public'
+        AND participant.user_id IS NULL
       ORDER BY t.start_date NULLS LAST, t.created_at DESC, t.id DESC
     `,
     [viewerId]
@@ -609,6 +612,7 @@ async function findPublicTripRecord(tripId) {
           SELECT SUM(e.amount)
           FROM expenses e
           WHERE e.trip_id = t.id
+            AND e.expense_type = 'budget_payment'
         ), 0) AS total_spent,
         'none' AS join_request_status,
         'none' AS invitation_status,

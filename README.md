@@ -1,8 +1,8 @@
 # TripSplit
 
-TripSplit is a CS130 project web application for shared travel budgeting and fair expense splitting.
+TripSplit is a CS130 project web application for shared travel budgeting, trip-budget payments, and fair reimbursement tracking.
 
-It is designed for small groups traveling together, such as friends, roommates, student clubs, or campus organizations. The goal of TripSplit is to help a group create a trip, set a budget, record shared expenses, track spending during the trip, and calculate final balances for each participant.
+It is designed for small groups traveling together, such as friends, roommates, student clubs, or campus organizations. The goal of TripSplit is to help a group create a trip, set a budget, record trip-budget payments and personal advances, track spending during the trip, and calculate final balances for each participant.
 
 ## Team
 
@@ -44,13 +44,13 @@ The MVP focuses on four main workflows:
 
    The trip organizer can set either a total trip budget or a per-person budget. The system tracks total spending, remaining budget, and over-budget amount.
 
-3. Record shared expenses
+3. Record trip payments
 
-   A trip participant can record an expense by entering the title, amount, category, payer, expense type, and selected participants included in the split.
+   Organizers can record payments made from the shared trip budget. Participants can record personal advances when they pay out of pocket for selected trip members. Purely personal purchases do not need to be entered.
 
 4. View final balances
 
-   Each participant can view their actual paid amount, fair share amount, and final net balance. A positive balance means the participant paid more than their fair share, while a negative balance means the participant paid less than their fair share.
+   Each participant can view shared-budget usage separately from personal reimbursement balances. A positive personal net balance means the participant should be reimbursed, while a negative personal net balance means the participant owes reimbursement.
 
 ## Non-Goals
 
