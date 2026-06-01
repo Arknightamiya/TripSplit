@@ -3,8 +3,9 @@ import { createHmac } from "node:crypto";
 import { Readable, Writable } from "node:stream";
 import { beforeEach, test } from "node:test";
 import { createApp } from "../server/app.js";
+import { getLastRegistrationVerificationCode } from "../server/services/email.js";
 import { seedStore } from "../server/services/seed.js";
-import { resetStore } from "../server/store.js";
+import { resetStore, updatePendingRegistration } from "../server/store.js";
 
 let app;
 
@@ -65,7 +66,7 @@ test("login accepts username or email as the identifier", async () => {
     method: "POST",
     body: {
       identifier: emailLogin.user.name,
-      password: "demo-password"
+      password: "Demo-password1!"
     }
   });
 
@@ -74,26 +75,38 @@ test("login accepts username or email as the identifier", async () => {
   assert.equal(usernameLogin.body.token.split(".").length, 3);
 });
 
-test("register returns a JWT and starts with no private trips", async () => {
+test("register sends a verification code, then verify returns a JWT", async () => {
   const response = await request("/api/auth/register", {
     method: "POST",
     body: {
       name: "Taylor New",
       email: "taylor@example.com",
-      password: "demo-password"
+      password: "Demo-password1!"
     }
   });
 
-  assert.equal(response.status, 201);
-  assert.equal(response.body.user.email, "taylor@example.com");
-  assert.equal(response.body.user.userId, "Taylor New#1");
-  assert.equal(response.body.user.displayName, "Taylor New#1");
-  assert.equal(response.body.user.avatarUrl, "");
-  assert.equal(response.body.user.passwordHash, undefined);
-  assert.equal(response.body.token.split(".").length, 3);
+  assert.equal(response.status, 202);
+  assert.equal(response.body.email, "taylor@example.com");
+  assert.equal(response.body.token, undefined);
+
+  const verifyResponse = await request("/api/auth/register/verify", {
+    method: "POST",
+    body: {
+      email: "taylor@example.com",
+      code: getLastRegistrationVerificationCode("taylor@example.com")
+    }
+  });
+
+  assert.equal(verifyResponse.status, 201);
+  assert.equal(verifyResponse.body.user.email, "taylor@example.com");
+  assert.equal(verifyResponse.body.user.userId, "Taylor New#1");
+  assert.equal(verifyResponse.body.user.displayName, "Taylor New#1");
+  assert.equal(verifyResponse.body.user.avatarUrl, "");
+  assert.equal(verifyResponse.body.user.passwordHash, undefined);
+  assert.equal(verifyResponse.body.token.split(".").length, 3);
 
   const tripsResponse = await request("/api/trips", {
-    headers: authHeaders(response.body.token)
+    headers: authHeaders(verifyResponse.body.token)
   });
 
   assert.equal(tripsResponse.status, 200);
@@ -141,14 +154,14 @@ test("authenticated user can update profile display name and avatar", async () =
     method: "POST",
     body: {
       identifier: "ProfileUser",
-      password: "demo-password"
+      password: "Demo-password1!"
     }
   });
   const fullUserIdLoginResponse = await request("/api/auth/login", {
     method: "POST",
     body: {
       identifier: "ProfileUser#1",
-      password: "demo-password"
+      password: "Demo-password1!"
     }
   });
 
@@ -518,17 +531,17 @@ test("social trip flow closes invites, public visibility, and join approvals", a
   const user1 = await registerUser({
     name: "dw",
     email: "dw-one@example.com",
-    password: "12345678"
+    password: "Dw-One_123"
   });
   const user2 = await registerUser({
     name: "dw",
     email: "dw-two@example.com",
-    password: "87654321"
+    password: "Dw-Two_123"
   });
   const user3 = await registerUser({
     name: "gogo",
     email: "go234@example.com",
-    password: "09876543"
+    password: "Go-Go_123"
   });
 
   assert.equal(user1.user.userId, "dw#1");
@@ -732,7 +745,7 @@ test("duplicate registration is rejected", async () => {
     body: {
       name: "Alex Duplicate",
       email: "alex@example.com",
-      password: "demo-password"
+      password: "Demo-password1!"
     }
   });
 
@@ -742,20 +755,173 @@ test("duplicate registration is rejected", async () => {
   });
 });
 
-test("registration rejects passwords shorter than eight characters", async () => {
-  const response = await request("/api/auth/register", {
+test("registration rejects passwords that do not meet strength rules", async () => {
+  const weakPasswords = [
+    ["short", "short-password@example.com"],
+    ["lowercase1!", "no-uppercase@example.com"],
+    ["UPPERCASE1!", "no-lowercase@example.com"],
+    ["NoNumber!", "no-number@example.com"],
+    ["NoSymbol1", "no-symbol@example.com"]
+  ];
+
+  for (const [password, email] of weakPasswords) {
+    const response = await request("/api/auth/register", {
+      method: "POST",
+      body: {
+        name: "Weak Password",
+        email,
+        password
+      }
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, {
+      error: "Password must be at least 8 characters long and include uppercase, lowercase, number, and symbol."
+    });
+  }
+});
+
+test("registration accepts dash and underscore as password symbols", async () => {
+  const dashResponse = await startRegistration({
+    name: "Dash Password",
+    email: "dash-password@example.com",
+    password: "Dashpass1-"
+  });
+  const underscoreResponse = await startRegistration({
+    name: "Underscore Password",
+    email: "underscore-password@example.com",
+    password: "Underpass1_"
+  });
+
+  assert.equal(dashResponse.message, "Verification code sent");
+  assert.equal(underscoreResponse.message, "Verification code sent");
+});
+
+test("registration verification rejects invalid, expired, and over-attempted codes", async () => {
+  await startRegistration({
+    name: "Verify Errors",
+    email: "verify-errors@example.com"
+  });
+
+  const invalidResponse = await request("/api/auth/register/verify", {
     method: "POST",
     body: {
-      name: "Short Password",
-      email: "short-password@example.com",
-      password: "short"
+      email: "verify-errors@example.com",
+      code: "000000"
     }
   });
 
-  assert.equal(response.status, 400);
-  assert.deepEqual(response.body, {
-    error: "Password must be at least 8 characters long"
+  assert.equal(invalidResponse.status, 400);
+  assert.deepEqual(invalidResponse.body, {
+    error: "Invalid verification code"
   });
+
+  updatePendingRegistration("verify-errors@example.com", {
+    expiresAt: new Date(Date.now() - 1000).toISOString()
+  });
+
+  const expiredResponse = await request("/api/auth/register/verify", {
+    method: "POST",
+    body: {
+      email: "verify-errors@example.com",
+      code: getLastRegistrationVerificationCode("verify-errors@example.com")
+    }
+  });
+
+  assert.equal(expiredResponse.status, 400);
+  assert.deepEqual(expiredResponse.body, {
+    error: "Verification code has expired. Please resend a new code."
+  });
+
+  await startRegistration({
+    name: "Verify Attempts",
+    email: "verify-attempts@example.com"
+  });
+  updatePendingRegistration("verify-attempts@example.com", {
+    attemptCount: 5
+  });
+
+  const attemptsResponse = await request("/api/auth/register/verify", {
+    method: "POST",
+    body: {
+      email: "verify-attempts@example.com",
+      code: getLastRegistrationVerificationCode("verify-attempts@example.com")
+    }
+  });
+
+  assert.equal(attemptsResponse.status, 400);
+  assert.deepEqual(attemptsResponse.body, {
+    error: "Too many incorrect attempts. Please resend a new code."
+  });
+});
+
+test("re-registering a pending email refreshes the latest code", async () => {
+  await startRegistration({
+    name: "Pending First",
+    email: "pending-refresh@example.com"
+  });
+  const firstCode = getLastRegistrationVerificationCode("pending-refresh@example.com");
+
+  await startRegistration({
+    name: "Pending Second",
+    email: "pending-refresh@example.com"
+  });
+  const secondCode = getLastRegistrationVerificationCode("pending-refresh@example.com");
+
+  const oldCodeResponse = await request("/api/auth/register/verify", {
+    method: "POST",
+    body: {
+      email: "pending-refresh@example.com",
+      code: firstCode
+    }
+  });
+
+  assert.equal(oldCodeResponse.status, 400);
+
+  const verified = await request("/api/auth/register/verify", {
+    method: "POST",
+    body: {
+      email: "pending-refresh@example.com",
+      code: secondCode
+    }
+  });
+
+  assert.equal(verified.status, 201);
+  assert.equal(verified.body.user.userId, "Pending Second#1");
+});
+
+test("resend registration code refreshes code and enforces cooldown", async () => {
+  await startRegistration({
+    name: "Resend User",
+    email: "resend-user@example.com"
+  });
+
+  const cooldownResponse = await request("/api/auth/register/resend-code", {
+    method: "POST",
+    body: {
+      email: "resend-user@example.com"
+    }
+  });
+
+  assert.equal(cooldownResponse.status, 400);
+  assert.deepEqual(cooldownResponse.body, {
+    error: "Please wait before requesting another verification code"
+  });
+
+  updatePendingRegistration("resend-user@example.com", {
+    resendAvailableAt: new Date(Date.now() - 1000).toISOString()
+  });
+  const firstCode = getLastRegistrationVerificationCode("resend-user@example.com");
+
+  const resendResponse = await request("/api/auth/register/resend-code", {
+    method: "POST",
+    body: {
+      email: "resend-user@example.com"
+    }
+  });
+
+  assert.equal(resendResponse.status, 200);
+  assert.notEqual(getLastRegistrationVerificationCode("resend-user@example.com"), firstCode);
 });
 
 test("trip creation uses the token user as organizer", async () => {
@@ -884,7 +1050,7 @@ test("trip APIs reject malformed and invalid dates", async () => {
 test("regular participants cannot update trip metadata", async () => {
   const { token } = await loginAsDemoUser({
     email: "sam@example.com",
-    password: "demo-password"
+    password: "Demo-password1!"
   });
 
   const response = await request("/api/trips/trip_4", {
@@ -943,7 +1109,7 @@ test("organizer can delete a trip", async () => {
 test("regular participants cannot delete a trip", async () => {
   const { token } = await loginAsDemoUser({
     email: "sam@example.com",
-    password: "demo-password"
+    password: "Demo-password1!"
   });
 
   const response = await request("/api/trips/trip_4", {
@@ -1530,7 +1696,7 @@ test("organizer cannot add a duplicate approved participant", async () => {
 test("regular participants cannot add participants or set budgets", async () => {
   const { token } = await loginAsDemoUser({
     email: "sam@example.com",
-    password: "demo-password"
+    password: "Demo-password1!"
   });
   const tripId = "trip_4";
 
@@ -2239,7 +2405,7 @@ test("organizer can delete an expense and recalculate budget and balances", asyn
 test("expense payer can delete their own expense", async () => {
   const { token } = await loginAsDemoUser({
     email: "sam@example.com",
-    password: "demo-password"
+    password: "Demo-password1!"
   });
 
   const response = await request("/api/trips/trip_4/expenses/expense_6", {
@@ -2255,7 +2421,7 @@ test("expense payer can delete their own expense", async () => {
 test("regular participants cannot delete another participant's expense", async () => {
   const { token } = await loginAsDemoUser({
     email: "jordan@example.com",
-    password: "demo-password"
+    password: "Demo-password1!"
   });
 
   const response = await request("/api/trips/trip_4/expenses/expense_5", {
@@ -2271,7 +2437,7 @@ test("regular participants cannot delete another participant's expense", async (
 
 async function loginAsDemoUser({
   email = "alex@example.com",
-  password = "demo-password"
+  password = "Demo-password1!"
 } = {}) {
   const response = await request("/api/auth/login", {
     method: "POST",
@@ -2288,7 +2454,26 @@ async function loginAsDemoUser({
 async function registerUser({
   name,
   email,
-  password = "demo-password"
+  password = "Demo-password1!"
+}) {
+  await startRegistration({ name, email, password });
+
+  const response = await request("/api/auth/register/verify", {
+    method: "POST",
+    body: {
+      email,
+      code: getLastRegistrationVerificationCode(email)
+    }
+  });
+
+  assert.equal(response.status, 201);
+  return response.body;
+}
+
+async function startRegistration({
+  name,
+  email,
+  password = "Demo-password1!"
 }) {
   const response = await request("/api/auth/register", {
     method: "POST",
@@ -2299,7 +2484,7 @@ async function registerUser({
     }
   });
 
-  assert.equal(response.status, 201);
+  assert.equal(response.status, 202);
   return response.body;
 }
 

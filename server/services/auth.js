@@ -1,10 +1,20 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import {
   createUser,
+  deletePendingRegistration,
   findUserByEmail,
   findUserById,
-  findUserByName
+  findUserByName,
+  findPendingRegistrationByEmail,
+  updatePendingRegistration,
+  upsertPendingRegistration
 } from "../store.js";
+import {
+  deletePendingRegistrationRecord,
+  findPendingRegistrationRecordByEmail,
+  updatePendingRegistrationRecord,
+  upsertPendingRegistrationRecord
+} from "../repositories/pendingRegistrations.js";
 import {
   createUserRecord,
   findUserRecordByEmail,
@@ -12,34 +22,149 @@ import {
   findUserRecordByName,
   isUserRepositoryEnabled
 } from "../repositories/users.js";
+import { sendRegistrationVerificationEmail } from "./email.js";
 import { badRequest, conflict, unauthorized } from "../utils/errors.js";
 import { requireFields } from "../validators/request.js";
 
 const TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
+const VERIFICATION_CODE_TTL_MINUTES = 5;
+const VERIFICATION_CODE_TTL_MS = VERIFICATION_CODE_TTL_MINUTES * 60 * 1000;
+const RESEND_INTERVAL_MS = 60 * 1000;
+const MAX_VERIFICATION_ATTEMPTS = 5;
+const PASSWORD_POLICY_ERROR =
+  "Password must be at least 8 characters long and include uppercase, lowercase, number, and symbol.";
 
 export async function registerUser(input = {}) {
   requireFields(input, ["name", "email", "password"]);
+  const email = normalizeEmail(input.email);
+  const name = String(input.name || "").trim();
 
-  if (String(input.password).length < 8) {
-    throw badRequest("Password must be at least 8 characters long");
+  if (!isStrongPassword(input.password)) {
+    throw badRequest(PASSWORD_POLICY_ERROR);
   }
 
-  if (await findAuthUserByEmail(input.email)) {
+  if (await findAuthUserByEmail(email)) {
     throw conflict("An account with this email already exists");
   }
 
-  const assignedUserId = await assignUserId(input.name);
+  const code = generateVerificationCode();
+  const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS).toISOString();
+  const resendAvailableAt = new Date(Date.now() + RESEND_INTERVAL_MS).toISOString();
 
+  const pendingRegistration = await upsertAuthPendingRegistration({
+    email,
+    name,
+    passwordHash: hashPassword(input.password),
+    verificationCodeHash: hashVerificationCode(email, code),
+    expiresAt,
+    resendAvailableAt
+  });
+
+  await sendRegistrationVerificationEmail({
+    email,
+    code,
+    expiresInMinutes: VERIFICATION_CODE_TTL_MINUTES
+  });
+
+  return {
+    email: pendingRegistration.email,
+    expiresAt: pendingRegistration.expiresAt,
+    resendAvailableAt: pendingRegistration.resendAvailableAt,
+    message: "Verification code sent"
+  };
+}
+
+export async function verifyRegistration(input = {}) {
+  requireFields(input, ["email", "code"]);
+  const email = normalizeEmail(input.email);
+  const code = normalizeVerificationCode(input.code);
+
+  if (!/^\d{6}$/.test(code)) {
+    throw badRequest("Verification code must be 6 digits");
+  }
+
+  const pendingRegistration = await findAuthPendingRegistrationByEmail(email);
+
+  if (!pendingRegistration) {
+    throw badRequest("No pending registration found for this email");
+  }
+
+  if (await findAuthUserByEmail(email)) {
+    await deleteAuthPendingRegistration(email);
+    throw conflict("An account with this email already exists");
+  }
+
+  if (pendingRegistration.attemptCount >= MAX_VERIFICATION_ATTEMPTS) {
+    throw badRequest("Too many incorrect attempts. Please resend a new code.");
+  }
+
+  if (Date.parse(pendingRegistration.expiresAt) < Date.now()) {
+    throw badRequest("Verification code has expired. Please resend a new code.");
+  }
+
+  if (!safeCompare(hashVerificationCode(email, code), pendingRegistration.verificationCodeHash)) {
+    await updateAuthPendingRegistration(email, {
+      attemptCount: pendingRegistration.attemptCount + 1
+    });
+    throw badRequest("Invalid verification code");
+  }
+
+  const assignedUserId = await assignUserId(pendingRegistration.name);
   const userRecord = await createAuthUser({
     name: assignedUserId,
-    displayName: input.displayName || assignedUserId,
-    email: input.email,
-    passwordHash: hashPassword(input.password)
+    displayName: assignedUserId,
+    email,
+    passwordHash: pendingRegistration.passwordHash
   });
+
+  await deleteAuthPendingRegistration(email);
 
   return {
     user: toSafeUser(userRecord),
     token: signToken({ sub: userRecord.id })
+  };
+}
+
+export async function resendRegistrationCode(input = {}) {
+  requireFields(input, ["email"]);
+  const email = normalizeEmail(input.email);
+  const pendingRegistration = await findAuthPendingRegistrationByEmail(email);
+
+  if (!pendingRegistration) {
+    throw badRequest("No pending registration found for this email");
+  }
+
+  if (await findAuthUserByEmail(email)) {
+    await deleteAuthPendingRegistration(email);
+    throw conflict("An account with this email already exists");
+  }
+
+  if (Date.parse(pendingRegistration.resendAvailableAt) > Date.now()) {
+    throw badRequest("Please wait before requesting another verification code");
+  }
+
+  const code = generateVerificationCode();
+  const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS).toISOString();
+  const resendAvailableAt = new Date(Date.now() + RESEND_INTERVAL_MS).toISOString();
+
+  const updatedRegistration = await updateAuthPendingRegistration(email, {
+    verificationCodeHash: hashVerificationCode(email, code),
+    expiresAt,
+    resendAvailableAt,
+    attemptCount: 0
+  });
+
+  await sendRegistrationVerificationEmail({
+    email,
+    code,
+    expiresInMinutes: VERIFICATION_CODE_TTL_MINUTES
+  });
+
+  return {
+    email: updatedRegistration.email,
+    expiresAt: updatedRegistration.expiresAt,
+    resendAvailableAt: updatedRegistration.resendAvailableAt,
+    message: "Verification code sent"
   };
 }
 
@@ -77,6 +202,27 @@ export function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
   const hash = scryptSync(String(password), salt, 32).toString("hex");
   return `scrypt$${salt}$${hash}`;
+}
+
+export function isStrongPassword(password) {
+  const value = String(password || "");
+  return (
+    value.length >= 8 &&
+    /[A-Z]/.test(value) &&
+    /[a-z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
+}
+
+function generateVerificationCode() {
+  return String(randomBytes(4).readUInt32BE() % 1000000).padStart(6, "0");
+}
+
+function hashVerificationCode(email, code) {
+  return createHmac("sha256", getJwtSecret())
+    .update(`${normalizeEmail(email)}:${normalizeVerificationCode(code)}`)
+    .digest("hex");
 }
 
 function verifyPassword(password, storedHash) {
@@ -225,6 +371,46 @@ function normalizeUserIdBase(userId) {
     .trim()
     .replace(/#\d+$/, "")
     .trim();
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function normalizeVerificationCode(code) {
+  return String(code || "").replace(/\s/g, "");
+}
+
+async function upsertAuthPendingRegistration(payload) {
+  if (isUserRepositoryEnabled()) {
+    return upsertPendingRegistrationRecord(payload);
+  }
+
+  return upsertPendingRegistration(payload);
+}
+
+async function findAuthPendingRegistrationByEmail(email) {
+  if (isUserRepositoryEnabled()) {
+    return findPendingRegistrationRecordByEmail(email);
+  }
+
+  return findPendingRegistrationByEmail(email);
+}
+
+async function updateAuthPendingRegistration(email, updates) {
+  if (isUserRepositoryEnabled()) {
+    return updatePendingRegistrationRecord(email, updates);
+  }
+
+  return updatePendingRegistration(email, updates);
+}
+
+async function deleteAuthPendingRegistration(email) {
+  if (isUserRepositoryEnabled()) {
+    return deletePendingRegistrationRecord(email);
+  }
+
+  return deletePendingRegistration(email);
 }
 
 function toSafeUser(user) {

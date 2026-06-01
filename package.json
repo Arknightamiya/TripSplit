@@ -9,7 +9,7 @@
     "dev": "node server/index.js",
     "db:check": "node scripts/db/check.js",
     "db:schema": "node scripts/db/apply-schema.js",
-    "test": "node --test"
+    "test": "NODE_ENV=test node --test"
   },
   "engines": {
     "node": ">=20"
@@ -17,6 +17,7 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "nodemailer": "^8.0.10",
     "pg": "^8.20.0"
   }
 }

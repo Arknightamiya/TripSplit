@@ -3,6 +3,8 @@ export const API_BASE = "/api";
 export const API_ROUTES = {
   health: `${API_BASE}/health`,
   authRegister: `${API_BASE}/auth/register`,
+  authRegisterVerify: `${API_BASE}/auth/register/verify`,
+  authRegisterResendCode: `${API_BASE}/auth/register/resend-code`,
   authLogin: `${API_BASE}/auth/login`,
   me: `${API_BASE}/me`,
   friends: `${API_BASE}/friends`,

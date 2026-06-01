@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { Readable, Writable } from "node:stream";
 import { beforeEach, test } from "node:test";
 import { createApp } from "../server/app.js";
+import { getLastRegistrationVerificationCode } from "../server/services/email.js";
 import { resetStore } from "../server/store.js";
 
 let app;
@@ -430,14 +431,14 @@ test("extra registered outsider is blocked from private data and invalid expense
   const outsider = await registerUser({
     name: "outsider",
     email: outsiderEmail,
-    password: "outsider-password"
+    password: "Outsider-password1!"
   });
   const duplicateOutsider = await request("/api/auth/register", {
     method: "POST",
     body: {
       name: "outsider",
       email: outsiderEmail,
-      password: "outsider-password"
+      password: "Outsider-password1!"
     }
   });
 
@@ -651,19 +652,19 @@ async function registerCoreUsers() {
     identifier: "dw#1",
     name: "dw",
     email: "dw-one@example.com",
-    password: "12345678"
+    password: "Dw-One_123"
   });
   const dw2 = await loginOrRegisterUser({
     identifier: "dw#2",
     name: "dw",
     email: "dw-two@example.com",
-    password: "87654321"
+    password: "Dw-Two_123"
   });
   const gogo = await loginOrRegisterUser({
     identifier: "gogo#1",
     name: "gogo",
     email: "gogo@example.com",
-    password: "09876543"
+    password: "Go-Go_123"
   });
 
   assert.equal(dw1.user.userId, "dw#1");
@@ -714,12 +715,22 @@ async function sendAndAcceptFriendRequest({ requester, recipient }) {
 }
 
 async function registerUser({ name, email, password }) {
-  const response = await request("/api/auth/register", {
+  const startResponse = await request("/api/auth/register", {
     method: "POST",
     body: {
       name,
       email,
       password
+    }
+  });
+
+  assert.equal(startResponse.status, 202);
+
+  const response = await request("/api/auth/register/verify", {
+    method: "POST",
+    body: {
+      email,
+      code: getLastRegistrationVerificationCode(email)
     }
   });
 

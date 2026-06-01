@@ -15,6 +15,7 @@ import {
   inviteParticipant,
   login,
   register,
+  resendRegistrationCode,
   removeFriend,
   removeTripParticipant,
   requestTripJoin,
@@ -29,7 +30,8 @@ import {
   storeAuthSession,
   storeCurrentUser,
   updateCurrentUserProfile,
-  updateTrip
+  updateTrip,
+  verifyRegistration
 } from "./api.js";
 import { setDateInputValue, setupDateInputs, setupTripForm, validateTripDates } from "./forms.js";
 import { renderBalances } from "./renderBalances.js";
@@ -42,8 +44,13 @@ const appView = document.querySelector("#app-view");
 const authTabs = document.querySelectorAll("[data-auth-mode]");
 const loginForm = document.querySelector("#login-form");
 const registerForm = document.querySelector("#register-form");
+const verificationForm = document.querySelector("#verification-form");
 const loginError = document.querySelector("#login-error");
 const registerError = document.querySelector("#register-error");
+const verificationError = document.querySelector("#verification-error");
+const verificationEmail = document.querySelector("#verification-email");
+const resendCodeButton = document.querySelector("#resend-code-button");
+const verificationCodeInputs = Array.from(document.querySelectorAll(".verification-code-input"));
 const differentAccountButton = document.querySelector("#different-account-button");
 const currentUserName = document.querySelector("#current-user-name");
 const currentUserId = document.querySelector("#current-user-id");
@@ -186,15 +193,20 @@ let selectedRemoveParticipantIds = new Set();
 let profileAvatarDataUrl = "";
 let activeRequestTab = "friends";
 let highlightedTripInvitationId = null;
+let tripEditFormHydratedTripId = null;
 const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
 const UI_STATE_STORAGE_KEY = "tripsplit.uiState";
 const MAX_AVATAR_FILE_SIZE = 8_000_000;
 const AVATAR_IMAGE_SIZE = 256;
 const AVATAR_IMAGE_QUALITY = 0.86;
 const SESSION_EXPIRED_MESSAGE = SESSION_EXPIRED_ERROR_MESSAGE;
+const APP_REFRESH_INTERVAL_MS = 5000;
+const PASSWORD_POLICY_MESSAGE =
+  "Password must be at least 8 characters long and include uppercase, lowercase, number, and symbol.";
 let sessionExpiredHandled = false;
 let appRefreshTimer = null;
 let appRefreshInFlight = false;
+let pendingRegistrationEmail = "";
 
 setUnauthorizedHandler(handleSessionExpired);
 setupDateInputs(document);
@@ -204,6 +216,9 @@ authTabs.forEach((tab) => {
 });
 loginForm.addEventListener("submit", handleLogin);
 registerForm.addEventListener("submit", handleRegister);
+verificationForm.addEventListener("submit", handleVerifyRegistration);
+resendCodeButton.addEventListener("click", handleResendRegistrationCode);
+setupVerificationCodeInputs();
 differentAccountButton.addEventListener("click", clearSavedLogin);
 profileButton.addEventListener("click", openProfileDialog);
 logoutButton.addEventListener("click", handleLogout);
@@ -230,7 +245,7 @@ setupTripForm(tripForm, loadTrips, {
 mainTabButtons.forEach((button) => {
   button.addEventListener("click", () => switchMainTab(button.dataset.mainTab));
 });
-tripLobbyRefresh.addEventListener("click", loadFriendPublicTripLobby);
+tripLobbyRefresh.addEventListener("click", () => loadFriendPublicTripLobby({ showLoading: true }));
 createTripInviteButton.addEventListener("click", openCreateTripInviteDialog);
 createTripInviteBack.addEventListener("click", closeCreateTripInviteDialog);
 createTripInviteDone.addEventListener("click", closeCreateTripInviteDialog);
@@ -359,7 +374,7 @@ async function restoreAuthSession() {
     syncDetailVisibility();
     await loadTrips();
     if (activeMainTab === "lobby") {
-      await loadFriendPublicTripLobby();
+      await loadFriendPublicTripLobby({ showLoading: true });
     }
     await restoreUiOverlay(savedUiState);
     storeUiState();
@@ -466,7 +481,7 @@ async function refreshVisibleAppState() {
     await loadFriends();
     await loadTrips();
     if (activeMainTab === "lobby") {
-      await loadFriendPublicTripLobby();
+      await loadFriendPublicTripLobby({ showLoading: false });
     }
   } catch {
     // Background refresh should not interrupt the current view; explicit actions still show errors.
@@ -508,8 +523,10 @@ function showAuthMode(mode) {
 
   loginForm.hidden = isRegister;
   registerForm.hidden = !isRegister;
+  verificationForm.hidden = true;
   setFormError(loginError, "");
   setFormError(registerError, "");
+  setFormError(verificationError, "");
 
   authTabs.forEach((tab) => {
     const isActive = tab.dataset.authMode === mode;
@@ -565,17 +582,195 @@ async function handleRegister(event) {
     return;
   }
 
-  await submitAuthForm({
-    form: registerForm,
-    errorNode: registerError,
-    submitText: "Create account",
-    loadingText: "Creating account...",
-    action: () => register({
+  if (!isStrongPassword(password)) {
+    setFormError(registerError, PASSWORD_POLICY_MESSAGE);
+    return;
+  }
+
+  const submitButton = registerForm.querySelector("button[type='submit']");
+  setFormError(registerError, "");
+  submitButton.disabled = true;
+  submitButton.textContent = "Sending code...";
+
+  try {
+    const result = await register({
       name: String(formData.get("name") || "").trim(),
       email: String(formData.get("email") || "").trim(),
       password
+    });
+    showVerificationForm(result.email || String(formData.get("email") || "").trim());
+  } catch (error) {
+    setFormError(registerError, error.message || "Unable to create account.");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Create account";
+  }
+}
+
+async function handleVerifyRegistration(event) {
+  event.preventDefault();
+  if (!verificationForm.reportValidity()) {
+    return;
+  }
+
+  const code = getVerificationCode();
+  if (!/^\d{6}$/.test(code)) {
+    setFormError(verificationError, "Enter the 6-digit verification code.");
+    verificationCodeInputs.find((input) => !input.value)?.focus();
+    return;
+  }
+
+  await submitAuthForm({
+    form: verificationForm,
+    errorNode: verificationError,
+    submitText: "Verify and enter TripSplit",
+    loadingText: "Verifying...",
+    action: () => verifyRegistration({
+      email: pendingRegistrationEmail,
+      code
     })
   });
+}
+
+async function handleResendRegistrationCode() {
+  if (!pendingRegistrationEmail) {
+    return;
+  }
+
+  setFormError(verificationError, "");
+  resendCodeButton.disabled = true;
+  resendCodeButton.textContent = "Sending...";
+
+  try {
+    await resendRegistrationCode({ email: pendingRegistrationEmail });
+    setFormError(verificationError, "New code sent. Please check your email.");
+    window.setTimeout(() => {
+      if (verificationError.textContent === "New code sent. Please check your email.") {
+        setFormError(verificationError, "");
+      }
+    }, 3000);
+  } catch (error) {
+    setFormError(verificationError, error.message || "Unable to resend code.");
+  } finally {
+    startResendCooldown();
+  }
+}
+
+function showVerificationForm(email) {
+  pendingRegistrationEmail = email;
+  loginForm.hidden = true;
+  registerForm.hidden = true;
+  verificationForm.hidden = false;
+  verificationEmail.textContent = email;
+  verificationForm.reset();
+  verificationCodeInputs.forEach((input) => {
+    input.value = "";
+  });
+  setFormError(verificationError, "");
+  verificationCodeInputs[0]?.focus();
+  startResendCooldown();
+}
+
+function startResendCooldown() {
+  resendCodeButton.disabled = true;
+  resendCodeButton.textContent = "Resend available soon";
+  window.setTimeout(() => {
+    resendCodeButton.disabled = false;
+    resendCodeButton.textContent = "Resend code";
+  }, 60000);
+}
+
+function setupVerificationCodeInputs() {
+  verificationCodeInputs.forEach((input, index) => {
+    input.addEventListener("beforeinput", handleVerificationCodeBeforeInput);
+    input.addEventListener("input", () => handleVerificationCodeInput(input, index));
+    input.addEventListener("keydown", (event) => handleVerificationCodeKeydown(event, index));
+    input.addEventListener("paste", (event) => handleVerificationCodePaste(event, index));
+    input.addEventListener("focus", () => input.select());
+  });
+}
+
+function handleVerificationCodeBeforeInput(event) {
+  if (event.inputType && !event.inputType.includes("insert")) {
+    return;
+  }
+
+  const data = event.data || "";
+  if (data && !/^\d+$/.test(data)) {
+    event.preventDefault();
+  }
+}
+
+function handleVerificationCodeInput(input, index) {
+  const digits = input.value.replace(/\D/g, "");
+
+  if (digits.length > 1) {
+    fillVerificationCode(digits, index);
+    return;
+  }
+
+  input.value = digits;
+
+  if (digits && index < verificationCodeInputs.length - 1) {
+    verificationCodeInputs[index + 1].focus();
+  }
+}
+
+function handleVerificationCodeKeydown(event, index) {
+  if (event.key === "ArrowLeft" && index > 0) {
+    event.preventDefault();
+    verificationCodeInputs[index - 1].focus();
+    return;
+  }
+
+  if (event.key === "ArrowRight" && index < verificationCodeInputs.length - 1) {
+    event.preventDefault();
+    verificationCodeInputs[index + 1].focus();
+    return;
+  }
+
+  if (event.key === "Backspace" && !event.currentTarget.value && index > 0) {
+    event.preventDefault();
+    verificationCodeInputs[index - 1].focus();
+    verificationCodeInputs[index - 1].value = "";
+  }
+}
+
+function handleVerificationCodePaste(event, index) {
+  const pastedDigits = event.clipboardData?.getData("text")?.replace(/\D/g, "") || "";
+
+  if (!pastedDigits) {
+    return;
+  }
+
+  event.preventDefault();
+  fillVerificationCode(pastedDigits, index);
+}
+
+function fillVerificationCode(code, startIndex = 0) {
+  const digits = code.replace(/\D/g, "").slice(0, verificationCodeInputs.length - startIndex);
+
+  digits.split("").forEach((digit, offset) => {
+    verificationCodeInputs[startIndex + offset].value = digit;
+  });
+
+  const nextIndex = Math.min(startIndex + digits.length, verificationCodeInputs.length - 1);
+  verificationCodeInputs[nextIndex]?.focus();
+}
+
+function getVerificationCode() {
+  return verificationCodeInputs.map((input) => input.value.trim()).join("");
+}
+
+function isStrongPassword(password) {
+  const value = String(password || "");
+  return (
+    value.length >= 8 &&
+    /[A-Z]/.test(value) &&
+    /[a-z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
 }
 
 async function submitAuthForm({
@@ -792,23 +987,23 @@ async function openProfileDialog(options = {}) {
     return;
   }
 
+  populateProfileForm(storedUser);
+  profileDialog.hidden = false;
+  if (!options.skipPersist) {
+    storeUiState();
+  }
+
   try {
     const { user } = await fetchCurrentUserProfile();
     storeCurrentUser(user);
     renderCurrentUser(user);
     populateProfileForm(user);
-    profileDialog.hidden = false;
-    if (!options.skipPersist) {
-      storeUiState();
-    }
   } catch (error) {
     if (isSessionExpiredError(error)) {
       return;
     }
 
     setFormError(profileError, error.message || "Unable to load profile.");
-    populateProfileForm(storedUser);
-    profileDialog.hidden = false;
   }
 }
 
@@ -1094,7 +1289,7 @@ function switchMainTab(tabName, options = {}) {
   syncDetailVisibility();
 
   if (activeMainTab === "lobby" && !options.skipLoad) {
-    loadFriendPublicTripLobby();
+    loadFriendPublicTripLobby({ showLoading: true });
   }
 
   if (!options.skipPersist) {
@@ -1106,9 +1301,12 @@ function syncDetailVisibility() {
   detailSection.hidden = activeMainTab !== "trips" || !activeTripId;
 }
 
-async function loadFriendPublicTripLobby() {
+async function loadFriendPublicTripLobby(options = {}) {
+  const showLoading = options.showLoading !== false;
   setFormError(tripLobbyError, "");
-  tripLobbyList.innerHTML = `<p class="empty">Loading public trips...</p>`;
+  if (showLoading) {
+    tripLobbyList.innerHTML = `<p class="empty">Loading public trips...</p>`;
+  }
   tripLobbyRefresh.disabled = true;
 
   try {
@@ -1117,7 +1315,9 @@ async function loadFriendPublicTripLobby() {
     renderFriendPublicTripLobby();
   } catch (error) {
     publicTripLobbyItems = [];
-    tripLobbyList.innerHTML = "";
+    if (showLoading) {
+      tripLobbyList.innerHTML = "";
+    }
     setFormError(tripLobbyError, error.message || "Unable to load trip lobby.");
   } finally {
     tripLobbyRefresh.disabled = false;
@@ -1556,6 +1756,9 @@ async function handleFriendRequestAction(requestId, action) {
   try {
     await respondToFriendRequest(requestId, action);
     await loadFriends();
+    if (activeMainTab === "lobby") {
+      await loadFriendPublicTripLobby({ showLoading: false });
+    }
   } catch (error) {
     setFormError(friendRequestsError, error.message || "Unable to update request.");
   }
@@ -1913,13 +2116,22 @@ async function handleTripEditSubmit(event) {
   submitButton.textContent = "Saving...";
 
   try {
-    await updateTrip(activeTripId, {
+    const { trip } = await updateTrip(activeTripId, {
       name,
       destination: name,
       startDate: startDate || null,
       endDate: endDate || null,
       visibility
     });
+    if (trip) {
+      activeTripDetail = trip;
+      populateTripEditPanel(trip, true, { force: true });
+      const approvedParticipants = (trip.participants || []).filter(
+        (participant) => participant.joinStatus === "approved"
+      );
+      detailTitle.textContent = trip.name;
+      detailMeta.textContent = formatTripMeta(trip, approvedParticipants.length);
+    }
     await loadTrips();
   } catch (error) {
     setFormError(tripEditError, error.message || "Unable to update trip.");
@@ -2342,13 +2554,20 @@ function resetTripInviteButton() {
   tripStartButton.classList.remove("is-disabled");
 }
 
-function populateTripEditPanel(trip, isOrganizer) {
+function populateTripEditPanel(trip, isOrganizer, options = {}) {
   tripEditForm.hidden = !isOrganizer;
   tripInviteForm.hidden = !isOrganizer;
   tripStartRow.hidden = !isOrganizer;
 
   if (!isOrganizer) {
     resetTripInviteButton();
+    tripEditFormHydratedTripId = null;
+    return;
+  }
+
+  if (!options.force && shouldPreserveTripEditDraft(trip)) {
+    updateTripInviteButton(trip);
+    tripRemoveParticipantButton.disabled = getRemovableParticipants(trip).length === 0;
     return;
   }
 
@@ -2358,6 +2577,7 @@ function populateTripEditPanel(trip, isOrganizer) {
   setDateInputValue(tripEditForm, "startDate", trip.startDate || "");
   setDateInputValue(tripEditForm, "endDate", trip.endDate || "");
   tripEditForm.elements.isPrivate.checked = trip.visibility !== "public";
+  tripEditFormHydratedTripId = String(trip.id);
   updateTripInviteButton(trip);
   setTripEditLocked(tripStarted || tripEnded);
   tripRemoveParticipantButton.disabled =
@@ -2382,6 +2602,29 @@ function setTripEditLocked(isLocked) {
     });
 }
 
+function shouldPreserveTripEditDraft(trip) {
+  if (
+    tripEditForm.hidden ||
+    !trip?.id ||
+    String(tripEditFormHydratedTripId || "") !== String(trip.id)
+  ) {
+    return false;
+  }
+
+  const formData = new FormData(tripEditForm);
+  const formName = String(formData.get("name") || "").trim();
+  const formStartDate = String(formData.get("startDate") || "").trim();
+  const formEndDate = String(formData.get("endDate") || "").trim();
+  const formVisibility = formData.get("isPrivate") === "on" ? "private" : "public";
+
+  return (
+    formName !== String(trip.name || trip.destination || "").trim() ||
+    formStartDate !== String(trip.startDate || "") ||
+    formEndDate !== String(trip.endDate || "") ||
+    formVisibility !== (trip.visibility === "public" ? "public" : "private")
+  );
+}
+
 async function loadTrips() {
   const { trips } = await fetchTrips();
   renderTrips(trips, tripList, { activeTripId, onSelect: openTrip });
@@ -2393,6 +2636,9 @@ async function loadTrips() {
 }
 
 async function openTrip(tripId) {
+  if (String(activeTripId || "") !== String(tripId || "")) {
+    tripEditFormHydratedTripId = null;
+  }
   activeTripId = tripId;
   syncDetailVisibility();
   storeUiState();
@@ -2400,12 +2646,14 @@ async function openTrip(tripId) {
     card.classList.toggle("is-active", card.dataset.tripId === tripId);
   });
   await refreshDetail();
+  detailSection.hidden = false;
   detailSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function closeDetail() {
   activeTripId = null;
   activeTripDetail = null;
+  tripEditFormHydratedTripId = null;
   detailSection.hidden = true;
   storeUiState();
   closeDeleteTripDialog();
@@ -2460,8 +2708,9 @@ async function confirmDeleteTrip() {
 function handleDeleteTripShortcut(event) {
   if (
     deleteTripDialog.hidden ||
-    event.code !== "Space" ||
+    (event.key !== "Enter" && event.code !== "Space") ||
     event.repeat ||
+    event.isComposing ||
     event.metaKey ||
     event.ctrlKey ||
     event.altKey ||
