@@ -1455,6 +1455,42 @@ test("organizer can start a trip", async () => {
   assert.equal(tripDetail.body.trip.startedAt, response.body.trip.startedAt);
 });
 
+test("regular participants cannot start or end a trip", async () => {
+  const organizer = await loginAsDemoUser();
+  const participant = await loginAsDemoUser({
+    email: "sam@example.com",
+    password: "Demo-password1!"
+  });
+  const tripId = await createTrip(organizer.token);
+  const addParticipantResponse = await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: participant.user.id
+    }
+  });
+
+  assert.equal(addParticipantResponse.status, 200);
+  const startResponse = await request(`/api/trips/${tripId}/start`, {
+    method: "POST",
+    headers: authHeaders(participant.token)
+  });
+  await startTripForTest(organizer.token, tripId);
+  const endResponse = await request(`/api/trips/${tripId}/end`, {
+    method: "POST",
+    headers: authHeaders(participant.token)
+  });
+
+  assert.equal(startResponse.status, 403);
+  assert.deepEqual(startResponse.body, {
+    error: "Only an organizer can perform this action"
+  });
+  assert.equal(endResponse.status, 403);
+  assert.deepEqual(endResponse.body, {
+    error: "Only an organizer can perform this action"
+  });
+});
+
 test("started trips lock trip metadata and deletion", async () => {
   const { token } = await loginAsDemoUser();
   const tripId = await createTrip(token);
@@ -2402,6 +2438,18 @@ test("organizer can delete an expense and recalculate budget and balances", asyn
   );
 });
 
+test("organizer can delete another payer's expense", async () => {
+  const { token } = await loginAsDemoUser();
+
+  const response = await request("/api/trips/trip_4/expenses/expense_6", {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.deletedExpenseId, "expense_6");
+});
+
 test("expense payer can delete their own expense", async () => {
   const { token } = await loginAsDemoUser({
     email: "sam@example.com",
@@ -2432,6 +2480,54 @@ test("regular participants cannot delete another participant's expense", async (
   assert.equal(response.status, 403);
   assert.deepEqual(response.body, {
     error: "Only the expense payer or trip organizer can delete this expense"
+  });
+});
+
+test("non-participants cannot delete trip expenses", async () => {
+  const outsider = await registerUser({
+    name: "Expense Outsider",
+    email: "expense-outsider@example.com"
+  });
+
+  const response = await request("/api/trips/trip_4/expenses/expense_5", {
+    method: "DELETE",
+    headers: authHeaders(outsider.token)
+  });
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(response.body, {
+    error: "You are not an approved participant on this trip"
+  });
+});
+
+test("ended trips block expense deletion for organizer and payer", async () => {
+  const organizer = await loginAsDemoUser();
+  const payer = await loginAsDemoUser({
+    email: "sam@example.com",
+    password: "Demo-password1!"
+  });
+
+  const endResponse = await request("/api/trips/trip_4/end", {
+    method: "POST",
+    headers: authHeaders(organizer.token)
+  });
+  const organizerDeleteResponse = await request("/api/trips/trip_4/expenses/expense_5", {
+    method: "DELETE",
+    headers: authHeaders(organizer.token)
+  });
+  const payerDeleteResponse = await request("/api/trips/trip_4/expenses/expense_6", {
+    method: "DELETE",
+    headers: authHeaders(payer.token)
+  });
+
+  assert.equal(endResponse.status, 200);
+  assert.equal(organizerDeleteResponse.status, 400);
+  assert.deepEqual(organizerDeleteResponse.body, {
+    error: "Trip has ended; expenses are locked"
+  });
+  assert.equal(payerDeleteResponse.status, 400);
+  assert.deepEqual(payerDeleteResponse.body, {
+    error: "Trip has ended; expenses are locked"
   });
 });
 
