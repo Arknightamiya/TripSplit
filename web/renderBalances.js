@@ -44,6 +44,8 @@ export function renderBalances(panel, {
       endTripButton.disabled = false;
     }
   });
+
+  bindTransferDialog(panel, rowModels);
 }
 
 function buildBalanceRows(balances, trip, currentUserId) {
@@ -110,10 +112,12 @@ function tableHtml(rows) {
 }
 
 function finalBillHtml(rows) {
+  const transfers = buildSettlementTransfers(rows);
   const bills = rows.map((row) => {
     const budgetBalance = row.budgetLeft ?? 0;
     const personalNet = row.personalNet;
     const finalNet = roundCurrency(budgetBalance + personalNet);
+    const personalContent = personalReimbursementHtml(row, transfers);
 
     return `
       <div class="final-bill-card">
@@ -132,7 +136,7 @@ function finalBillHtml(rows) {
           </div>
           <div>
             <dt>personal reimbursements</dt>
-            <dd class="${personalNetClass(personalNet)}">${personalStatusText(personalNet)}</dd>
+            <dd class="${personalNetClass(personalNet)}">${personalContent}</dd>
           </div>
           <div>
             <dt>Combined</dt>
@@ -149,8 +153,181 @@ function finalBillHtml(rows) {
         <h2>Final bill</h2>
       </div>
       <div class="final-bill-grid">${bills}</div>
+      ${transferDialogHtml()}
     </div>
   `;
+}
+
+function personalReimbursementHtml(row, transfers) {
+  const personalNet = roundCurrency(row.personalNet);
+  if (personalNet === 0) {
+    return escapeHtml(personalStatusText(personalNet));
+  }
+
+  const participantTransfers = getParticipantTransferDetails(row, transfers);
+  const action = personalNet > 0 ? "collect" : "pay";
+
+  return `
+    <button
+      type="button"
+      class="personal-transfer-trigger ${personalNetClass(personalNet)}"
+      data-transfer-participant-id="${escapeHtml(row.id)}"
+      data-transfer-action="${action}"
+      ${participantTransfers.length ? "" : "disabled"}
+    >${escapeHtml(personalStatusText(personalNet))}</button>
+  `;
+}
+
+function transferDialogHtml() {
+  return `
+    <div class="modal-overlay transfer-dialog-overlay" data-transfer-dialog hidden>
+      <div class="modal transfer-dialog" role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title">
+        <div class="transfer-dialog-header">
+          <h2 id="transfer-dialog-title">Personal transfer</h2>
+          <button type="button" class="icon-button transfer-dialog-close" data-transfer-close aria-label="Close transfer details">&times;</button>
+        </div>
+        <p class="hint" data-transfer-dialog-summary></p>
+        <ul class="transfer-detail-list" data-transfer-dialog-list></ul>
+      </div>
+    </div>
+  `;
+}
+
+export function buildSettlementTransfers(rows) {
+  const debtors = rows
+    .filter((row) => roundCurrency(row.personalNet) < 0)
+    .map((row) => ({
+      id: String(row.id),
+      name: row.name,
+      amount: roundCurrency(Math.abs(row.personalNet))
+    }));
+  const creditors = rows
+    .filter((row) => roundCurrency(row.personalNet) > 0)
+    .map((row) => ({
+      id: String(row.id),
+      name: row.name,
+      amount: roundCurrency(row.personalNet)
+    }));
+  const transfers = [];
+  let debtorIndex = 0;
+  let creditorIndex = 0;
+
+  while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+    const debtor = debtors[debtorIndex];
+    const creditor = creditors[creditorIndex];
+    const amount = roundCurrency(Math.min(debtor.amount, creditor.amount));
+
+    if (amount > 0) {
+      transfers.push({
+        fromId: debtor.id,
+        from: debtor.name,
+        toId: creditor.id,
+        to: creditor.name,
+        amount
+      });
+    }
+
+    debtor.amount = roundCurrency(debtor.amount - amount);
+    creditor.amount = roundCurrency(creditor.amount - amount);
+
+    if (debtor.amount === 0) {
+      debtorIndex += 1;
+    }
+
+    if (creditor.amount === 0) {
+      creditorIndex += 1;
+    }
+  }
+
+  return transfers;
+}
+
+export function getParticipantTransferDetails(row, transfers) {
+  const participantId = String(row.id);
+  const personalNet = roundCurrency(row.personalNet);
+
+  if (personalNet < 0) {
+    return transfers
+      .filter((transfer) => transfer.fromId === participantId)
+      .map((transfer) => ({
+        direction: "pay",
+        name: transfer.to,
+        amount: transfer.amount
+      }));
+  }
+
+  if (personalNet > 0) {
+    return transfers
+      .filter((transfer) => transfer.toId === participantId)
+      .map((transfer) => ({
+        direction: "collect",
+        name: transfer.from,
+        amount: transfer.amount
+      }));
+  }
+
+  return [];
+}
+
+function bindTransferDialog(panel, rows) {
+  const dialog = panel.querySelector("[data-transfer-dialog]");
+  if (!dialog) {
+    return;
+  }
+
+  const transfers = buildSettlementTransfers(rows);
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  const title = dialog.querySelector("#transfer-dialog-title");
+  const summary = dialog.querySelector("[data-transfer-dialog-summary]");
+  const list = dialog.querySelector("[data-transfer-dialog-list]");
+
+  const closeDialog = () => {
+    dialog.hidden = true;
+    document.removeEventListener("keydown", handleEscape);
+  };
+
+  const handleEscape = (event) => {
+    if (event.key !== "Escape" || event.repeat || event.isComposing || dialog.hidden) {
+      return;
+    }
+
+    event.preventDefault();
+    closeDialog();
+  };
+
+  const openDialog = (row) => {
+    const details = getParticipantTransferDetails(row, transfers);
+    const isCollector = roundCurrency(row.personalNet) > 0;
+    title.textContent = isCollector ? "Collect from others" : "Pay others";
+    summary.textContent = isCollector
+      ? `${row.name} should collect these personal reimbursements.`
+      : `${row.name} should pay these personal reimbursements.`;
+    list.innerHTML = details.length
+      ? details.map((detail) => `
+        <li class="transfer-detail-row">
+          <span>${detail.direction === "collect" ? "Collect from" : "Pay"} ${escapeHtml(detail.name)}</span>
+          <strong>${formatMoney(detail.amount)}</strong>
+        </li>
+      `).join("")
+      : `<li class="transfer-detail-row is-settled">No personal transfers needed.</li>`;
+    dialog.hidden = false;
+    document.addEventListener("keydown", handleEscape);
+  };
+
+  panel.querySelectorAll("[data-transfer-participant-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = rowById.get(button.dataset.transferParticipantId);
+      if (row) {
+        openDialog(row);
+      }
+    });
+  });
+
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog || event.target.closest("[data-transfer-close]")) {
+      closeDialog();
+    }
+  });
 }
 
 function displayName(participant) {
