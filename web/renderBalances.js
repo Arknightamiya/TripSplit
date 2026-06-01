@@ -202,18 +202,21 @@ function personalReimbursementHtml(row, transfers) {
     return (currencyCode, currencyInfo) => escapeHtml(personalStatusText(personalNet, currencyCode, currencyInfo));
   }
 
-  const participantTransfers = getParticipantTransferDetails(row, transfers);
   const action = personalNet > 0 ? "collect" : "pay";
 
-  return (currencyCode, currencyInfo) => `
-    <button
-      type="button"
-      class="personal-transfer-trigger ${personalNetClass(personalNet)}"
-      data-transfer-participant-id="${escapeHtml(row.id)}"
-      data-transfer-action="${action}"
-      ${participantTransfers.length ? "" : "disabled"}
-    >${escapeHtml(personalStatusText(personalNet, currencyCode, currencyInfo))}</button>
-  `;
+  return (currencyCode, currencyInfo) => {
+    const participantTransfers = getDisplayableTransferDetails(row, transfers, currencyCode, currencyInfo);
+
+    return `
+      <button
+        type="button"
+        class="personal-transfer-trigger ${personalNetClass(personalNet)}"
+        data-transfer-participant-id="${escapeHtml(row.id)}"
+        data-transfer-action="${action}"
+        ${participantTransfers.length ? "" : "disabled"}
+      >${escapeHtml(personalStatusText(personalNet, currencyCode, currencyInfo))}</button>
+    `;
+  };
 }
 
 function transferDialogHtml() {
@@ -307,6 +310,13 @@ export function getParticipantTransferDetails(row, transfers) {
   return [];
 }
 
+export function getDisplayableTransferDetails(row, transfers, currencyCode, currencyInfo) {
+  const minimumDisplayAmount = getMinimumDisplayAmount(currencyCode, currencyInfo);
+
+  return getParticipantTransferDetails(row, transfers)
+    .filter((detail) => Math.abs(Number(detail.amount || 0)) >= minimumDisplayAmount);
+}
+
 function bindTransferDialog(panel, rows, currencyCode, currencyInfo) {
   const dialog = panel.querySelector("[data-transfer-dialog]");
   if (!dialog) {
@@ -334,7 +344,7 @@ function bindTransferDialog(panel, rows, currencyCode, currencyInfo) {
   };
 
   const openDialog = (row) => {
-    const details = getParticipantTransferDetails(row, transfers);
+    const details = getDisplayableTransferDetails(row, transfers, currencyCode, currencyInfo);
     const isCollector = roundCurrency(row.personalNet) > 0;
     title.textContent = isCollector ? "Collect from others" : "Pay others";
     summary.textContent = isCollector
@@ -366,6 +376,15 @@ function bindTransferDialog(panel, rows, currencyCode, currencyInfo) {
       closeDialog();
     }
   });
+}
+
+function getMinimumDisplayAmount(currencyCode, currencyInfo) {
+  const info = normalizeCurrencyInfo(currencyInfo);
+  const code = normalizeCurrencyCode(currencyCode);
+  const currency = info.currencies.find((entry) => normalizeCurrencyCode(entry.code) === code);
+  const decimalPlaces = Number.isInteger(currency?.decimalPlaces) ? currency.decimalPlaces : 2;
+
+  return 0.5 / (10 ** decimalPlaces);
 }
 
 function displayName(participant) {

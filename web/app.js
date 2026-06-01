@@ -2335,8 +2335,13 @@ function openTripRemoveParticipantDialog() {
     return;
   }
 
-  if (activeTripDetail.startedAt) {
-    setFormError(tripEditError, "Trip has already started; participants cannot be removed.");
+  if (activeTripDetail.startedAt || activeTripDetail.endedAt) {
+    setFormError(
+      tripEditError,
+      activeTripDetail.endedAt
+        ? "Trip has ended; participants are locked."
+        : "Trip has already started; participants cannot be removed."
+    );
     return;
   }
 
@@ -2572,7 +2577,7 @@ function populateTripEditPanel(trip, isOrganizer, options = {}) {
 
   if (!options.force && shouldPreserveTripEditDraft(trip)) {
     updateTripInviteButton(trip);
-    tripRemoveParticipantButton.disabled = getRemovableParticipants(trip).length === 0;
+    updateTripRemoveParticipantButton(trip);
     return;
   }
 
@@ -2585,12 +2590,20 @@ function populateTripEditPanel(trip, isOrganizer, options = {}) {
   tripEditFormHydratedTripId = String(trip.id);
   updateTripInviteButton(trip);
   setTripEditLocked(tripStarted || tripEnded);
-  tripRemoveParticipantButton.disabled =
-    tripStarted || tripEnded || getRemovableParticipants(trip).length === 0;
-  tripRemoveParticipantButton.classList.toggle("is-disabled", tripStarted || tripEnded);
+  updateTripRemoveParticipantButton(trip);
   tripStartButton.disabled = tripStarted || tripEnded;
   tripStartButton.textContent = tripEnded ? "Trip Ended" : tripStarted ? "Trip Started" : "Start Trip";
   tripStartButton.classList.toggle("is-disabled", tripStarted || tripEnded);
+}
+
+function updateTripRemoveParticipantButton(trip) {
+  const tripStarted = Boolean(trip?.startedAt);
+  const tripEnded = Boolean(trip?.endedAt);
+  const isLocked = tripStarted || tripEnded;
+
+  tripRemoveParticipantButton.disabled =
+    isLocked || getRemovableParticipants(trip).length === 0;
+  tripRemoveParticipantButton.classList.toggle("is-disabled", isLocked);
 }
 
 function setTripEditLocked(isLocked) {

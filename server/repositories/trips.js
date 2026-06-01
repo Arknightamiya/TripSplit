@@ -1,9 +1,12 @@
 import { getDatabase } from "../db/pool.js";
 import {
   DEFAULT_CURRENCY_CODE,
+  FALLBACK_EXCHANGE_RATES,
+  convertCurrencyAmount,
   normalizeCurrencyAmount,
   normalizeCurrencyCode
 } from "../utils/currency.js";
+import { getLatestExchangeRateMap } from "./currencies.js";
 import { listExpenseRecordsForTrip } from "./expenses.js";
 
 export function isTripRepositoryEnabled() {
@@ -320,7 +323,11 @@ export async function listTripSummaryRecordsForUser(userId) {
     [userId, DEFAULT_CURRENCY_CODE]
   );
 
-  return result.rows.map(mapTripSummaryRow);
+  const totalSpentByTripId = await calculateBudgetSpendForTripRows(result.rows);
+
+  return result.rows.map((row) =>
+    mapTripSummaryRow(row, totalSpentByTripId.get(String(row.id)) ?? 0)
+  );
 }
 
 export async function findTripRecordById(tripId) {
@@ -363,12 +370,14 @@ export async function findTripRecordById(tripId) {
   ).length;
 
   const expenses = await listExpenseRecordsForTrip(tripId);
+  const totalSpentByTripId = await calculateBudgetSpendForTripRows([tripResult.rows[0]]);
 
   return mapTripDetailRow(
     tripResult.rows[0],
     participants,
     participantCount,
-    expenses
+    expenses,
+    totalSpentByTripId.get(String(tripId)) ?? 0
   );
 }
 
@@ -447,9 +456,11 @@ async function listParticipantRecordsForTrip(tripId) {
   }));
 }
 
-function mapTripSummaryRow(row) {
+function mapTripSummaryRow(row, totalSpentOverride = null) {
   const participantCount = Number(row.participant_count);
-  const totalSpent = toCurrencyNumber(row.total_spent);
+  const totalSpent = totalSpentOverride === null
+    ? toCurrencyNumber(row.total_spent)
+    : roundCurrency(Number(totalSpentOverride));
 
   return {
     id: String(row.id),
@@ -468,8 +479,10 @@ function mapTripSummaryRow(row) {
   };
 }
 
-function mapTripDetailRow(row, participants, participantCount, expenses = []) {
-  const totalSpent = toCurrencyNumber(row.total_spent);
+function mapTripDetailRow(row, participants, participantCount, expenses = [], totalSpentOverride = null) {
+  const totalSpent = totalSpentOverride === null
+    ? toCurrencyNumber(row.total_spent)
+    : roundCurrency(Number(totalSpentOverride));
 
   return {
     id: String(row.id),
@@ -513,6 +526,61 @@ function buildBudgetSummary(row, participantCount, totalSpent) {
     remainingBudget,
     overBudgetAmount
   };
+}
+
+async function calculateBudgetSpendForTripRows(rows) {
+  const budgetRows = rows.filter((row) => row.mode);
+  const tripIds = budgetRows.map((row) => String(row.id));
+  if (!tripIds.length) {
+    return new Map();
+  }
+
+  const budgetCurrencyByTripId = new Map(
+    budgetRows.map((row) => [
+      String(row.id),
+      String(row.currency_code || DEFAULT_CURRENCY_CODE).trim()
+    ])
+  );
+  const result = await getDatabase().query(
+    `
+      SELECT trip_id, amount, COALESCE(currency_code, $2) AS currency_code
+      FROM expenses
+      WHERE trip_id = ANY($1::bigint[])
+        AND expense_type = 'budget_payment'
+    `,
+    [tripIds, DEFAULT_CURRENCY_CODE]
+  );
+  const ratesByCode = await getBudgetSpendRates();
+  const totalSpentByTripId = new Map(tripIds.map((tripId) => [tripId, 0]));
+
+  for (const row of result.rows) {
+    const tripId = String(row.trip_id);
+    const budgetCurrencyCode = budgetCurrencyByTripId.get(tripId) || DEFAULT_CURRENCY_CODE;
+    const convertedAmount = convertCurrencyAmount(
+      Number(row.amount),
+      row.currency_code || DEFAULT_CURRENCY_CODE,
+      budgetCurrencyCode,
+      ratesByCode
+    );
+
+    totalSpentByTripId.set(
+      tripId,
+      roundCurrency((totalSpentByTripId.get(tripId) || 0) + convertedAmount)
+    );
+  }
+
+  return totalSpentByTripId;
+}
+
+async function getBudgetSpendRates() {
+  try {
+    return {
+      ...FALLBACK_EXCHANGE_RATES,
+      ...(await getLatestExchangeRateMap(DEFAULT_CURRENCY_CODE))
+    };
+  } catch {
+    return FALLBACK_EXCHANGE_RATES;
+  }
 }
 
 function formatDate(value) {

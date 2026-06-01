@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildSettlementTransfers, getParticipantTransferDetails } from "../web/renderBalances.js";
+import {
+  buildSettlementTransfers,
+  getDisplayableTransferDetails,
+  getParticipantTransferDetails
+} from "../web/renderBalances.js";
 import { FALLBACK_CURRENCY_INFO, convertMoney } from "../web/currency.js";
 
 test("buildSettlementTransfers settles only personal reimbursement balances", () => {
@@ -59,6 +63,27 @@ test("getParticipantTransferDetails returns no rows for settled participants", (
   assert.deepEqual(
     getParticipantTransferDetails({ id: "dw1", name: "dw#1", personalNet: 0 }, []),
     []
+  );
+});
+
+test("getDisplayableTransferDetails hides transfers that round to zero in display currency", () => {
+  const row = { id: "dw1", name: "dw#1", personalNet: -3 };
+  const transfers = [
+    { fromId: "dw1", from: "dw#1", toId: "b", to: "gogo#1", amount: 2 },
+    { fromId: "dw1", from: "dw#1", toId: "h", to: "friendh#1", amount: 0.33 }
+  ];
+  const currencyInfo = {
+    baseCurrencyCode: "USD",
+    rates: { USD: 1, JPY: 157 },
+    currencies: [
+      { code: "USD", symbol: "$", decimalPlaces: 2 },
+      { code: "JPY", symbol: "¥", decimalPlaces: 0 }
+    ]
+  };
+
+  assert.deepEqual(
+    getDisplayableTransferDetails(row, transfers, "JPY", currencyInfo),
+    [{ direction: "pay", name: "gogo#1", amount: 2 }]
   );
 });
 
