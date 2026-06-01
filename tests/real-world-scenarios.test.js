@@ -408,9 +408,10 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
   assert.equal(additionalBudget.status, 200);
   assert.equal(additionalBudget.body.budgetSummary.mode, "total");
   assert.equal(additionalBudget.body.budgetSummary.totalBudget, 600);
-  assert.equal(editTrip.status, 200);
-  assert.equal(editTrip.body.trip.name, "UCLA Los Angeles Weekend");
-  assert.equal(editTrip.body.trip.visibility, "private");
+  assert.equal(editTrip.status, 409);
+  assert.deepEqual(editTrip.body, {
+    error: "Trip has already started; trip details are locked"
+  });
   assert.equal(invalidDateTrip.status, 400);
   assert.equal(invalidBudget.status, 400);
   assert.equal(removeSelf.status, 400);

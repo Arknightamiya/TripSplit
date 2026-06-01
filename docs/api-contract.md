@@ -107,12 +107,8 @@ For per-person budgets:
   "expenseType": "personal_advance",
   "payerId": "user_1",
   "splitRule": "equal",
-  "includedParticipantIds": ["user_1", "user_2", "user_3"],
+  "includedParticipantIds": ["user_2", "user_3"],
   "expenseShares": [
-    {
-      "participantId": "user_1",
-      "shareAmount": 150
-    },
     {
       "participantId": "user_2",
       "shareAmount": 150
@@ -817,7 +813,7 @@ Request:
   "expenseType": "personal_advance",
   "payerId": "user_1",
   "splitRule": "equal",
-  "includedParticipantIds": ["user_1", "user_2", "user_3"]
+  "includedParticipantIds": ["user_2", "user_3"]
 }
 ```
 
@@ -836,12 +832,8 @@ Response:
     "expenseType": "personal_advance",
     "payerId": "user_1",
     "splitRule": "equal",
-    "includedParticipantIds": ["user_1", "user_2", "user_3"],
+    "includedParticipantIds": ["user_2", "user_3"],
     "expenseShares": [
-      {
-        "participantId": "user_1",
-        "shareAmount": 150
-      },
       {
         "participantId": "user_2",
         "shareAmount": 150
@@ -867,8 +859,22 @@ Response:
       "participantId": "user_1",
       "budgetSpent": 0,
       "actualPaid": 450,
-      "fairShare": 180,
-      "netBalance": 270
+      "fairShare": 150,
+      "netBalance": 300
+    },
+    {
+      "participantId": "user_2",
+      "budgetSpent": 0,
+      "actualPaid": 0,
+      "fairShare": 150,
+      "netBalance": -150
+    },
+    {
+      "participantId": "user_3",
+      "budgetSpent": 0,
+      "actualPaid": 0,
+      "fairShare": 150,
+      "netBalance": -150
     }
   ]
 }
@@ -935,8 +941,8 @@ Response:
       "participantId": "user_1",
       "budgetSpent": 0,
       "actualPaid": 450,
-      "fairShare": 180,
-      "netBalance": 270,
+      "fairShare": 150,
+      "netBalance": 300,
       "participant": {
         "id": "user_1",
         "name": "Alex Organizer",

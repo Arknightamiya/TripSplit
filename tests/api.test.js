@@ -1289,6 +1289,82 @@ test("organizer can start a trip", async () => {
   assert.equal(tripDetail.body.trip.startedAt, response.body.trip.startedAt);
 });
 
+test("started trips lock trip metadata and deletion", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  await startTripForTest(token, tripId);
+
+  const updateResponse = await request(`/api/trips/${tripId}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: {
+      name: "Edited After Start",
+      destination: "Edited After Start"
+    }
+  });
+  const deleteResponse = await request(`/api/trips/${tripId}`, {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+  const detailResponse = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(token)
+  });
+
+  assert.equal(updateResponse.status, 409);
+  assert.deepEqual(updateResponse.body, {
+    error: "Trip has already started; trip details are locked"
+  });
+  assert.equal(deleteResponse.status, 409);
+  assert.deepEqual(deleteResponse.body, {
+    error: "Trip has already started; trip deletion is locked"
+  });
+  assert.equal(detailResponse.status, 200);
+  assert.equal(detailResponse.body.trip.name, "API Test Trip");
+});
+
+test("started trips cannot add or invite participants", async () => {
+  const organizer = await registerUser({
+    name: "StartedParticipantOwner",
+    email: "started-participant-owner@example.com"
+  });
+  const addTarget = await registerUser({
+    name: "StartedAddTarget",
+    email: "started-add-target@example.com"
+  });
+  const inviteTarget = await registerUser({
+    name: "StartedInviteTarget",
+    email: "started-invite-target@example.com"
+  });
+  const tripId = await createTrip(organizer.token);
+
+  await startTripForTest(organizer.token, tripId);
+
+  const addResponse = await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: addTarget.user.id
+    }
+  });
+  const inviteResponse = await request(`/api/trips/${tripId}/invitations`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: inviteTarget.user.id
+    }
+  });
+
+  assert.equal(addResponse.status, 409);
+  assert.deepEqual(addResponse.body, {
+    error: "Trip has already started; participants are locked"
+  });
+  assert.equal(inviteResponse.status, 409);
+  assert.deepEqual(inviteResponse.body, {
+    error: "Trip has already started; participants are locked"
+  });
+});
+
 test("started trips cannot remove participants", async () => {
   const organizer = await registerUser({
     name: "StartedOwner",
@@ -1544,7 +1620,7 @@ test("started trips can only increase the existing budget", async () => {
     headers: authHeaders(token),
     body: {
       mode: "per-person",
-      perPersonBudget: 400
+      perPersonBudget: 1200
     }
   });
   const increaseResponse = await request(`/api/trips/${tripId}/budget`, {
@@ -1562,7 +1638,7 @@ test("started trips can only increase the existing budget", async () => {
   });
   assert.equal(modeChangeResponse.status, 409);
   assert.deepEqual(modeChangeResponse.body, {
-    error: "Trip has already started; budget can only be increased"
+    error: "Trip has already started; budget mode cannot be changed"
   });
   assert.equal(increaseResponse.status, 200);
   assert.equal(increaseResponse.body.budgetSummary.totalBudget, 1200);
