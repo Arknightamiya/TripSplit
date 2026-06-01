@@ -1835,11 +1835,13 @@ label.field select:disabled,
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
 }
 
 .balance-table {
   width: 52rem;
-  max-width: 100%;
+  min-width: 52rem;
+  max-width: none;
   border-collapse: separate;
   border-spacing: 0;
   margin-top: 0.5rem;
@@ -1865,6 +1867,16 @@ label.field select:disabled,
   border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.balance-table th:first-child,
+.balance-table td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
 }
 
 .balance-table th:not(:first-child),
@@ -1981,6 +1993,7 @@ label.field select:disabled,
 .final-bill-lines dd {
   margin: 0;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .personal-transfer-trigger {
@@ -1995,6 +2008,7 @@ label.field select:disabled,
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+  overflow-wrap: anywhere;
 }
 
 .personal-transfer-trigger:hover,
@@ -2010,6 +2024,9 @@ label.field select:disabled,
 
 .transfer-dialog {
   width: min(440px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .transfer-dialog .hint {
@@ -2395,6 +2412,14 @@ label.field select:disabled,
     grid-template-columns: 1fr;
   }
 
+  .expense-secondary-row .section-actions {
+    margin-top: 0;
+  }
+
+  .expense-submit {
+    min-height: 2.85rem;
+  }
+
   .final-bill-lines {
     grid-template-columns: 1fr;
   }
@@ -2430,22 +2455,31 @@ label.field select:disabled,
   }
 }
 
+@container (max-width: 36rem) {
+  .final-bill-lines {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 640px) {
   .page {
     width: min(100% - 1rem, 100%);
-    padding-top: 2rem;
+    padding-top: 1rem;
+    padding-bottom: 2.5rem;
   }
 
   .panel {
-    padding: 1rem;
+    padding: 0.9rem;
   }
 
   .app-shell {
     grid-template-columns: 1fr;
+    gap: 0.85rem;
   }
 
   .friends-sidebar {
     position: static;
+    width: 100%;
   }
 
   .hero,
@@ -2468,6 +2502,25 @@ label.field select:disabled,
   .profile-summary,
   #logout-button {
     width: 100%;
+  }
+
+  .main-tab {
+    min-height: 2.65rem;
+    font-size: 0.95rem;
+  }
+
+  .panel-header,
+  .balance-title-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .balance-title-row .balance-end-trip-button,
+  .balance-end-trip-button {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
   }
 
   .input-row {
@@ -2522,6 +2575,106 @@ label.field select:disabled,
 
   .expense-row {
     grid-template-columns: 1fr auto;
+    align-items: start;
+    gap: 0.6rem;
+    padding: 0.75rem;
   }
 
+  .expense-row .expense-sub {
+    overflow-wrap: anywhere;
+  }
+
+  .expense-row .button-danger {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .budget-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .budget-stat {
+    padding: 0.65rem;
+  }
+
+  .budget-stat-value {
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+  }
+
+  .budget-entry-row,
+  .budget-add-row {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-entry-row button {
+    min-height: 2.85rem;
+  }
+
+  .balance-table-wrap {
+    margin-inline: -0.15rem;
+    padding-bottom: 0.35rem;
+  }
+
+  .balance-table {
+    width: 45rem;
+    min-width: 45rem;
+  }
+
+  .balance-table th,
+  .balance-table td {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .final-bill {
+    margin-top: 1rem;
+  }
+
+  .final-bill-card {
+    padding: 0.75rem;
+  }
+
+  .final-bill-lines {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .final-bill-lines div {
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .final-bill-lines div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .transfer-dialog-overlay {
+    place-items: end center;
+    padding: 0.75rem;
+  }
+
+  .transfer-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: min(86vh, 38rem);
+    padding: 1rem;
+  }
+
+  .transfer-detail-row {
+    align-items: flex-start;
+  }
+
+  .transfer-detail-row strong {
+    text-align: right;
+  }
+
+}
+
+@media (max-width: 420px) {
+  .budget-grid {
+    grid-template-columns: 1fr;
+  }
 }
