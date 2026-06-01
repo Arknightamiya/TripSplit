@@ -10,6 +10,8 @@ import {
   fetchHealth,
   fetchTrip,
   fetchTrips,
+  getScopedStorage,
+  getSessionStorageKey,
   getStoredCurrentUser,
   getStoredAuthToken,
   inviteParticipant,
@@ -833,7 +835,7 @@ function isSessionExpiredError(error) {
 
 function getStoredUiState() {
   try {
-    const raw = window.localStorage.getItem(UI_STATE_STORAGE_KEY);
+    const raw = getScopedStorage().getItem(getSessionStorageKey(UI_STATE_STORAGE_KEY));
     const parsed = raw ? JSON.parse(raw) : {};
     return {
       activeMainTab: parsed.activeMainTab === "lobby" ? "lobby" : "trips",
@@ -860,8 +862,8 @@ function storeUiState() {
     return;
   }
 
-  window.localStorage.setItem(
-    UI_STATE_STORAGE_KEY,
+  getScopedStorage().setItem(
+    getSessionStorageKey(UI_STATE_STORAGE_KEY),
     JSON.stringify({
       activeMainTab,
       activeTripId,
@@ -872,7 +874,7 @@ function storeUiState() {
 }
 
 function clearUiState() {
-  window.localStorage.removeItem(UI_STATE_STORAGE_KEY);
+  getScopedStorage().removeItem(getSessionStorageKey(UI_STATE_STORAGE_KEY));
 }
 
 function getValidOverlayName(overlayName) {
@@ -952,18 +954,18 @@ function populateSavedLogin() {
 
 function saveLoginPreference({ identifier, password, rememberLogin }) {
   if (!rememberLogin) {
-    window.localStorage.removeItem(SAVED_LOGIN_STORAGE_KEY);
+    getScopedStorage().removeItem(getSessionStorageKey(SAVED_LOGIN_STORAGE_KEY));
     return;
   }
 
-  window.localStorage.setItem(
-    SAVED_LOGIN_STORAGE_KEY,
+  getScopedStorage().setItem(
+    getSessionStorageKey(SAVED_LOGIN_STORAGE_KEY),
     JSON.stringify({ identifier, password })
   );
 }
 
 function clearSavedLogin() {
-  window.localStorage.removeItem(SAVED_LOGIN_STORAGE_KEY);
+  getScopedStorage().removeItem(getSessionStorageKey(SAVED_LOGIN_STORAGE_KEY));
   loginForm.elements.identifier.value = "";
   loginForm.elements.password.value = "";
   loginForm.elements.rememberLogin.checked = false;
@@ -973,7 +975,7 @@ function clearSavedLogin() {
 
 function getSavedLogin() {
   try {
-    const raw = window.localStorage.getItem(SAVED_LOGIN_STORAGE_KEY);
+    const raw = getScopedStorage().getItem(getSessionStorageKey(SAVED_LOGIN_STORAGE_KEY));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

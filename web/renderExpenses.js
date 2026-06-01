@@ -1,7 +1,7 @@
 import {
   EXPENSE_CATEGORIES,
   EXPENSE_TYPES
-} from "/shared/contracts.js";
+} from "../shared/contracts.js";
 import { deleteExpense, postExpense } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
 

@@ -2,7 +2,7 @@ import {
   API_ROUTES,
   AUTH_HEADER,
   AUTH_TOKEN_STORAGE_KEY
-} from "/shared/contracts.js";
+} from "../shared/contracts.js";
 
 export const SESSION_EXPIRED_ERROR_MESSAGE = "Your session expired. Please log in again.";
 
@@ -46,6 +46,19 @@ export async function apiRequest(path, options = {}) {
 const CURRENT_USER_STORAGE_KEY = "tripsplit.currentUser";
 let unauthorizedHandler = null;
 
+export function getSessionStorageKey(baseKey) {
+  const sessionName = getSessionName();
+  return sessionName ? `${baseKey}.${sessionName}` : baseKey;
+}
+
+export function getScopedStorage() {
+  if (getSessionName()) {
+    return window.localStorage;
+  }
+
+  return window.sessionStorage;
+}
+
 export class ApiError extends Error {
   constructor(message, status, payload) {
     super(message);
@@ -61,7 +74,7 @@ export function setUnauthorizedHandler(handler) {
 
 export function getStoredCurrentUser() {
   try {
-    const raw = window.localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+    const raw = getScopedStorage().getItem(getSessionStorageKey(CURRENT_USER_STORAGE_KEY));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -69,7 +82,7 @@ export function getStoredCurrentUser() {
 }
 
 export function storeCurrentUser(user) {
-  window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
+  getScopedStorage().setItem(getSessionStorageKey(CURRENT_USER_STORAGE_KEY), JSON.stringify(user));
 }
 
 export function storeAuthSession({ token, user }) {
@@ -78,8 +91,9 @@ export function storeAuthSession({ token, user }) {
 }
 
 export function clearAuthSession() {
-  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-  window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+  const storage = getScopedStorage();
+  storage.removeItem(getSessionStorageKey(AUTH_TOKEN_STORAGE_KEY));
+  storage.removeItem(getSessionStorageKey(CURRENT_USER_STORAGE_KEY));
 }
 
 export async function login({ identifier, email, password }) {
@@ -283,14 +297,27 @@ export async function fetchBalances(tripId) {
 
 export function getStoredAuthToken() {
   try {
-    return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    return getScopedStorage().getItem(getSessionStorageKey(AUTH_TOKEN_STORAGE_KEY));
   } catch {
     return null;
   }
 }
 
 export function storeAuthToken(token) {
-  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  getScopedStorage().setItem(getSessionStorageKey(AUTH_TOKEN_STORAGE_KEY), token);
+}
+
+function getSessionName() {
+  try {
+    const session = new URLSearchParams(window.location.search).get("session");
+    const normalizedSession = String(session || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "");
+    return normalizedSession || "";
+  } catch {
+    return "";
+  }
 }
 
 function prepareBody(body, headers) {
