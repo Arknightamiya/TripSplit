@@ -5,6 +5,7 @@ import { applyCors } from "./middleware/cors.js";
 import { errorHandler, notFoundHandler } from "./middleware/errors.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createBalancesRouter } from "./routes/balances.js";
+import { createCurrenciesRouter } from "./routes/currencies.js";
 import { createExpensesRouter } from "./routes/expenses.js";
 import { createFriendsRouter } from "./routes/friends.js";
 import { createTripsRouter } from "./routes/trips.js";
@@ -27,6 +28,7 @@ export function createApp({ rootDir = defaultRootDir } = {}) {
   app.use("/api/auth", createAuthRouter());
   app.use("/api/me", createUsersRouter());
   app.use("/api/friends", createFriendsRouter());
+  app.use("/api/currencies", createCurrenciesRouter());
   app.use("/api/trips/:tripId/expenses", createExpensesRouter());
   app.use("/api/trips/:tripId/balances", createBalancesRouter());
   app.use("/api/trips", createTripsRouter());

@@ -6,8 +6,12 @@ import {
 } from "../shared/contracts.js";
 import { calculateBalances } from "./settlement.js";
 import {
+  DEFAULT_CURRENCY_CODE,
+  DEFAULT_EXCHANGE_RATES,
+  convertCurrencyAmount,
   isValidCurrencyAmount,
   normalizeCurrencyAmount,
+  normalizeCurrencyCode,
   splitCurrencyEvenly
 } from "./utils/currency.js";
 
@@ -527,6 +531,7 @@ export function setBudget(tripId, budgetInput) {
 
   trip.budget = {
     mode,
+    currencyCode: normalizeCurrencyCode(budgetInput.currencyCode),
     totalBudget: mode === "total" ? normalizeCurrencyAmount(totalBudget) : null,
     perPersonBudget:
       mode === "per-person" ? normalizeCurrencyAmount(perPersonBudget) : null
@@ -560,6 +565,7 @@ export function addExpense(tripId, expenseInput) {
     amount,
     category: expenseInput.category,
     expenseType,
+    currencyCode: normalizeCurrencyCode(expenseInput.currencyCode),
     payerId: expenseInput.payerId,
     splitRule: expenseInput.splitRule || "equal",
     includedParticipantIds,
@@ -779,10 +785,20 @@ function getBudgetSummary(trip) {
   }
 
   const participantCount = approvedParticipantIds(trip).length;
+  const budgetCurrencyCode = trip.budget.currencyCode || DEFAULT_CURRENCY_CODE;
   const totalSpent = roundCurrency(
     trip.expenses
       .filter((expense) => normalizeExpenseType(expense.expenseType) === "budget_payment")
-      .reduce((sum, expense) => sum + Number(expense.amount), 0)
+      .reduce(
+        (sum, expense) =>
+          sum + convertCurrencyAmount(
+            expense.amount,
+            expense.currencyCode || DEFAULT_CURRENCY_CODE,
+            budgetCurrencyCode,
+            DEFAULT_EXCHANGE_RATES
+          ),
+        0
+      )
   );
   const totalBudget =
     trip.budget.mode === "per-person"
@@ -795,6 +811,7 @@ function getBudgetSummary(trip) {
     mode: trip.budget.mode,
     totalBudget,
     perPersonBudget: trip.budget.perPersonBudget,
+    currencyCode: budgetCurrencyCode,
     participantCount,
     totalSpent,
     remainingBudget,

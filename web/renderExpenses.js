@@ -4,8 +4,14 @@ import {
 } from "../shared/contracts.js";
 import { deleteExpense, postExpense } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
+import {
+  DEFAULT_CURRENCY_CODE,
+  currencyOptionsHtml,
+  normalizeCurrencyInfo
+} from "./currency.js";
 
-export function renderExpenses(panel, { trip, currentUserId, onChange }) {
+export function renderExpenses(panel, { trip, currentUserId, onChange, currencyInfo }) {
+  const normalizedCurrencyInfo = normalizeCurrencyInfo(currencyInfo);
   const approved = trip.participants.filter((p) => p.joinStatus === "approved");
   const isOrganizer = trip.organizerId === currentUserId;
   const tripStarted = Boolean(trip.startedAt);
@@ -17,11 +23,11 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
       <h2>Expenses</h2>
       <span class="hint">${trip.expenses.length} recorded</span>
     </div>
-    ${expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded)}
+    ${expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded, normalizedCurrencyInfo)}
     ${
       trip.expenses.length
         ? `<div class="expense-list">${trip.expenses
-            .map((e) => expenseRowHtml(e, approved, currentUserId, isOrganizer, tripEnded))
+            .map((e) => expenseRowHtml(e, approved, currentUserId, isOrganizer, tripEnded, normalizedCurrencyInfo))
             .join("")}</div>`
         : ""
     }
@@ -130,6 +136,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
         amount,
         category: formData.get("category"),
         expenseType,
+        currencyCode: formData.get("currencyCode") || DEFAULT_CURRENCY_CODE,
         payerId,
         splitRule: "equal",
         includedParticipantIds
@@ -167,9 +174,10 @@ function sanitizeNumberInput(event) {
   event.target.value = event.target.value.replace(/[eE+-]/g, "");
 }
 
-function expenseRowHtml(expense, approved, currentUserId, isOrganizer, tripEnded) {
+function expenseRowHtml(expense, approved, currentUserId, isOrganizer, tripEnded, currencyInfo) {
   const payer = approved.find((p) => p.id === expense.payerId);
   const canDelete = !tripEnded && (isOrganizer || expense.payerId === currentUserId);
+  const currencyCode = expense.currencyCode || DEFAULT_CURRENCY_CODE;
   const expenseSummary = expense.expenseType === "budget_payment"
     ? `${escapeHtml(expense.category)} · paid from trip budget · used by ${escapeHtml(splitParticipantNames(expense, approved))}`
     : `${escapeHtml(expense.category)} · advanced by ${escapeHtml(displayName(payer))} · shared with ${escapeHtml(splitParticipantNames(expense, approved))}`;
@@ -181,7 +189,7 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer, tripEnded
           ${expenseSummary}
         </div>
       </div>
-      <div class="expense-amount">${formatMoney(expense.amount)}</div>
+      <div class="expense-amount">${formatMoney(expense.amount, currencyCode, currencyInfo)}</div>
       ${canDelete
         ? `<button type="button" class="button-danger" data-delete-expense="${expense.id}">Delete</button>`
         : `<span></span>`}
@@ -189,7 +197,7 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer, tripEnded
   `;
 }
 
-function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded) {
+function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded, currencyInfo) {
   const payerOptions = approved
     .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(displayName(p))}</option>`)
     .join("");
@@ -200,6 +208,9 @@ function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, trip
     .filter((type) => isOrganizer || type !== "budget_payment")
     .map((type) => `<option value="${type}">${escapeHtml(typeLabel(type))}</option>`)
     .join("");
+  const currencyOptions = currencyOptionsHtml(currencyInfo, {
+    selectedCode: DEFAULT_CURRENCY_CODE
+  });
   const participantChips = approved
     .map((p) => `
       <label data-participant-choice>
@@ -229,8 +240,12 @@ function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, trip
           <select name="payerId" ${tripEnded ? "disabled" : ""}>${payerOptions}</select>
         </label>
         <label class="field">
-          <span>Amount ($)</span>
+          <span>Amount</span>
           <input type="number" name="amount" min="0" step="0.01" ${tripEnded ? "disabled" : ""} required />
+        </label>
+        <label class="field">
+          <span>Currency</span>
+          <select name="currencyCode" ${tripEnded ? "disabled" : ""}>${currencyOptions}</select>
         </label>
       </div>
       <div class="expense-secondary-row">

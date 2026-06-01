@@ -1,20 +1,44 @@
 import { escapeHtml, formatMoney } from "./renderTrips.js";
+import {
+  DEFAULT_CURRENCY_CODE,
+  convertMoney,
+  currencyOptionsHtml,
+  normalizeCurrencyCode,
+  normalizeCurrencyInfo
+} from "./currency.js";
+
+let selectedBalanceCurrencyCode = DEFAULT_CURRENCY_CODE;
 
 export function renderBalances(panel, {
   balances,
   trip,
   currentUserId,
   isOrganizer = false,
-  onEndTrip
+  onEndTrip,
+  currencyInfo
 }) {
+  const normalizedCurrencyInfo = normalizeCurrencyInfo(currencyInfo);
+  selectedBalanceCurrencyCode = normalizeCurrencyCode(selectedBalanceCurrencyCode);
   const tripStarted = Boolean(trip.startedAt);
   const tripEnded = Boolean(trip.endedAt);
-  const rowModels = buildBalanceRows(balances, trip, currentUserId);
+  const rowModels = buildBalanceRows(
+    balances,
+    trip,
+    currentUserId,
+    selectedBalanceCurrencyCode,
+    normalizedCurrencyInfo
+  );
 
   panel.innerHTML = `
     <div class="balance-panel-header">
       <div class="balance-title-row">
         <h2>Balances</h2>
+        <label class="compact-select">
+          <span>Currency</span>
+          <select data-balance-currency>
+            ${currencyOptionsHtml(normalizedCurrencyInfo, { selectedCode: selectedBalanceCurrencyCode })}
+          </select>
+        </label>
         ${isOrganizer ? `
           <button
             type="button"
@@ -26,9 +50,22 @@ export function renderBalances(panel, {
       </div>
     </div>
     <p class="form-error" data-balance-error hidden></p>
-    ${rowModels.length ? tableHtml(rowModels) : `<p class="empty">No balances yet — add expenses to see who owes what.</p>`}
-    ${tripEnded && rowModels.length ? finalBillHtml(rowModels) : ""}
+    ${rowModels.length ? tableHtml(rowModels, selectedBalanceCurrencyCode, normalizedCurrencyInfo) : `<p class="empty">No balances yet — add expenses to see who owes what.</p>`}
+    ${tripEnded && rowModels.length ? finalBillHtml(rowModels, selectedBalanceCurrencyCode, normalizedCurrencyInfo) : ""}
   `;
+
+  const select = panel.querySelector("[data-balance-currency]");
+  select?.addEventListener("change", () => {
+    selectedBalanceCurrencyCode = select.value;
+    renderBalances(panel, {
+      balances,
+      trip,
+      currentUserId,
+      isOrganizer,
+      onEndTrip,
+      currencyInfo: normalizedCurrencyInfo
+    });
+  });
 
   const endTripButton = panel.querySelector("[data-end-trip]");
   const error = panel.querySelector("[data-balance-error]");
@@ -45,14 +82,15 @@ export function renderBalances(panel, {
     }
   });
 
-  bindTransferDialog(panel, rowModels);
+  bindTransferDialog(panel, rowModels, selectedBalanceCurrencyCode, normalizedCurrencyInfo);
 }
 
-function buildBalanceRows(balances, trip, currentUserId) {
+function buildBalanceRows(balances, trip, currentUserId, targetCurrencyCode, currencyInfo) {
   const participantById = new Map(trip.participants.map((p) => [p.id, p]));
-  const startingBudget = getStartingBudget(trip);
+  const startingBudget = getStartingBudget(trip, targetCurrencyCode, currencyInfo);
+  const convertedBalances = convertBalancesForDisplay(trip, balances, targetCurrencyCode, currencyInfo);
 
-  return balances.map((b) => {
+  return convertedBalances.map((b) => {
     const participant = b.participant || participantById.get(b.participantId);
     const name = displayName(participant) || displayName(participantById.get(b.participantId)) || "Participant";
     const personalNet = roundCurrency(Number(b.netBalance || 0));
@@ -73,15 +111,15 @@ function buildBalanceRows(balances, trip, currentUserId) {
   });
 }
 
-function tableHtml(rows) {
+function tableHtml(rows, currencyCode, currencyInfo) {
   const rowHtml = rows
     .map((row) => `
       <tr>
         <td>${escapeHtml(row.name)}${row.isCurrentUser ? ' <span class="chip">you</span>' : ""}</td>
-        <td>${formatMoney(row.budgetUsed)}</td>
-        <td>${row.budgetLeft === null ? "-" : signedMoney(row.budgetLeft)}</td>
-        <td>${formatMoney(row.advanced)}</td>
-        <td class="${personalNetClass(row.personalNet)}">${signedMoney(row.personalNet)}</td>
+        <td>${formatMoney(row.budgetUsed, currencyCode, currencyInfo)}</td>
+        <td>${row.budgetLeft === null ? "-" : signedMoney(row.budgetLeft, currencyCode, currencyInfo)}</td>
+        <td>${formatMoney(row.advanced, currencyCode, currencyInfo)}</td>
+        <td class="${personalNetClass(row.personalNet)}">${signedMoney(row.personalNet, currencyCode, currencyInfo)}</td>
       </tr>
     `)
     .join("");
@@ -111,7 +149,7 @@ function tableHtml(rows) {
   `;
 }
 
-function finalBillHtml(rows) {
+function finalBillHtml(rows, currencyCode, currencyInfo) {
   const transfers = buildSettlementTransfers(rows);
   const bills = rows.map((row) => {
     const budgetBalance = row.budgetLeft ?? 0;
@@ -128,19 +166,19 @@ function finalBillHtml(rows) {
         <dl class="final-bill-lines">
           <div>
             <dt>Budget</dt>
-            <dd>${budgetStatusText(budgetBalance)}</dd>
+            <dd>${budgetStatusText(budgetBalance, currencyCode, currencyInfo)}</dd>
           </div>
           <div>
             <dt>Advanced Paid</dt>
-            <dd>${formatMoney(row.advanced)}</dd>
+            <dd>${formatMoney(row.advanced, currencyCode, currencyInfo)}</dd>
           </div>
           <div>
             <dt>personal reimbursements</dt>
-            <dd class="${personalNetClass(personalNet)}">${personalContent}</dd>
+            <dd class="${personalNetClass(personalNet)}">${personalContent(currencyCode, currencyInfo)}</dd>
           </div>
           <div>
             <dt>Combined</dt>
-            <dd class="${finalNetClass(finalNet)}">${combinedStatusText(finalNet)}</dd>
+            <dd class="${finalNetClass(finalNet)}">${combinedStatusText(finalNet, currencyCode, currencyInfo)}</dd>
           </div>
         </dl>
       </div>
@@ -161,20 +199,20 @@ function finalBillHtml(rows) {
 function personalReimbursementHtml(row, transfers) {
   const personalNet = roundCurrency(row.personalNet);
   if (personalNet === 0) {
-    return escapeHtml(personalStatusText(personalNet));
+    return (currencyCode, currencyInfo) => escapeHtml(personalStatusText(personalNet, currencyCode, currencyInfo));
   }
 
   const participantTransfers = getParticipantTransferDetails(row, transfers);
   const action = personalNet > 0 ? "collect" : "pay";
 
-  return `
+  return (currencyCode, currencyInfo) => `
     <button
       type="button"
       class="personal-transfer-trigger ${personalNetClass(personalNet)}"
       data-transfer-participant-id="${escapeHtml(row.id)}"
       data-transfer-action="${action}"
       ${participantTransfers.length ? "" : "disabled"}
-    >${escapeHtml(personalStatusText(personalNet))}</button>
+    >${escapeHtml(personalStatusText(personalNet, currencyCode, currencyInfo))}</button>
   `;
 }
 
@@ -269,7 +307,7 @@ export function getParticipantTransferDetails(row, transfers) {
   return [];
 }
 
-function bindTransferDialog(panel, rows) {
+function bindTransferDialog(panel, rows, currencyCode, currencyInfo) {
   const dialog = panel.querySelector("[data-transfer-dialog]");
   if (!dialog) {
     return;
@@ -306,7 +344,7 @@ function bindTransferDialog(panel, rows) {
       ? details.map((detail) => `
         <li class="transfer-detail-row">
           <span>${detail.direction === "collect" ? "Collect from" : "Pay"} ${escapeHtml(detail.name)}</span>
-          <strong>${formatMoney(detail.amount)}</strong>
+          <strong>${formatMoney(detail.amount, currencyCode, currencyInfo)}</strong>
         </li>
       `).join("")
       : `<li class="transfer-detail-row is-settled">No personal transfers needed.</li>`;
@@ -334,59 +372,60 @@ function displayName(participant) {
   return String(participant?.displayName || participant?.name || "").trim();
 }
 
-function getStartingBudget(trip) {
+function getStartingBudget(trip, targetCurrencyCode, currencyInfo) {
   const summary = trip.budgetSummary;
   if (!summary || !summary.participantCount) {
     return null;
   }
+  const budgetCurrencyCode = summary.currencyCode || DEFAULT_CURRENCY_CODE;
 
-  if (summary.mode === "per-person") {
-    return Number(summary.perPersonBudget || 0);
-  }
+  const amount = summary.mode === "per-person"
+    ? Number(summary.perPersonBudget || 0)
+    : roundCurrency(Number(summary.totalBudget || 0) / Number(summary.participantCount));
 
-  return roundCurrency(Number(summary.totalBudget || 0) / Number(summary.participantCount));
+  return convertMoney(amount, budgetCurrencyCode, targetCurrencyCode, currencyInfo) ?? amount;
 }
 
-function signedMoney(value) {
+function signedMoney(value, currencyCode, currencyInfo) {
   const amount = Number(value || 0);
   const prefix = amount > 0 ? "+" : amount < 0 ? "-" : "";
-  return `${prefix}${formatMoney(Math.abs(amount))}`;
+  return `${prefix}${formatMoney(Math.abs(amount), currencyCode, currencyInfo)}`;
 }
 
-function budgetStatusText(value) {
+function budgetStatusText(value, currencyCode, currencyInfo) {
   const amount = roundCurrency(value);
   if (amount > 0) {
-    return `Budget refund ${formatMoney(amount)}`;
+    return `Budget refund ${formatMoney(amount, currencyCode, currencyInfo)}`;
   }
 
   if (amount < 0) {
-    return `Pay budget ${formatMoney(Math.abs(amount))}`;
+    return `Pay budget ${formatMoney(Math.abs(amount), currencyCode, currencyInfo)}`;
   }
 
   return "Budget settled";
 }
 
-function personalStatusText(value) {
+function personalStatusText(value, currencyCode, currencyInfo) {
   const amount = roundCurrency(value);
   if (amount > 0) {
-    return `Collect ${formatMoney(amount)}`;
+    return `Collect ${formatMoney(amount, currencyCode, currencyInfo)}`;
   }
 
   if (amount < 0) {
-    return `Pay others ${formatMoney(Math.abs(amount))}`;
+    return `Pay others ${formatMoney(Math.abs(amount), currencyCode, currencyInfo)}`;
   }
 
   return "No personal balance";
 }
 
-function combinedStatusText(value) {
+function combinedStatusText(value, currencyCode, currencyInfo) {
   const amount = roundCurrency(value);
   if (amount > 0) {
-    return `Net receive ${formatMoney(amount)}`;
+    return `Net receive ${formatMoney(amount, currencyCode, currencyInfo)}`;
   }
 
   if (amount < 0) {
-    return `Net pay ${formatMoney(Math.abs(amount))}`;
+    return `Net pay ${formatMoney(Math.abs(amount), currencyCode, currencyInfo)}`;
   }
 
   return "Fully settled";
@@ -404,6 +443,90 @@ function finalNetClass(value) {
   if (amount > 0) return "final-net-positive";
   if (amount < 0) return "final-net-negative";
   return "";
+}
+
+function convertBalancesForDisplay(trip, balances, targetCurrencyCode, currencyInfo) {
+  const participantIds = balances.length
+    ? balances.map((balance) => String(balance.participantId))
+    : (trip.participantIds || []).map(String);
+  const participantById = new Map(
+    participantIds.map((participantId) => [
+      participantId,
+      {
+        participantId,
+        budgetSpent: 0,
+        actualPaid: 0,
+        fairShare: 0,
+        netBalance: 0,
+        participant: balances.find((balance) => String(balance.participantId) === participantId)?.participant
+      }
+    ])
+  );
+
+  for (const expense of trip.expenses || []) {
+    const expenseCurrencyCode = expense.currencyCode || DEFAULT_CURRENCY_CODE;
+    const amount = convertMoney(
+      expense.amount,
+      expenseCurrencyCode,
+      targetCurrencyCode,
+      currencyInfo
+    );
+    if (amount === null) {
+      continue;
+    }
+
+    const shares = expense.expenseShares || [];
+    if (expense.expenseType === "budget_payment") {
+      for (const share of shares) {
+        const shareAmount = convertMoney(
+          share.shareAmount,
+          expenseCurrencyCode,
+          targetCurrencyCode,
+          currencyInfo
+        );
+        const entry = participantById.get(String(share.participantId));
+        if (entry && shareAmount !== null) {
+          entry.budgetSpent = roundCurrency(entry.budgetSpent + shareAmount);
+        }
+      }
+      continue;
+    }
+
+    const payerEntry = participantById.get(String(expense.payerId));
+    const reimbursableTotal = shares.reduce((sum, share) => {
+      const shareAmount = convertMoney(
+        share.shareAmount,
+        expenseCurrencyCode,
+        targetCurrencyCode,
+        currencyInfo
+      );
+      return shareAmount === null ? sum : sum + shareAmount;
+    }, 0);
+    const payerOwnShare = roundCurrency(amount - reimbursableTotal);
+
+    if (payerEntry) {
+      payerEntry.actualPaid = roundCurrency(payerEntry.actualPaid + amount);
+      payerEntry.fairShare = roundCurrency(payerEntry.fairShare + payerOwnShare);
+    }
+
+    for (const share of shares) {
+      const shareAmount = convertMoney(
+        share.shareAmount,
+        expenseCurrencyCode,
+        targetCurrencyCode,
+        currencyInfo
+      );
+      const entry = participantById.get(String(share.participantId));
+      if (entry && shareAmount !== null) {
+        entry.fairShare = roundCurrency(entry.fairShare + shareAmount);
+      }
+    }
+  }
+
+  return Array.from(participantById.values()).map((entry) => ({
+    ...entry,
+    netBalance: roundCurrency(entry.actualPaid - entry.fairShare)
+  }));
 }
 
 function roundCurrency(value) {

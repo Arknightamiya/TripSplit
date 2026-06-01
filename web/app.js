@@ -3,6 +3,7 @@ import {
   deleteTrip,
   endTrip,
   fetchBalances,
+  fetchCurrencies,
   fetchCurrentUserProfile,
   fetchFriendProfile,
   fetchFriendPublicTrips,
@@ -40,6 +41,7 @@ import { renderBalances } from "./renderBalances.js";
 import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
 import { escapeHtml, formatBudgetSummary, pluralize, renderTrips } from "./renderTrips.js";
+import { DEFAULT_CURRENCY_INFO, normalizeCurrencyInfo } from "./currency.js";
 
 const authView = document.querySelector("#auth-view");
 const appView = document.querySelector("#app-view");
@@ -196,6 +198,7 @@ let profileAvatarDataUrl = "";
 let activeRequestTab = "friends";
 let highlightedTripInvitationId = null;
 let tripEditFormHydratedTripId = null;
+let currencyInfo = DEFAULT_CURRENCY_INFO;
 const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
 const UI_STATE_STORAGE_KEY = "tripsplit.uiState";
 const MAX_AVATAR_FILE_SIZE = 8_000_000;
@@ -2788,7 +2791,8 @@ async function refreshDetail() {
   const currentUser = getStoredCurrentUser();
   const [{ trip }, { balances }] = await Promise.all([
     fetchTrip(activeTripId),
-    fetchBalances(activeTripId)
+    fetchBalances(activeTripId),
+    loadCurrencyInfo()
   ]);
   const approvedParticipants = (trip.participants || []).filter(
     (participant) => participant.joinStatus === "approved"
@@ -2817,15 +2821,26 @@ async function refreshDetail() {
   detailDelete.dataset.tripId = String(trip.id);
   populateTripEditPanel(trip, isOrganizer);
   setFormError(tripEditError, "");
-  renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips });
-  renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips });
+  renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips, currencyInfo });
+  renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips, currencyInfo });
   renderBalances(balancesPanel, {
     balances,
     trip,
     currentUserId: currentUser?.id,
     isOrganizer,
-    onEndTrip: handleEndTrip
+    onEndTrip: handleEndTrip,
+    currencyInfo
   });
+}
+
+async function loadCurrencyInfo() {
+  try {
+    currencyInfo = normalizeCurrencyInfo(await fetchCurrencies());
+  } catch {
+    currencyInfo = DEFAULT_CURRENCY_INFO;
+  }
+
+  return currencyInfo;
 }
 
 async function handleEndTrip() {

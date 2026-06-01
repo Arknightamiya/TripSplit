@@ -295,6 +295,10 @@ export async function fetchBalances(tripId) {
   return apiRequest(API_ROUTES.balances(tripId));
 }
 
+export async function fetchCurrencies() {
+  return apiRequest(API_ROUTES.currencies);
+}
+
 export function getStoredAuthToken() {
   try {
     return getScopedStorage().getItem(getSessionStorageKey(AUTH_TOKEN_STORAGE_KEY));

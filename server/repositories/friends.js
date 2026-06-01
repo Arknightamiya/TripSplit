@@ -1,4 +1,5 @@
 import { getDatabase } from "../db/pool.js";
+import { DEFAULT_CURRENCY_CODE } from "../utils/currency.js";
 
 export function isFriendRepositoryEnabled() {
   return getDatabase().enabled;
@@ -214,6 +215,7 @@ export async function listPublicTripRecordsForFriend(viewerId, friendId) {
         b.mode,
         b.total_budget,
         b.per_person_budget,
+        COALESCE(b.currency_code, 'USD') AS currency_code,
         (
           SELECT COUNT(*)
           FROM trip_participants tp
@@ -283,6 +285,7 @@ export async function listFriendPublicTripRecords(viewerId) {
         b.mode,
         b.total_budget,
         b.per_person_budget,
+        COALESCE(b.currency_code, 'USD') AS currency_code,
         (
           SELECT COUNT(*)
           FROM trip_participants tp
@@ -597,6 +600,7 @@ async function findPublicTripRecord(tripId) {
         b.mode,
         b.total_budget,
         b.per_person_budget,
+        COALESCE(b.currency_code, 'USD') AS currency_code,
         (
           SELECT COUNT(*)
           FROM trip_participants tp
@@ -700,6 +704,7 @@ function buildBudgetSummary(row, participantCount, totalSpent) {
     mode: row.mode,
     totalBudget,
     perPersonBudget,
+    currencyCode: String(row.currency_code || DEFAULT_CURRENCY_CODE).trim(),
     participantCount,
     totalSpent,
     remainingBudget,

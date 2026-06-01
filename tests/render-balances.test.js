@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildSettlementTransfers, getParticipantTransferDetails } from "../web/renderBalances.js";
+import { convertMoney } from "../web/currency.js";
 
 test("buildSettlementTransfers settles only personal reimbursement balances", () => {
   const transfers = buildSettlementTransfers([
@@ -59,4 +60,23 @@ test("getParticipantTransferDetails returns no rows for settled participants", (
     getParticipantTransferDetails({ id: "dw1", name: "dw#1", personalNet: 0 }, []),
     []
   );
+});
+
+test("convertMoney converts through USD based rate maps for balance display", () => {
+  const currencyInfo = {
+    baseCurrencyCode: "USD",
+    rates: {
+      USD: 1,
+      EUR: 0.8,
+      JPY: 160
+    },
+    currencies: [
+      { code: "USD", symbol: "$", decimalPlaces: 2 },
+      { code: "EUR", symbol: "€", decimalPlaces: 2 },
+      { code: "JPY", symbol: "¥", decimalPlaces: 0 }
+    ]
+  };
+
+  assert.equal(convertMoney(80, "EUR", "USD", currencyInfo), 100);
+  assert.equal(convertMoney(10, "USD", "JPY", currencyInfo), 1600);
 });
