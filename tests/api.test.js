@@ -1272,7 +1272,137 @@ test("organizer can remove pending invitations and approved participants", async
   );
 });
 
-test("organizer cannot remove themselves or members who paid expenses", async () => {
+test("organizer can start a trip", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const response = await request(`/api/trips/${tripId}/start`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+  const tripDetail = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(typeof response.body.trip.startedAt, "string");
+  assert.equal(tripDetail.body.trip.startedAt, response.body.trip.startedAt);
+});
+
+test("started trips lock trip metadata and deletion", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  await startTripForTest(token, tripId);
+
+  const updateResponse = await request(`/api/trips/${tripId}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: {
+      name: "Edited After Start",
+      destination: "Edited After Start"
+    }
+  });
+  const deleteResponse = await request(`/api/trips/${tripId}`, {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+  const detailResponse = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(token)
+  });
+
+  assert.equal(updateResponse.status, 409);
+  assert.deepEqual(updateResponse.body, {
+    error: "Trip has already started; trip details are locked"
+  });
+  assert.equal(deleteResponse.status, 409);
+  assert.deepEqual(deleteResponse.body, {
+    error: "Trip has already started; trip deletion is locked"
+  });
+  assert.equal(detailResponse.status, 200);
+  assert.equal(detailResponse.body.trip.name, "API Test Trip");
+});
+
+test("started trips cannot add or invite participants", async () => {
+  const organizer = await registerUser({
+    name: "StartedParticipantOwner",
+    email: "started-participant-owner@example.com"
+  });
+  const addTarget = await registerUser({
+    name: "StartedAddTarget",
+    email: "started-add-target@example.com"
+  });
+  const inviteTarget = await registerUser({
+    name: "StartedInviteTarget",
+    email: "started-invite-target@example.com"
+  });
+  const tripId = await createTrip(organizer.token);
+
+  await startTripForTest(organizer.token, tripId);
+
+  const addResponse = await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: addTarget.user.id
+    }
+  });
+  const inviteResponse = await request(`/api/trips/${tripId}/invitations`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: inviteTarget.user.id
+    }
+  });
+
+  assert.equal(addResponse.status, 409);
+  assert.deepEqual(addResponse.body, {
+    error: "Trip has already started; participants are locked"
+  });
+  assert.equal(inviteResponse.status, 409);
+  assert.deepEqual(inviteResponse.body, {
+    error: "Trip has already started; participants are locked"
+  });
+});
+
+test("started trips cannot remove participants", async () => {
+  const organizer = await registerUser({
+    name: "StartedOwner",
+    email: "started-owner@example.com"
+  });
+  const member = await registerUser({
+    name: "StartedMember",
+    email: "started-member@example.com"
+  });
+  const tripId = await createTrip(organizer.token);
+
+  await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(organizer.token),
+    body: {
+      userId: member.user.id
+    }
+  });
+  await request(`/api/trips/${tripId}/start`, {
+    method: "POST",
+    headers: authHeaders(organizer.token)
+  });
+
+  const response = await request(
+    `/api/trips/${tripId}/participants/${member.user.id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(organizer.token)
+    }
+  );
+
+  assert.equal(response.status, 409);
+  assert.deepEqual(response.body, {
+    error: "Trip has already started; participants cannot be removed"
+  });
+});
+
+test("started trips cannot remove organizer or members with expense history", async () => {
   const { token, user } = await loginAsDemoUser();
   const participant = await registerUser({
     name: "PaidMember",
@@ -1287,6 +1417,7 @@ test("organizer cannot remove themselves or members who paid expenses", async ()
       userId: participant.user.id
     }
   });
+  await startTripForTest(token, tripId);
   await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
     headers: authHeaders(token),
@@ -1294,7 +1425,7 @@ test("organizer cannot remove themselves or members who paid expenses", async ()
       title: "Paid Dinner",
       amount: 120,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: participant.user.id,
       includedParticipantIds: [user.id, participant.user.id]
     }
@@ -1321,11 +1452,11 @@ test("organizer cannot remove themselves or members who paid expenses", async ()
   });
   assert.equal(removePayerResponse.status, 409);
   assert.deepEqual(removePayerResponse.body, {
-    error: "Cannot remove a participant with expense history"
+    error: "Trip has already started; participants cannot be removed"
   });
 });
 
-test("organizer cannot remove members with split expense history", async () => {
+test("started trips cannot remove members with split expense history", async () => {
   const { token, user } = await loginAsDemoUser();
   const participant = await registerUser({
     name: "SplitHistoryMember",
@@ -1340,6 +1471,7 @@ test("organizer cannot remove members with split expense history", async () => {
       userId: participant.user.id
     }
   });
+  await startTripForTest(token, tripId);
   const expenseResponse = await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
     headers: authHeaders(token),
@@ -1347,7 +1479,7 @@ test("organizer cannot remove members with split expense history", async () => {
       title: "Shared Dinner",
       amount: 90,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: user.id,
       includedParticipantIds: [user.id, participant.user.id]
     }
@@ -1363,7 +1495,7 @@ test("organizer cannot remove members with split expense history", async () => {
   assert.equal(expenseResponse.status, 201);
   assert.equal(removeResponse.status, 409);
   assert.deepEqual(removeResponse.body, {
-    error: "Cannot remove a participant with expense history"
+    error: "Trip has already started; participants cannot be removed"
   });
 });
 
@@ -1458,6 +1590,60 @@ test("organizer can set total and per-person budgets", async () => {
   assert.equal(perPersonBudgetResponse.body.budgetSummary.perPersonBudget, 400);
 });
 
+test("started trips can only increase the existing budget", async () => {
+  const { token } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "total",
+      totalBudget: 1000
+    }
+  });
+  await request(`/api/trips/${tripId}/start`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+
+  const decreaseResponse = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "total",
+      totalBudget: 900
+    }
+  });
+  const modeChangeResponse = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "per-person",
+      perPersonBudget: 1200
+    }
+  });
+  const increaseResponse = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "total",
+      totalBudget: 1200
+    }
+  });
+
+  assert.equal(decreaseResponse.status, 409);
+  assert.deepEqual(decreaseResponse.body, {
+    error: "Trip has already started; budget can only be increased"
+  });
+  assert.equal(modeChangeResponse.status, 409);
+  assert.deepEqual(modeChangeResponse.body, {
+    error: "Trip has already started; budget mode cannot be changed"
+  });
+  assert.equal(increaseResponse.status, 200);
+  assert.equal(increaseResponse.body.budgetSummary.totalBudget, 1200);
+});
+
 test("budget API rejects invalid budget input", async () => {
   const { token } = await loginAsDemoUser();
   const tripId = await createTrip(token);
@@ -1501,6 +1687,26 @@ test("budget API rejects non-cent and non-finite amounts", async () => {
 test("expense API creates equal shares and recalculates balances", async () => {
   const { token, user } = await loginAsDemoUser();
   const tripId = await createTrip(token);
+  const teammate = await registerUser({
+    name: "Expense Teammate",
+    email: "expense-teammate@example.com"
+  });
+  await request("/api/me", {
+    method: "PATCH",
+    headers: authHeaders(teammate.token),
+    body: {
+      displayName: "Expense Buddy",
+      avatarUrl: ""
+    }
+  });
+  await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      userId: teammate.user.id
+    }
+  });
+  await startTripForTest(token, tripId);
 
   const response = await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
@@ -1509,21 +1715,110 @@ test("expense API creates equal shares and recalculates balances", async () => {
       title: "Lunch",
       amount: 30,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
+      payerId: user.id,
+      splitRule: "equal",
+      includedParticipantIds: [teammate.user.id]
+    }
+  });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(response.body.expense.includedParticipantIds, [teammate.user.id]);
+  assert.equal(response.body.expense.expenseShares[0].shareAmount, 15);
+  assert.equal(response.body.balances[0].actualPaid, 30);
+  assert.equal(response.body.balances[0].fairShare, 15);
+  assert.equal(response.body.balances[0].netBalance, 15);
+  assert.equal(response.body.balances[1].actualPaid, 0);
+  assert.equal(response.body.balances[1].fairShare, 15);
+  assert.equal(response.body.balances[1].netBalance, -15);
+
+  const balancesResponse = await request(`/api/trips/${tripId}/balances`, {
+    headers: authHeaders(token)
+  });
+  const teammateBalance = balancesResponse.body.balances.find(
+    (balance) => balance.participantId === teammate.user.id
+  );
+  assert.equal(teammateBalance.participant.displayName, "Expense Buddy");
+});
+
+test("expense API rejects recording expenses before the trip starts", async () => {
+  const { token, user } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const response = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Too Early",
+      amount: 25,
+      category: "food",
+      expenseType: "budget_payment",
       payerId: user.id,
       splitRule: "equal",
       includedParticipantIds: [user.id]
     }
   });
 
-  assert.equal(response.status, 201);
-  assert.equal(response.body.expense.expenseShares[0].shareAmount, 30);
-  assert.equal(response.body.balances[0].actualPaid, 30);
-  assert.equal(response.body.balances[0].fairShare, 30);
-  assert.equal(response.body.balances[0].netBalance, 0);
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    error: "Start the trip before recording expenses"
+  });
 });
 
-test("expense API creates one equal share per included participant", async () => {
+test("ending a trip locks budget and expense changes", async () => {
+  const { token, user } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  const budgetResponse = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "per-person",
+      perPersonBudget: 1000
+    }
+  });
+  const startedTrip = await startTripForTest(token, tripId);
+  const endResponse = await request(`/api/trips/${tripId}/end`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+  const lockedBudgetResponse = await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "per-person",
+      perPersonBudget: 1200
+    }
+  });
+  const lockedExpenseResponse = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "After Trip",
+      amount: 25,
+      category: "food",
+      expenseType: "budget_payment",
+      payerId: user.id,
+      splitRule: "equal",
+      includedParticipantIds: [user.id]
+    }
+  });
+
+  assert.equal(budgetResponse.status, 200);
+  assert.equal(typeof startedTrip.startedAt, "string");
+  assert.equal(endResponse.status, 200);
+  assert.equal(typeof endResponse.body.trip.endedAt, "string");
+  assert.equal(lockedBudgetResponse.status, 409);
+  assert.deepEqual(lockedBudgetResponse.body, {
+    error: "Trip has ended; budget is locked"
+  });
+  assert.equal(lockedExpenseResponse.status, 400);
+  assert.deepEqual(lockedExpenseResponse.body, {
+    error: "Trip has ended; expenses are locked"
+  });
+});
+
+test("expense API creates budget-payment shares without personal reimbursement balances", async () => {
   const { token } = await loginAsDemoUser();
 
   const response = await request("/api/trips/trip_4/expenses", {
@@ -1533,7 +1828,7 @@ test("expense API creates one equal share per included participant", async () =>
       title: "Museum Tickets",
       amount: 99,
       category: "tickets",
-      expenseType: "shared",
+      expenseType: "budget_payment",
       payerId: "user_1",
       splitRule: "equal",
       includedParticipantIds: ["user_1", "user_2", "user_3"]
@@ -1555,7 +1850,39 @@ test("expense API creates one equal share per included participant", async () =>
       shareAmount: 33
     }
   ]);
-  assert.equal(response.body.budgetSummary.totalSpent, 639);
+  assert.equal(response.body.budgetSummary.totalSpent, 99);
+  assert.deepEqual(
+    response.body.balances.map((balance) => ({
+      participantId: balance.participantId,
+      budgetSpent: balance.budgetSpent,
+      actualPaid: balance.actualPaid,
+      fairShare: balance.fairShare,
+      netBalance: balance.netBalance
+    })),
+    [
+      {
+        participantId: "user_1",
+        budgetSpent: 33,
+        actualPaid: 450,
+        fairShare: 180,
+        netBalance: 270
+      },
+      {
+        participantId: "user_2",
+        budgetSpent: 33,
+        actualPaid: 90,
+        fairShare: 180,
+        netBalance: -90
+      },
+      {
+        participantId: "user_3",
+        budgetSpent: 33,
+        actualPaid: 0,
+        fairShare: 180,
+        netBalance: -180
+      }
+    ]
+  );
 });
 
 test("expense API distributes leftover cents so equal split balances are conserved", async () => {
@@ -1568,19 +1895,15 @@ test("expense API distributes leftover cents so equal split balances are conserv
       title: "Theme Park Tickets",
       amount: 500,
       category: "tickets",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: "user_1",
       splitRule: "equal",
-      includedParticipantIds: ["user_1", "user_2", "user_3"]
+      includedParticipantIds: ["user_2", "user_3"]
     }
   });
 
   assert.equal(response.status, 201);
   assert.deepEqual(response.body.expense.expenseShares, [
-    {
-      participantId: "user_1",
-      shareAmount: 166.67
-    },
     {
       participantId: "user_2",
       shareAmount: 166.67
@@ -1592,7 +1915,7 @@ test("expense API distributes leftover cents so equal split balances are conserv
   ]);
   assert.equal(
     response.body.expense.expenseShares.reduce((sum, share) => sum + share.shareAmount, 0),
-    500
+    333.33
   );
   assert.equal(
     response.body.balances.reduce((sum, balance) => sum + balance.netBalance, 0),
@@ -1600,9 +1923,10 @@ test("expense API distributes leftover cents so equal split balances are conserv
   );
 });
 
-test("expense API rejects shared expenses without explicit split participants", async () => {
+test("expense API rejects expenses without explicit split participants", async () => {
   const { token, user } = await loginAsDemoUser();
   const tripId = await createTrip(token);
+  await startTripForTest(token, tripId);
 
   const missingSplitResponse = await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
@@ -1611,7 +1935,7 @@ test("expense API rejects shared expenses without explicit split participants", 
       title: "Missing Split",
       amount: 20,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: user.id,
       splitRule: "equal"
     }
@@ -1623,7 +1947,7 @@ test("expense API rejects shared expenses without explicit split participants", 
       title: "Empty Split",
       amount: 20,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: user.id,
       splitRule: "equal",
       includedParticipantIds: []
@@ -1632,17 +1956,29 @@ test("expense API rejects shared expenses without explicit split participants", 
 
   assert.equal(missingSplitResponse.status, 400);
   assert.deepEqual(missingSplitResponse.body, {
-    error: "At least one split participant is required"
+    error: "Choose at least one person who should reimburse the payer"
   });
   assert.equal(emptySplitResponse.status, 400);
   assert.deepEqual(emptySplitResponse.body, {
-    error: "At least one split participant is required"
+    error: "Choose at least one person who should reimburse the payer"
   });
 });
 
 test("expense API dedupes repeated split participants", async () => {
   const { token, user } = await loginAsDemoUser();
   const tripId = await createTrip(token);
+  const teammate = await registerUser({
+    name: "Repeated Split Teammate",
+    email: "repeated-split-teammate@example.com"
+  });
+  await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      userId: teammate.user.id
+    }
+  });
+  await startTripForTest(token, tripId);
 
   const response = await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
@@ -1651,19 +1987,19 @@ test("expense API dedupes repeated split participants", async () => {
       title: "Repeated Split",
       amount: 30,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: user.id,
       splitRule: "equal",
-      includedParticipantIds: [user.id, user.id]
+      includedParticipantIds: [teammate.user.id, teammate.user.id]
     }
   });
 
   assert.equal(response.status, 201);
-  assert.deepEqual(response.body.expense.includedParticipantIds, [user.id]);
+  assert.deepEqual(response.body.expense.includedParticipantIds, [teammate.user.id]);
   assert.deepEqual(response.body.expense.expenseShares, [
     {
-      participantId: user.id,
-      shareAmount: 30
+      participantId: teammate.user.id,
+      shareAmount: 15
     }
   ]);
 });
@@ -1671,6 +2007,7 @@ test("expense API dedupes repeated split participants", async () => {
 test("expense API rejects non-cent and non-finite amounts", async () => {
   const { token, user } = await loginAsDemoUser();
   const tripId = await createTrip(token);
+  await startTripForTest(token, tripId);
 
   for (const amount of [1.234, 0.005, 0.004, "Infinity", "NaN", 0, -5]) {
     const response = await request(`/api/trips/${tripId}/expenses`, {
@@ -1680,7 +2017,7 @@ test("expense API rejects non-cent and non-finite amounts", async () => {
         title: "Invalid Amount",
         amount,
         category: "food",
-        expenseType: "shared",
+        expenseType: "personal_advance",
         payerId: user.id,
         splitRule: "equal",
         includedParticipantIds: [user.id]
@@ -1694,14 +2031,14 @@ test("expense API rejects non-cent and non-finite amounts", async () => {
   }
 });
 
-test("expense API treats personal advance as payer-only while keeping budget spending", async () => {
+test("expense API splits personal advances without increasing budget spending", async () => {
   const { token } = await loginAsDemoUser();
 
   const response = await request("/api/trips/trip_4/expenses", {
     method: "POST",
     headers: authHeaders(token),
     body: {
-      title: "Personal Drink",
+      title: "Shared Drinks",
       amount: 45,
       category: "drinks",
       expenseType: "personal_advance",
@@ -1712,17 +2049,25 @@ test("expense API treats personal advance as payer-only while keeping budget spe
   });
 
   assert.equal(response.status, 201);
-  assert.deepEqual(response.body.expense.includedParticipantIds, ["user_1"]);
+  assert.deepEqual(response.body.expense.includedParticipantIds, [
+    "user_2",
+    "user_3"
+  ]);
   assert.deepEqual(response.body.expense.expenseShares, [
     {
-      participantId: "user_1",
-      shareAmount: 45
+      participantId: "user_2",
+      shareAmount: 15
+    },
+    {
+      participantId: "user_3",
+      shareAmount: 15
     }
   ]);
-  assert.equal(response.body.budgetSummary.totalSpent, 585);
+  assert.equal(response.body.budgetSummary.totalSpent, 0);
   assert.deepEqual(
     response.body.balances.map((balance) => ({
       participantId: balance.participantId,
+      budgetSpent: balance.budgetSpent,
       actualPaid: balance.actualPaid,
       fairShare: balance.fairShare,
       netBalance: balance.netBalance
@@ -1730,21 +2075,24 @@ test("expense API treats personal advance as payer-only while keeping budget spe
     [
       {
         participantId: "user_1",
+        budgetSpent: 0,
         actualPaid: 495,
-        fairShare: 225,
-        netBalance: 270
+        fairShare: 195,
+        netBalance: 300
       },
       {
         participantId: "user_2",
+        budgetSpent: 0,
         actualPaid: 90,
-        fairShare: 180,
-        netBalance: -90
+        fairShare: 195,
+        netBalance: -105
       },
       {
         participantId: "user_3",
+        budgetSpent: 0,
         actualPaid: 0,
-        fairShare: 180,
-        netBalance: -180
+        fairShare: 195,
+        netBalance: -195
       }
     ]
   );
@@ -1764,7 +2112,7 @@ test("expense API rejects payer who is not an approved trip participant", async 
       title: "Blocked Expense",
       amount: 24,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: outsider.user.id,
       splitRule: "equal",
       includedParticipantIds: ["user_1"]
@@ -1791,7 +2139,7 @@ test("expense API rejects split participants who are not approved on the trip", 
       title: "Blocked Split",
       amount: 24,
       category: "food",
-      expenseType: "shared",
+      expenseType: "personal_advance",
       payerId: "user_1",
       splitRule: "equal",
       includedParticipantIds: ["user_1", outsider.user.id]
@@ -1856,8 +2204,8 @@ test("organizer can delete an expense and recalculate budget and balances", asyn
 
   assert.equal(response.status, 200);
   assert.equal(response.body.deletedExpenseId, "expense_5");
-  assert.equal(response.body.budgetSummary.totalSpent, 90);
-  assert.equal(response.body.budgetSummary.remainingBudget, 810);
+  assert.equal(response.body.budgetSummary.totalSpent, 0);
+  assert.equal(response.body.budgetSummary.remainingBudget, 900);
   assert.deepEqual(
     response.body.balances.map((balance) => ({
       participantId: balance.participantId,
@@ -1901,7 +2249,7 @@ test("expense payer can delete their own expense", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(response.body.deletedExpenseId, "expense_6");
-  assert.equal(response.body.budgetSummary.totalSpent, 450);
+  assert.equal(response.body.budgetSummary.totalSpent, 0);
 });
 
 test("regular participants cannot delete another participant's expense", async () => {
@@ -1966,6 +2314,17 @@ async function createTrip(token) {
 
   assert.equal(response.status, 201);
   return response.body.trip.id;
+}
+
+async function startTripForTest(token, tripId) {
+  const response = await request(`/api/trips/${tripId}/start`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(typeof response.body.trip.startedAt, "string");
+  return response.body.trip;
 }
 
 function signTestToken(payload) {

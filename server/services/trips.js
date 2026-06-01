@@ -15,6 +15,8 @@ import {
   listTripSummariesForUser,
   removeTripParticipant,
   setBudget,
+  endTrip,
+  startTrip,
   updateTrip
 } from "../store.js";
 import {
@@ -28,6 +30,8 @@ import {
   listTripSummaryRecordsForUser,
   removeParticipantRecord,
   setBudgetRecord,
+  endTripRecord,
+  startTripRecord,
   tripRecordExists,
   updateTripRecord,
   userIsApprovedParticipantRecord,
@@ -94,6 +98,17 @@ export async function getTripForUser(userId, tripId) {
 
 export async function deleteTripForUser(userId, tripId) {
   await ensureOrganizer(userId, tripId);
+  const existingTrip = isTripRepositoryEnabled()
+    ? await findTripRecordById(tripId)
+    : getTripById(tripId);
+
+  if (!existingTrip) {
+    throw notFound("Trip not found");
+  }
+
+  if (existingTrip.startedAt) {
+    throw conflict("Trip has already started; trip deletion is locked");
+  }
 
   const deletedTrip = isTripRepositoryEnabled()
     ? await deleteTripRecord(tripId)
@@ -111,6 +126,21 @@ export async function deleteTripForUser(userId, tripId) {
 export async function updateTripForUser(userId, tripId, input = {}) {
   await ensureOrganizer(userId, tripId);
   const normalizedInput = normalizeTripInput(input);
+  const existingTrip = isTripRepositoryEnabled()
+    ? await findTripRecordById(tripId)
+    : getTripById(tripId);
+
+  if (!existingTrip) {
+    throw notFound("Trip not found");
+  }
+
+  if (existingTrip.startedAt) {
+    throw conflict("Trip has already started; trip details are locked");
+  }
+
+  if (existingTrip.endedAt) {
+    throw conflict("Trip has ended; trip details are locked");
+  }
 
   const trip = isTripRepositoryEnabled()
     ? await updateTripRecord(tripId, normalizedInput)
@@ -123,8 +153,49 @@ export async function updateTripForUser(userId, tripId, input = {}) {
   return { trip };
 }
 
+export async function startTripForUser(userId, tripId) {
+  await ensureOrganizer(userId, tripId);
+
+  const trip = isTripRepositoryEnabled()
+    ? await startTripRecord(tripId)
+    : startTrip(tripId);
+
+  if (!trip) {
+    throw notFound("Trip not found");
+  }
+
+  return { trip };
+}
+
+export async function endTripForUser(userId, tripId) {
+  await ensureOrganizer(userId, tripId);
+
+  const existingTrip = isTripRepositoryEnabled()
+    ? await findTripRecordById(tripId)
+    : getTripById(tripId);
+
+  if (!existingTrip) {
+    throw notFound("Trip not found");
+  }
+
+  if (!existingTrip.startedAt) {
+    throw badRequest("Start the trip before ending it");
+  }
+
+  const trip = isTripRepositoryEnabled()
+    ? await endTripRecord(tripId)
+    : endTrip(tripId);
+
+  if (!trip) {
+    throw notFound("Trip not found");
+  }
+
+  return { trip };
+}
+
 export async function addParticipantToTrip(userId, tripId, input = {}) {
   await ensureOrganizer(userId, tripId);
+  await ensureTripOpenForParticipantChanges(tripId);
   const role = normalizeParticipantRole(input.role);
 
   if (isTripRepositoryEnabled()) {
@@ -165,6 +236,7 @@ export async function addParticipantToTrip(userId, tripId, input = {}) {
 
 export async function inviteParticipantToTrip(userId, tripId, input = {}) {
   await ensureOrganizer(userId, tripId);
+  await ensureTripOpenForParticipantChanges(tripId);
   const role = normalizeParticipantRole(input.role);
 
   if (isTripRepositoryEnabled()) {
@@ -229,6 +301,10 @@ export async function removeParticipantFromTrip(userId, tripId, participantId) {
     throw badRequest("Organizer cannot be removed from the trip");
   }
 
+  if (trip.startedAt) {
+    throw conflict("Trip has already started; participants cannot be removed");
+  }
+
   if (
     participant.joinStatus === "approved" &&
     participantHasExpenseHistory(participantId, trip.expenses || [])
@@ -272,12 +348,46 @@ function participantHasExpenseHistory(participantId, expenses) {
   });
 }
 
+async function ensureTripOpenForParticipantChanges(tripId) {
+  const trip = isTripRepositoryEnabled()
+    ? await findTripRecordById(tripId)
+    : getTripById(tripId);
+
+  if (!trip) {
+    throw notFound("Trip not found");
+  }
+
+  if (trip.startedAt) {
+    throw conflict("Trip has already started; participants are locked");
+  }
+
+  if (trip.endedAt) {
+    throw conflict("Trip has ended; participants are locked");
+  }
+
+  return trip;
+}
+
 export async function setTripBudget(userId, tripId, input = {}) {
   await ensureOrganizer(userId, tripId);
 
   if (!isValidBudgetInput(input)) {
     throw badRequest("Invalid budget input");
   }
+
+  const trip = isTripRepositoryEnabled()
+    ? await findTripRecordById(tripId)
+    : getTripById(tripId);
+
+  if (!trip) {
+    throw notFound("Trip not found");
+  }
+
+  if (trip.endedAt) {
+    throw conflict("Trip has ended; budget is locked");
+  }
+
+  validateStartedTripBudgetChange(trip, input);
 
   if (isTripRepositoryEnabled()) {
     return {
@@ -290,6 +400,33 @@ export async function setTripBudget(userId, tripId, input = {}) {
     tripId,
     budgetSummary: setBudget(tripId, input)
   };
+}
+
+function validateStartedTripBudgetChange(trip, input) {
+  if (!trip.startedAt || !trip.budgetSummary) {
+    return;
+  }
+
+  const current = trip.budgetSummary;
+  const mode = input.mode;
+
+  if (mode !== current.mode) {
+    throw conflict("Trip has already started; budget mode cannot be changed");
+  }
+
+  const participantCount = Number(current.participantCount) ||
+    (trip.participants || []).filter((participant) => participant.joinStatus === "approved").length ||
+    1;
+  const nextTotalBudget = mode === "total"
+    ? Number(input.totalBudget ?? input.amount)
+    : Number(input.perPersonBudget ?? input.amount) * participantCount;
+  const currentTotalBudget = Number(current.totalBudget);
+
+  if (
+    Math.round(nextTotalBudget * 100) <= Math.round(currentTotalBudget * 100)
+  ) {
+    throw conflict("Trip has already started; budget can only be increased");
+  }
 }
 
 export async function ensureApprovedParticipant(userId, tripId) {

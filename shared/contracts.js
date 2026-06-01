@@ -16,6 +16,8 @@ export const API_ROUTES = {
   tripInvitationAction: (tripId, action) => `${API_BASE}/friends/trip-invitations/${tripId}/${action}`,
   trips: `${API_BASE}/trips`,
   trip: (tripId) => `${API_BASE}/trips/${tripId}`,
+  tripStart: (tripId) => `${API_BASE}/trips/${tripId}/start`,
+  tripEnd: (tripId) => `${API_BASE}/trips/${tripId}/end`,
   tripInvitations: (tripId) => `${API_BASE}/trips/${tripId}/invitations`,
   tripParticipants: (tripId) => `${API_BASE}/trips/${tripId}/participants`,
   tripParticipant: (tripId, participantId) => `${API_BASE}/trips/${tripId}/participants/${participantId}`,
@@ -38,7 +40,7 @@ export const EXPENSE_CATEGORIES = [
 
 export const BUDGET_MODES = ["total", "per-person"];
 
-export const EXPENSE_TYPES = ["shared", "personal_advance"];
+export const EXPENSE_TYPES = ["budget_payment", "personal_advance"];
 
 export const SPLIT_RULES = ["equal"];
 

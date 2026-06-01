@@ -101,6 +101,7 @@ expenseShares
 shareAmount
 budgetSummary
 balances
+budgetSpent
 actualPaid
 fairShare
 netBalance
@@ -110,13 +111,16 @@ netBalance
 
 For `POST /api/trips/:tripId/expenses`:
 
-- Any approved trip participant can record an expense.
+- `expenseType` must be `budget_payment` or `personal_advance`.
+- `budget_payment` means the organizer paid from the shared trip budget. Only the organizer can create it.
+- `personal_advance` means one participant paid out of pocket for selected trip participants. Any approved participant can record it.
 - The payer must be an approved participant in the trip.
 - Every included split participant must be an approved participant in the trip.
 - MVP `splitRule` is `equal`.
 - For equal split, create one `expenseShare` per included participant.
 - Round each share to 2 decimal places.
 - After creating the expense, return the created expense, updated `budgetSummary`, and updated `balances`.
+- `budgetSummary.totalSpent` should count only `budget_payment` expenses, not `personal_advance` expenses.
 
 ## Delete Expense Rules
 
@@ -137,13 +141,16 @@ Response fields:
 actualPaid
 fairShare
 netBalance
+budgetSpent
 ```
 
 Meaning:
 
+- `budgetSpent`: how much shared trip budget was used for that participant.
 - Positive `netBalance`: the participant paid more than their fair share.
 - Negative `netBalance`: the participant paid less than their fair share.
 - `netBalance = actualPaid - fairShare`.
+Only `personal_advance` affects `actualPaid`, `fairShare`, and `netBalance`; `budget_payment` affects `budgetSpent` and `budgetSummary.totalSpent`.
 
 ## Database Tables BE2 Should Use
 
@@ -177,7 +184,8 @@ Important schema rules:
 
 BE2 should add or update tests for:
 
-- creating a shared expense
+- creating a `budget_payment` expense
+- creating a `personal_advance` expense
 - creating equal `expenseShares`
 - rejecting payer who is not a trip participant
 - rejecting split participants who are not trip participants

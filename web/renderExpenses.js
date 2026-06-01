@@ -8,18 +8,23 @@ import { escapeHtml, formatMoney } from "./renderTrips.js";
 export function renderExpenses(panel, { trip, currentUserId, onChange }) {
   const approved = trip.participants.filter((p) => p.joinStatus === "approved");
   const isOrganizer = trip.organizerId === currentUserId;
+  const tripStarted = Boolean(trip.startedAt);
+  const tripEnded = Boolean(trip.endedAt);
+  panel.classList.toggle("is-locked", tripEnded);
 
   panel.innerHTML = `
     <div class="panel-header">
       <h2>Expenses</h2>
       <span class="hint">${trip.expenses.length} recorded</span>
     </div>
-    ${expenseFormHtml(approved, currentUserId)}
-    <div class="expense-list">${
+    ${expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded)}
+    ${
       trip.expenses.length
-        ? trip.expenses.map((e) => expenseRowHtml(e, approved, currentUserId, isOrganizer)).join("")
-        : `<p class="empty">No expenses yet.</p>`
-    }</div>
+        ? `<div class="expense-list">${trip.expenses
+            .map((e) => expenseRowHtml(e, approved, currentUserId, isOrganizer, tripEnded))
+            .join("")}</div>`
+        : ""
+    }
   `;
 
   const form = panel.querySelector("#expense-form");
@@ -29,19 +34,46 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
   const payerSelect = form.elements.payerId;
   const typeSelect = form.elements.expenseType;
   const splitField = form.querySelector("[data-split-field]");
+  const splitLabel = form.querySelector("[data-split-label]");
   const splitPicker = form.querySelector("[data-split-picker]");
+  const payerField = form.querySelector("[data-payer-field]");
+  const budgetPaymentNote = form.querySelector("[data-budget-payment-note]");
   const personalAdvanceNote = form.querySelector("[data-personal-advance-note]");
   const splitCheckboxes = Array.from(form.querySelectorAll("input[name='includedParticipantIds']"));
+  const submitButton = form.querySelector("[data-expense-submit]");
 
   function syncSplitControls() {
+    const isBudgetPayment = typeSelect.value === "budget_payment";
     const isPersonalAdvance = typeSelect.value === "personal_advance";
+    const payerId = String(payerSelect.value || "");
 
-    splitPicker.hidden = isPersonalAdvance;
+    if (isBudgetPayment && currentUserId) {
+      payerSelect.value = currentUserId;
+    }
+
+    const controlsLocked = tripEnded;
+    payerField.hidden = false;
+    payerSelect.disabled = controlsLocked || isBudgetPayment;
+    splitLabel.textContent = isPersonalAdvance ? "Shared with" : "Split between";
+    budgetPaymentNote.hidden = !isBudgetPayment;
     personalAdvanceNote.hidden = !isPersonalAdvance;
-    splitField.classList.toggle("is-disabled", isPersonalAdvance);
+    splitPicker.hidden = false;
+    splitField.classList.toggle("is-disabled", false);
     splitCheckboxes.forEach((checkbox) => {
-      checkbox.disabled = isPersonalAdvance;
+      const choice = checkbox.closest("[data-participant-choice]");
+      const isPayer = String(checkbox.value) === payerId;
+      const shouldHide = isPersonalAdvance && isPayer;
+
+      if (choice) {
+        choice.hidden = shouldHide;
+      }
+
+      checkbox.disabled = controlsLocked || shouldHide;
+      if (!controlsLocked) {
+        checkbox.checked = !shouldHide;
+      }
     });
+    submitButton.disabled = !tripStarted || tripEnded;
   }
 
   typeSelect.addEventListener("change", syncSplitControls);
@@ -53,6 +85,14 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     error.textContent = "";
+    if (!tripStarted) {
+      error.textContent = "Start the trip before recording expenses.";
+      return;
+    }
+    if (tripEnded) {
+      error.textContent = "Trip has ended; expenses are locked.";
+      return;
+    }
     titleInput.setCustomValidity("");
     amountInput.setCustomValidity("");
 
@@ -60,10 +100,10 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
     const title = String(formData.get("title") || "").trim();
     const amount = Number(formData.get("amount"));
     const expenseType = formData.get("expenseType");
-    const payerId = formData.get("payerId");
-    const includedParticipantIds = expenseType === "personal_advance"
-      ? [payerId]
-      : formData.getAll("includedParticipantIds");
+    const payerId = expenseType === "budget_payment"
+      ? currentUserId
+      : formData.get("payerId");
+    const includedParticipantIds = formData.getAll("includedParticipantIds");
     if (!title) {
       error.textContent = "Title is required.";
       titleInput.setCustomValidity(error.textContent);
@@ -78,8 +118,10 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
       amountInput.setCustomValidity("");
       return;
     }
-    if (expenseType === "shared" && !includedParticipantIds.length) {
-      error.textContent = "Choose at least one split participant.";
+    if (!includedParticipantIds.length) {
+      error.textContent = expenseType === "personal_advance"
+        ? "Choose at least one person who should reimburse the payer."
+        : "Choose at least one person who used this budget expense.";
       return;
     }
     try {
@@ -94,6 +136,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
       });
       form.reset();
       syncSplitControls();
+      submitButton.disabled = !tripStarted || tripEnded;
       await onChange();
     } catch (err) {
       error.textContent = err.message;
@@ -124,12 +167,12 @@ function sanitizeNumberInput(event) {
   event.target.value = event.target.value.replace(/[eE+-]/g, "");
 }
 
-function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
+function expenseRowHtml(expense, approved, currentUserId, isOrganizer, tripEnded) {
   const payer = approved.find((p) => p.id === expense.payerId);
-  const canDelete = isOrganizer || expense.payerId === currentUserId;
-  const expenseSummary = expense.expenseType === "personal_advance"
-    ? `${escapeHtml(expense.category)} · paid by ${escapeHtml(displayName(payer))} · personal advance`
-    : `${escapeHtml(expense.category)} · paid by ${escapeHtml(displayName(payer))} · split between ${escapeHtml(splitParticipantNames(expense, approved))}`;
+  const canDelete = !tripEnded && (isOrganizer || expense.payerId === currentUserId);
+  const expenseSummary = expense.expenseType === "budget_payment"
+    ? `${escapeHtml(expense.category)} · paid from trip budget · used by ${escapeHtml(splitParticipantNames(expense, approved))}`
+    : `${escapeHtml(expense.category)} · advanced by ${escapeHtml(displayName(payer))} · shared with ${escapeHtml(splitParticipantNames(expense, approved))}`;
   return `
     <div class="expense-row">
       <div>
@@ -146,7 +189,7 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer) {
   `;
 }
 
-function expenseFormHtml(approved, currentUserId) {
+function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded) {
   const payerOptions = approved
     .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(displayName(p))}</option>`)
     .join("");
@@ -154,12 +197,13 @@ function expenseFormHtml(approved, currentUserId) {
     .map((c) => `<option value="${c}">${escapeHtml(c)}</option>`)
     .join("");
   const typeOptions = EXPENSE_TYPES
-    .map((t) => `<option value="${t}">${escapeHtml(t.replace("_", " "))}</option>`)
+    .filter((type) => isOrganizer || type !== "budget_payment")
+    .map((type) => `<option value="${type}">${escapeHtml(typeLabel(type))}</option>`)
     .join("");
   const participantChips = approved
     .map((p) => `
-      <label>
-        <input type="checkbox" name="includedParticipantIds" value="${p.id}" checked />
+      <label data-participant-choice>
+        <input type="checkbox" name="includedParticipantIds" value="${p.id}" ${tripEnded ? "disabled" : ""} checked />
         ${escapeHtml(displayName(p))}
       </label>
     `)
@@ -167,41 +211,56 @@ function expenseFormHtml(approved, currentUserId) {
 
   return `
     <form id="expense-form" class="form-grid" novalidate>
-      <div class="form-grid-row">
+      <div class="expense-entry-row">
         <label class="field">
           <span>Title</span>
-          <input type="text" name="title" placeholder="Dinner" required />
+          <input type="text" name="title" placeholder="Dinner" ${tripEnded ? "disabled" : ""} required />
         </label>
-        <label class="field">
-          <span>Amount ($)</span>
-          <input type="number" name="amount" min="0" step="0.01" required />
-        </label>
-      </div>
-      <div class="form-grid-row">
         <label class="field">
           <span>Category</span>
-          <select name="category">${categoryOptions}</select>
+          <select name="category" ${tripEnded ? "disabled" : ""}>${categoryOptions}</select>
         </label>
         <label class="field">
           <span>Type</span>
-          <select name="expenseType">${typeOptions}</select>
+          <select name="expenseType" ${tripEnded ? "disabled" : ""}>${typeOptions}</select>
+        </label>
+        <label class="field" data-payer-field>
+          <span>Payer</span>
+          <select name="payerId" ${tripEnded ? "disabled" : ""}>${payerOptions}</select>
         </label>
         <label class="field">
-          <span>Payer</span>
-          <select name="payerId">${payerOptions}</select>
+          <span>Amount ($)</span>
+          <input type="number" name="amount" min="0" step="0.01" ${tripEnded ? "disabled" : ""} required />
         </label>
       </div>
-      <label class="field" data-split-field>
-        <span>Split between</span>
-        <div class="participant-picker" data-split-picker>${participantChips}</div>
-        <span class="hint" data-personal-advance-note hidden>Personal advance is paid only by the payer.</span>
-      </label>
-      <p id="expense-error" class="form-error"></p>
-      <div class="section-actions">
-        <button type="submit">Add Expense</button>
+      <div class="expense-secondary-row">
+        <label class="field" data-split-field>
+          <span data-split-label>Split between</span>
+          <div class="participant-picker" data-split-picker>${participantChips}</div>
+        </label>
+        <div class="section-actions">
+          <button type="submit" class="expense-submit" data-expense-submit ${tripStarted && !tripEnded ? "" : "disabled"}>Add Expense</button>
+        </div>
       </div>
+      <div class="expense-notes">
+        <span class="hint" data-budget-payment-note hidden>Paid from the trip budget. Select who used this budget expense.</span>
+        <span class="hint" data-personal-advance-note hidden>Select only the people who should reimburse the payer.</span>
+      </div>
+      <p id="expense-error" class="form-error"></p>
     </form>
   `;
+}
+
+function typeLabel(type) {
+  if (type === "budget_payment") {
+    return "Trip budget payment";
+  }
+
+  if (type === "personal_advance") {
+    return "Personal advance";
+  }
+
+  return type.replace("_", " ");
 }
 
 function splitParticipantNames(expense, approved) {

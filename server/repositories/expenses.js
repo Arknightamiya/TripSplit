@@ -24,10 +24,8 @@ export async function listApprovedParticipantIdsRecord(tripId) {
 export async function createExpenseRecord(tripId, input) {
   const database = getDatabase();
   const amount = normalizeCurrencyAmount(input.amount);
-  const includedParticipantIds = input.expenseType === "personal_advance"
-    ? [String(input.payerId)]
-    : uniqueStrings(input.includedParticipantIds || []);
-  const expenseShares = splitCurrencyEvenly(amount, includedParticipantIds);
+  const includedParticipantIds = uniqueStrings(input.includedParticipantIds || []);
+  const expenseShares = createExpenseShares(amount, input.expenseType, input.payerId, includedParticipantIds);
 
   const expenseId = await database.transaction(async (transaction) => {
     const splitRuleResult = await transaction.query(
@@ -189,6 +187,7 @@ export async function getBudgetSummaryRecordByTripId(tripId) {
           SELECT SUM(e.amount)
           FROM expenses e
           WHERE e.trip_id = $1
+            AND e.expense_type = 'budget_payment'
         ), 0) AS total_spent
       FROM budgets b
       WHERE b.trip_id = $1
@@ -234,6 +233,7 @@ async function listApprovedParticipantRecords(tripId) {
       SELECT
         tp.user_id AS participant_id,
         u.name,
+        u.display_name,
         u.email
       FROM trip_participants tp
       JOIN users u ON u.id = tp.user_id
@@ -247,6 +247,7 @@ async function listApprovedParticipantRecords(tripId) {
   return result.rows.map((row) => ({
     id: String(row.participant_id),
     name: row.name,
+    displayName: row.display_name || row.name,
     email: row.email
   }));
 }
@@ -269,6 +270,7 @@ async function listExpenseShareRecords(expenseId) {
 }
 
 function mapExpenseRow(row, expenseShares) {
+  const expenseType = normalizeExpenseType(row.expense_type);
   const normalizedExpenseShares = normalizeExpenseShares(row, expenseShares);
 
   return {
@@ -277,7 +279,7 @@ function mapExpenseRow(row, expenseShares) {
     title: row.title,
     amount: toCurrencyNumber(row.amount),
     category: row.category,
-    expenseType: row.expense_type,
+    expenseType,
     payerId: String(row.payer_id),
     splitRule: row.split_rule,
     includedParticipantIds: normalizedExpenseShares.map((share) => share.participantId),
@@ -289,20 +291,21 @@ function mapExpenseRow(row, expenseShares) {
 function normalizeExpenseShares(row, expenseShares) {
   const amount = toCurrencyNumber(row.amount);
   const payerId = String(row.payer_id);
+  const expenseType = normalizeExpenseType(row.expense_type);
 
-  if (row.expense_type === "personal_advance") {
-    return splitCurrencyEvenly(amount, [payerId]);
-  }
-
-  if (!sharesNeedRecalculation(amount, expenseShares)) {
+  if (!sharesNeedRecalculation(amount, expenseType, payerId, expenseShares)) {
     return expenseShares;
   }
 
   const participantIds = uniqueStrings(expenseShares.map((share) => share.participantId));
-  return splitCurrencyEvenly(amount, participantIds.length ? participantIds : [payerId]);
+  return createExpenseShares(amount, expenseType, payerId, participantIds);
 }
 
-function sharesNeedRecalculation(amount, expenseShares) {
+function normalizeExpenseType(expenseType) {
+  return expenseType === "shared" ? "personal_advance" : expenseType;
+}
+
+function sharesNeedRecalculation(amount, expenseType, payerId, expenseShares) {
   if (!expenseShares.length) {
     return true;
   }
@@ -315,7 +318,44 @@ function sharesNeedRecalculation(amount, expenseShares) {
   const shareTotal = roundCurrency(
     expenseShares.reduce((sum, share) => sum + Number(share.shareAmount), 0)
   );
+
+  if (expenseType === "personal_advance") {
+    if (participantIds.includes(String(payerId))) {
+      return true;
+    }
+
+    const expectedTotal = roundCurrency(
+      createPersonalAdvanceShares(amount, payerId, participantIds).reduce(
+        (sum, share) => sum + Number(share.shareAmount),
+        0
+      )
+    );
+    return shareTotal !== expectedTotal;
+  }
+
   return shareTotal !== roundCurrency(Number(amount));
+}
+
+function createExpenseShares(amount, expenseType, payerId, includedParticipantIds) {
+  if (normalizeExpenseType(expenseType) === "personal_advance") {
+    return createPersonalAdvanceShares(amount, payerId, includedParticipantIds);
+  }
+
+  const participantIds = includedParticipantIds.length ? includedParticipantIds : [payerId];
+  return splitCurrencyEvenly(amount, participantIds);
+}
+
+function createPersonalAdvanceShares(amount, payerId, includedParticipantIds) {
+  const normalizedPayerId = String(payerId);
+  const debtorIds = uniqueStrings(includedParticipantIds)
+    .filter((participantId) => participantId !== normalizedPayerId);
+
+  if (!debtorIds.length) {
+    return [];
+  }
+
+  return splitCurrencyEvenly(amount, [normalizedPayerId, ...debtorIds])
+    .filter((share) => String(share.participantId) !== normalizedPayerId);
 }
 
 function buildBudgetSummary(row) {
