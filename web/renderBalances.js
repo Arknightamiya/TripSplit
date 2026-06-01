@@ -1,6 +1,7 @@
 import { escapeHtml, formatMoney } from "./renderTrips.js";
 import {
   DEFAULT_CURRENCY_CODE,
+  bindCurrencySelectLabels,
   convertMoney,
   currencyOptionsHtml,
   normalizeCurrencyCode,
@@ -35,7 +36,7 @@ export function renderBalances(panel, {
         <h2>Balances</h2>
         <label class="compact-select">
           <span>Settle in</span>
-          <select data-balance-currency>
+          <select data-balance-currency data-currency-select>
             ${currencyOptionsHtml(normalizedCurrencyInfo, { selectedCode: selectedBalanceCurrencyCode })}
           </select>
         </label>
@@ -55,6 +56,7 @@ export function renderBalances(panel, {
   `;
 
   const select = panel.querySelector("[data-balance-currency]");
+  bindCurrencySelectLabels(select);
   select?.addEventListener("change", () => {
     selectedBalanceCurrencyCode = select.value;
     renderBalances(panel, {

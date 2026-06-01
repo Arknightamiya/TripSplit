@@ -2,6 +2,7 @@ import { postBudget } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
 import {
   DEFAULT_CURRENCY_CODE,
+  bindCurrencySelectLabels,
   convertMoney,
   currencyOptionsHtml,
   normalizeCurrencyInfo
@@ -30,6 +31,7 @@ export function renderBudget(panel, { trip, isOrganizer, onChange, currencyInfo 
   if (!form) return;
 
   const error = panel.querySelector("#budget-error");
+  bindCurrencySelectLabels(form);
   const modeControl = form.elements.mode;
   const modeSelect = form.querySelector('select[name="mode"]');
   const amountInput = form.querySelector('input[name="amount"]');
@@ -235,7 +237,7 @@ function budgetFormHtml(summary, tripStarted, tripEnded, currencyInfo) {
         </label>
         <label class="field">
           <span>Currency</span>
-          <select name="currencyCode">${currencyOptions}</select>
+          <select name="currencyCode" data-currency-select>${currencyOptions}</select>
         </label>
         <div class="section-actions">
           <button type="submit">${summary ? "Update Budget" : "Set Budget"}</button>

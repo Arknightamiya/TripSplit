@@ -2121,17 +2121,26 @@ label.field select:disabled,
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 0.85rem;
 }
 
 .compact-select select {
-  min-width: 9rem;
+  width: 5.9rem;
+  min-width: 5.9rem;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
+}
+
+select[data-currency-select].is-showing-options {
+  width: auto;
+  min-width: min(24rem, 80vw);
+  max-width: min(28rem, 90vw);
 }
 
 .modal-overlay {

@@ -113,9 +113,48 @@ export function currencyOptionsHtml(currencyInfo, { selectedCode = DEFAULT_CURRE
     .map((currency) => {
       const code = normalizeCurrencyCode(currency.code);
       const selectedAttr = code === selected ? "selected" : "";
-      return `<option value="${escapeHtml(code)}" ${selectedAttr}>${escapeHtml(currencyOptionLabel(currency, info))}</option>`;
+      const fullLabel = currencyOptionLabel(currency, info);
+      return `<option value="${escapeHtml(code)}" data-currency-code="${escapeHtml(code)}" data-full-label="${escapeHtml(fullLabel)}" ${selectedAttr}>${escapeHtml(code)}</option>`;
     })
     .join("");
+}
+
+export function bindCurrencySelectLabels(root) {
+  const selects = root?.matches?.("[data-currency-select]")
+    ? [root]
+    : Array.from(root?.querySelectorAll?.("[data-currency-select]") || []);
+
+  selects.forEach((select) => {
+    if (select.dataset.currencyLabelsBound === "true") {
+      return;
+    }
+
+    select.dataset.currencyLabelsBound = "true";
+    setCurrencySelectExpanded(select, false);
+
+    select.addEventListener("pointerdown", () => setCurrencySelectExpanded(select, true));
+    select.addEventListener("keydown", (event) => {
+      if ([" ", "Enter", "ArrowDown", "ArrowUp"].includes(event.key)) {
+        setCurrencySelectExpanded(select, true);
+      }
+    });
+    select.addEventListener("change", () => deferCurrencySelectCollapse(select));
+    select.addEventListener("blur", () => deferCurrencySelectCollapse(select));
+  });
+}
+
+function setCurrencySelectExpanded(select, isExpanded) {
+  Array.from(select.options || []).forEach((option) => {
+    option.textContent = isExpanded
+      ? option.dataset.fullLabel || option.value
+      : option.dataset.currencyCode || option.value;
+  });
+  select.classList.toggle("is-showing-options", isExpanded);
+}
+
+function deferCurrencySelectCollapse(select) {
+  const schedule = globalThis.window?.setTimeout || globalThis.setTimeout;
+  schedule(() => setCurrencySelectExpanded(select, false), 0);
 }
 
 export function currencyOptionLabel(currency, currencyInfo) {
@@ -128,7 +167,7 @@ export function currencyOptionLabel(currency, currencyInfo) {
     return `${code} · rate not fetched`;
   }
 
-  const fetchLabel = fetched ? ` · ${formatFetchDate(fetched)}` : "";
+  const fetchLabel = fetched ? ` · updated ${formatFetchDate(fetched)}` : "";
   return `${code} · 1 ${info.baseCurrencyCode} = ${rate.toFixed(4)} ${code}${fetchLabel}`;
 }
 
@@ -136,7 +175,9 @@ function formatFetchDate(value) {
   try {
     return new Date(value).toLocaleDateString(undefined, {
       month: "short",
-      day: "numeric"
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC"
     });
   } catch {
     return "last fetch";

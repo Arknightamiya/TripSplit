@@ -44,10 +44,11 @@ export async function listSupportedCurrencies() {
     rateRecords.map((record) => [record.quoteCurrencyCode, record])
   );
   const currencies = await listCurrencyRecords();
+  const fetchedAt = latestFetchedAt(rateRecords);
 
   return {
     baseCurrencyCode: DEFAULT_CURRENCY_CODE,
-    fetchedAt: rateRecords[0]?.fetchedAt || null,
+    fetchedAt,
     rates: ratesByCode,
     currencies: currencies.map((currency) => ({
       ...currency,
@@ -56,6 +57,18 @@ export async function listSupportedCurrencies() {
       fetchedAt: rateMetaByCode[currency.code]?.fetchedAt || null
     }))
   };
+}
+
+function latestFetchedAt(records) {
+  const latestTimestamp = Math.max(
+    ...records
+      .map((record) => Date.parse(record.fetchedAt))
+      .filter((timestamp) => Number.isFinite(timestamp))
+  );
+
+  return Number.isFinite(latestTimestamp)
+    ? new Date(latestTimestamp).toISOString()
+    : null;
 }
 
 export async function refreshExchangeRates({

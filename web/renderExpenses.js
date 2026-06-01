@@ -6,6 +6,7 @@ import { deleteExpense, postExpense } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
 import {
   DEFAULT_CURRENCY_CODE,
+  bindCurrencySelectLabels,
   currencyOptionsHtml,
   normalizeCurrencyInfo
 } from "./currency.js";
@@ -35,6 +36,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
 
   const form = panel.querySelector("#expense-form");
   const error = panel.querySelector("#expense-error");
+  bindCurrencySelectLabels(form);
   const titleInput = form.elements.title;
   const amountInput = form.elements.amount;
   const payerSelect = form.elements.payerId;
@@ -245,7 +247,7 @@ function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, trip
         </label>
         <label class="field">
           <span>Currency</span>
-          <select name="currencyCode" ${tripEnded ? "disabled" : ""}>${currencyOptions}</select>
+          <select name="currencyCode" data-currency-select ${tripEnded ? "disabled" : ""}>${currencyOptions}</select>
         </label>
       </div>
       <div class="expense-secondary-row">
