@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildSettlementTransfers, getParticipantTransferDetails } from "../web/renderBalances.js";
-import { convertMoney } from "../web/currency.js";
+import { FALLBACK_CURRENCY_INFO, convertMoney } from "../web/currency.js";
 
 test("buildSettlementTransfers settles only personal reimbursement balances", () => {
   const transfers = buildSettlementTransfers([
@@ -79,4 +79,9 @@ test("convertMoney converts through USD based rate maps for balance display", ()
 
   assert.equal(convertMoney(80, "EUR", "USD", currencyInfo), 100);
   assert.equal(convertMoney(10, "USD", "JPY", currencyInfo), 1600);
+});
+
+test("fallback currency info can convert JPY balances without a fetched database rate", () => {
+  assert.equal(convertMoney(157, "JPY", "USD", FALLBACK_CURRENCY_INFO), 1);
+  assert.equal(convertMoney(1, "USD", "JPY", FALLBACK_CURRENCY_INFO), 157);
 });

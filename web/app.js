@@ -41,7 +41,7 @@ import { renderBalances } from "./renderBalances.js";
 import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
 import { escapeHtml, formatBudgetSummary, pluralize, renderTrips } from "./renderTrips.js";
-import { DEFAULT_CURRENCY_INFO, normalizeCurrencyInfo } from "./currency.js";
+import { FALLBACK_CURRENCY_INFO, normalizeCurrencyInfo } from "./currency.js";
 
 const authView = document.querySelector("#auth-view");
 const appView = document.querySelector("#app-view");
@@ -198,7 +198,7 @@ let profileAvatarDataUrl = "";
 let activeRequestTab = "friends";
 let highlightedTripInvitationId = null;
 let tripEditFormHydratedTripId = null;
-let currencyInfo = DEFAULT_CURRENCY_INFO;
+let currencyInfo = FALLBACK_CURRENCY_INFO;
 const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
 const UI_STATE_STORAGE_KEY = "tripsplit.uiState";
 const MAX_AVATAR_FILE_SIZE = 8_000_000;
@@ -2837,7 +2837,7 @@ async function loadCurrencyInfo() {
   try {
     currencyInfo = normalizeCurrencyInfo(await fetchCurrencies());
   } catch {
-    currencyInfo = DEFAULT_CURRENCY_INFO;
+    currencyInfo = FALLBACK_CURRENCY_INFO;
   }
 
   return currencyInfo;

@@ -25,15 +25,44 @@ export const DEFAULT_CURRENCY_INFO = {
   ]
 };
 
+export const FALLBACK_EXCHANGE_RATES = {
+  USD: 1,
+  CAD: 1.37,
+  AUD: 1.52,
+  JPY: 157,
+  CNY: 7.24,
+  GBP: 0.79,
+  EUR: 0.92,
+  MXN: 17.0,
+  CHF: 0.9,
+  NZD: 1.65,
+  SGD: 1.35,
+  HKD: 7.82,
+  KRW: 1375,
+  INR: 83.5,
+  THB: 36.7,
+  BRL: 5.2,
+  ZAR: 18.4
+};
+
+export const FALLBACK_CURRENCY_INFO = {
+  ...DEFAULT_CURRENCY_INFO,
+  rates: FALLBACK_EXCHANGE_RATES,
+  currencies: DEFAULT_CURRENCY_INFO.currencies.map((currency) => ({
+    ...currency,
+    rate: FALLBACK_EXCHANGE_RATES[currency.code] ?? currency.rate
+  }))
+};
+
 export function normalizeCurrencyInfo(currencyInfo) {
-  const info = currencyInfo || DEFAULT_CURRENCY_INFO;
+  const info = currencyInfo || FALLBACK_CURRENCY_INFO;
   const rates = {
-    [DEFAULT_CURRENCY_CODE]: 1,
+    ...FALLBACK_EXCHANGE_RATES,
     ...(info.rates || {})
   };
   const currencies = Array.isArray(info.currencies) && info.currencies.length
     ? info.currencies
-    : DEFAULT_CURRENCY_INFO.currencies;
+    : FALLBACK_CURRENCY_INFO.currencies;
 
   return {
     baseCurrencyCode: info.baseCurrencyCode || DEFAULT_CURRENCY_CODE,

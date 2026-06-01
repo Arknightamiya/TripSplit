@@ -8,6 +8,7 @@ import {
 } from "../repositories/currencies.js";
 import {
   DEFAULT_CURRENCY_CODE,
+  FALLBACK_EXCHANGE_RATES,
   SUPPORTED_CURRENCIES,
   convertCurrencyAmount as convertAmountWithRates,
   normalizeCurrencyCode,
@@ -22,11 +23,11 @@ export async function listSupportedCurrencies() {
     return {
       baseCurrencyCode: DEFAULT_CURRENCY_CODE,
       fetchedAt: null,
-      rates: { [DEFAULT_CURRENCY_CODE]: 1 },
+      rates: FALLBACK_EXCHANGE_RATES,
       currencies: SUPPORTED_CURRENCIES.map((currency) => ({
         ...currency,
-        rate: currency.code === DEFAULT_CURRENCY_CODE ? 1 : null,
-        provider: null,
+        rate: FALLBACK_EXCHANGE_RATES[currency.code] ?? null,
+        provider: "fallback",
         fetchedAt: null
       }))
     };
@@ -34,6 +35,7 @@ export async function listSupportedCurrencies() {
 
   await upsertSupportedCurrencyRecords();
   const ratesByCode = {
+    ...FALLBACK_EXCHANGE_RATES,
     ...(await getLatestExchangeRateMap(DEFAULT_CURRENCY_CODE))
   };
   ratesByCode[DEFAULT_CURRENCY_CODE] = ratesByCode[DEFAULT_CURRENCY_CODE] || 1;

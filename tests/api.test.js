@@ -24,15 +24,15 @@ test("private trip APIs require bearer auth", async () => {
   });
 });
 
-test("currency API returns supported currencies without a database", async () => {
+test("currency API returns fallback supported currencies without a database", async () => {
   const response = await request("/api/currencies");
 
   assert.equal(response.status, 200);
   assert.equal(response.body.baseCurrencyCode, "USD");
   assert.equal(response.body.rates.USD, 1);
-  assert.equal(response.body.rates.JPY, undefined);
+  assert.equal(response.body.rates.JPY, 157);
   assert.ok(response.body.currencies.some((currency) => currency.code === "USD"));
-  assert.ok(response.body.currencies.some((currency) => currency.code === "JPY" && currency.rate === null));
+  assert.ok(response.body.currencies.some((currency) => currency.code === "JPY" && currency.rate === 157));
 });
 
 test("invalid and expired tokens return explicit 401 session errors", async () => {
@@ -2153,6 +2153,57 @@ test("expense API creates budget-payment shares without personal reimbursement b
       }
     ]
   );
+});
+
+test("budget summary converts mixed-currency budget payments to the budget currency", async () => {
+  const { token, user } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "total",
+      totalBudget: 5000,
+      currencyCode: "USD"
+    }
+  });
+  await startTripForTest(token, tripId);
+
+  const flight = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Flight",
+      amount: 1000,
+      category: "transportation",
+      expenseType: "budget_payment",
+      payerId: user.id,
+      currencyCode: "USD",
+      splitRule: "equal",
+      includedParticipantIds: [user.id]
+    }
+  });
+  const hotel = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Hotel",
+      amount: 1000,
+      category: "lodging",
+      expenseType: "budget_payment",
+      payerId: user.id,
+      currencyCode: "JPY",
+      splitRule: "equal",
+      includedParticipantIds: [user.id]
+    }
+  });
+
+  assert.equal(flight.status, 201);
+  assert.equal(hotel.status, 201);
+  assert.equal(hotel.body.budgetSummary.currencyCode, "USD");
+  assert.equal(hotel.body.budgetSummary.totalSpent, 1006.37);
+  assert.equal(hotel.body.budgetSummary.remainingBudget, 3993.63);
 });
 
 test("expense API distributes leftover cents so equal split balances are conserved", async () => {

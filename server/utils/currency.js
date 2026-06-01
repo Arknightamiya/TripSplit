@@ -4,6 +4,26 @@ export const DEFAULT_EXCHANGE_RATES = {
   [DEFAULT_CURRENCY_CODE]: 1
 };
 
+export const FALLBACK_EXCHANGE_RATES = {
+  USD: 1,
+  CAD: 1.37,
+  AUD: 1.52,
+  JPY: 157,
+  CNY: 7.24,
+  GBP: 0.79,
+  EUR: 0.92,
+  MXN: 17.0,
+  CHF: 0.9,
+  NZD: 1.65,
+  SGD: 1.35,
+  HKD: 7.82,
+  KRW: 1375,
+  INR: 83.5,
+  THB: 36.7,
+  BRL: 5.2,
+  ZAR: 18.4
+};
+
 export const SUPPORTED_CURRENCIES = [
   { code: "USD", name: "US Dollar", symbol: "$", decimalPlaces: 2 },
   { code: "CAD", name: "Canadian Dollar", symbol: "CA$", decimalPlaces: 2 },

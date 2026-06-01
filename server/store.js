@@ -7,7 +7,7 @@ import {
 import { calculateBalances } from "./settlement.js";
 import {
   DEFAULT_CURRENCY_CODE,
-  DEFAULT_EXCHANGE_RATES,
+  FALLBACK_EXCHANGE_RATES,
   convertCurrencyAmount,
   isValidCurrencyAmount,
   normalizeCurrencyAmount,
@@ -795,7 +795,7 @@ function getBudgetSummary(trip) {
             expense.amount,
             expense.currencyCode || DEFAULT_CURRENCY_CODE,
             budgetCurrencyCode,
-            DEFAULT_EXCHANGE_RATES
+            FALLBACK_EXCHANGE_RATES
           ),
         0
       )
