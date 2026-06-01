@@ -209,6 +209,7 @@ let sessionExpiredHandled = false;
 let appRefreshTimer = null;
 let appRefreshInFlight = false;
 let pendingRegistrationEmail = "";
+let detailRefreshSequence = 0;
 
 setUnauthorizedHandler(handleSessionExpired);
 setupDateInputs(document);
@@ -2785,11 +2786,21 @@ function setDeleteTripError(message) {
 
 async function refreshDetail() {
   if (!activeTripId) return;
+  const requestTripId = String(activeTripId);
+  const requestSequence = ++detailRefreshSequence;
   const currentUser = getStoredCurrentUser();
   const [{ trip }, { balances }] = await Promise.all([
-    fetchTrip(activeTripId),
-    fetchBalances(activeTripId)
+    fetchTrip(requestTripId),
+    fetchBalances(requestTripId)
   ]);
+
+  if (
+    requestSequence !== detailRefreshSequence ||
+    String(activeTripId || "") !== requestTripId
+  ) {
+    return;
+  }
+
   const approvedParticipants = (trip.participants || []).filter(
     (participant) => participant.joinStatus === "approved"
   );
@@ -2824,6 +2835,7 @@ async function refreshDetail() {
     trip,
     currentUserId: currentUser?.id,
     isOrganizer,
+    onRefresh: refreshDetail,
     onEndTrip: handleEndTrip
   });
 }

@@ -2,7 +2,8 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import {
   createExpenseForTrip,
-  deleteExpenseFromTrip
+  deleteExpenseFromTrip,
+  restoreExpenseForTrip
 } from "../services/expenses.js";
 
 export function createExpensesRouter() {
@@ -26,6 +27,22 @@ export function createExpensesRouter() {
         .status(200)
         .json(
           await deleteExpenseFromTrip(
+            req.user.id,
+            req.params.tripId,
+            req.params.expenseId
+          )
+        );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:expenseId/restore", async (req, res, next) => {
+    try {
+      res
+        .status(200)
+        .json(
+          await restoreExpenseForTrip(
             req.user.id,
             req.params.tripId,
             req.params.expenseId

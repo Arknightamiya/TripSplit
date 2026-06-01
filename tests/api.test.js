@@ -2406,6 +2406,11 @@ test("organizer can delete an expense and recalculate budget and balances", asyn
 
   assert.equal(response.status, 200);
   assert.equal(response.body.deletedExpenseId, "expense_5");
+  assert.equal(response.body.deletedExpense.deletedAt !== null, true);
+  assert.equal(
+    response.body.auditLogs.some((entry) => entry.action === "expense.deleted"),
+    true
+  );
   assert.equal(response.body.budgetSummary.totalSpent, 0);
   assert.equal(response.body.budgetSummary.remainingBudget, 900);
   assert.deepEqual(
@@ -2438,32 +2443,95 @@ test("organizer can delete an expense and recalculate budget and balances", asyn
   );
 });
 
-test("organizer can delete another payer's expense", async () => {
+test("soft-deleted expenses are hidden from trip detail and can be restored by organizer", async () => {
   const { token } = await loginAsDemoUser();
+  const { tripId, expenseId } = await createStartedTripWithExpense(token, {
+    expenseType: "budget_payment",
+    amount: 450
+  });
 
-  const response = await request("/api/trips/trip_4/expenses/expense_6", {
+  const deleteResponse = await request(`/api/trips/${tripId}/expenses/${expenseId}`, {
     method: "DELETE",
     headers: authHeaders(token)
   });
+  const detailAfterDelete = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(token)
+  });
+  const restoreResponse = await request(`/api/trips/${tripId}/expenses/${expenseId}/restore`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+  const detailAfterRestore = await request(`/api/trips/${tripId}`, {
+    headers: authHeaders(token)
+  });
 
-  assert.equal(response.status, 200);
-  assert.equal(response.body.deletedExpenseId, "expense_6");
+  assert.equal(deleteResponse.status, 200);
+  assert.equal(
+    detailAfterDelete.body.trip.expenses.some((expense) => expense.id === expenseId),
+    false
+  );
+  assert.equal(
+    detailAfterDelete.body.trip.deletedExpenses.some((expense) => expense.id === expenseId),
+    true
+  );
+  assert.equal(detailAfterDelete.body.trip.budgetSummary.totalSpent, 0);
+  assert.equal(restoreResponse.status, 200);
+  assert.equal(restoreResponse.body.restoredExpenseId, expenseId);
+  assert.equal(restoreResponse.body.restoredExpense.deletedAt, null);
+  assert.equal(
+    restoreResponse.body.auditLogs.some((entry) => entry.action === "expense.restored"),
+    true
+  );
+  assert.equal(
+    detailAfterRestore.body.trip.expenses.some((expense) => expense.id === expenseId),
+    true
+  );
+  assert.equal(detailAfterRestore.body.trip.deletedExpenses.length, 0);
+  assert.equal(detailAfterRestore.body.trip.budgetSummary.totalSpent, 450);
 });
 
-test("expense payer can delete their own expense", async () => {
-  const { token } = await loginAsDemoUser({
+test("organizer can delete another payer's expense", async () => {
+  const organizer = await loginAsDemoUser();
+  const payer = await loginAsDemoUser({
     email: "sam@example.com",
     password: "Demo-password1!"
   });
+  const { tripId, expenseId } = await createStartedTripWithExpense(organizer.token, {
+    payerId: payer.user.id,
+    expenseType: "personal_advance"
+  });
 
-  const response = await request("/api/trips/trip_4/expenses/expense_6", {
+  const response = await request(`/api/trips/${tripId}/expenses/${expenseId}`, {
     method: "DELETE",
-    headers: authHeaders(token)
+    headers: authHeaders(organizer.token)
   });
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.deletedExpenseId, "expense_6");
-  assert.equal(response.body.budgetSummary.totalSpent, 0);
+  assert.equal(response.body.deletedExpenseId, expenseId);
+});
+
+test("expense payer can delete their own expense", async () => {
+  const organizer = await loginAsDemoUser();
+  const payer = await loginAsDemoUser({
+    email: "sam@example.com",
+    password: "Demo-password1!"
+  });
+  const { tripId, expenseId } = await createStartedTripWithExpense(organizer.token, {
+    payerId: payer.user.id,
+    expenseType: "personal_advance"
+  });
+
+  const response = await request(`/api/trips/${tripId}/expenses/${expenseId}`, {
+    method: "DELETE",
+    headers: authHeaders(payer.token)
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.deletedExpenseId, expenseId);
+  assert.equal(
+    response.body.auditLogs.some((entry) => entry.action === "expense.deleted"),
+    true
+  );
 });
 
 test("regular participants cannot delete another participant's expense", async () => {
@@ -2527,6 +2595,32 @@ test("ended trips block expense deletion for organizer and payer", async () => {
   });
   assert.equal(payerDeleteResponse.status, 400);
   assert.deepEqual(payerDeleteResponse.body, {
+    error: "Trip has ended; expenses are locked"
+  });
+});
+
+test("ended trips block expense restore", async () => {
+  const { token } = await loginAsDemoUser();
+  const { tripId, expenseId } = await createStartedTripWithExpense(token, {
+    expenseType: "budget_payment"
+  });
+
+  const deleteResponse = await request(`/api/trips/${tripId}/expenses/${expenseId}`, {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+  await request(`/api/trips/${tripId}/end`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+  const restoreResponse = await request(`/api/trips/${tripId}/expenses/${expenseId}/restore`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+
+  assert.equal(deleteResponse.status, 200);
+  assert.equal(restoreResponse.status, 400);
+  assert.deepEqual(restoreResponse.body, {
     error: "Trip has ended; expenses are locked"
   });
 });
@@ -2595,6 +2689,64 @@ async function createTrip(token) {
 
   assert.equal(response.status, 201);
   return response.body.trip.id;
+}
+
+async function createStartedTripWithExpense(token, {
+  payerId,
+  expenseType = "personal_advance",
+  amount = 90
+} = {}) {
+  const tripId = await createTrip(token);
+  const organizer = await request("/api/me", {
+    headers: authHeaders(token)
+  });
+  const organizerId = organizer.body.user.id;
+  const finalPayerId = payerId || organizerId;
+
+  if (finalPayerId !== organizerId) {
+    const participantResponse = await request(`/api/trips/${tripId}/participants`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: {
+        userId: finalPayerId
+      }
+    });
+    assert.equal(participantResponse.status, 200);
+  }
+
+  if (expenseType === "budget_payment") {
+    const budgetResponse = await request(`/api/trips/${tripId}/budget`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: {
+        mode: "total",
+        totalBudget: 1000
+      }
+    });
+    assert.equal(budgetResponse.status, 200);
+  }
+
+  await startTripForTest(token, tripId);
+  const expenseResponse = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Permission Matrix Expense",
+      amount,
+      category: "food",
+      expenseType,
+      payerId: finalPayerId,
+      includedParticipantIds: expenseType === "budget_payment"
+        ? [organizerId]
+        : [organizerId]
+    }
+  });
+
+  assert.equal(expenseResponse.status, 201);
+  return {
+    tripId,
+    expenseId: expenseResponse.body.expense.id
+  };
 }
 
 async function startTripForTest(token, tripId) {

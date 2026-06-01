@@ -6,7 +6,9 @@ import {
   getBudgetSummaryByTripId,
   getExpense,
   getTripById,
-  isValidExpenseInput
+  isValidExpenseInput,
+  listAuditLogsForTrip,
+  restoreExpense
 } from "../store.js";
 import {
   createExpenseRecord,
@@ -15,7 +17,9 @@ import {
   getBalancesRecord,
   getBudgetSummaryRecordByTripId,
   isExpenseRepositoryEnabled,
-  listApprovedParticipantIdsRecord
+  listApprovedParticipantIdsRecord,
+  listAuditLogRecordsForTrip,
+  restoreExpenseRecord
 } from "../repositories/expenses.js";
 import { findTripRecordById } from "../repositories/trips.js";
 import { badRequest, forbidden, notFound } from "../utils/errors.js";
@@ -71,7 +75,8 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
 
   const expenseInput = {
     ...normalizedInput,
-    includedParticipantIds
+    includedParticipantIds,
+    actorId: userId
   };
 
   const expense = isExpenseRepositoryEnabled()
@@ -127,11 +132,41 @@ export async function deleteExpenseFromTrip(userId, tripId, expenseId) {
   }
 
   const deletedExpense = isExpenseRepositoryEnabled()
-    ? await deleteExpenseRecord(tripId, expenseId)
-    : deleteExpense(tripId, expenseId);
+    ? await deleteExpenseRecord(tripId, expenseId, userId)
+    : deleteExpense(tripId, expenseId, userId);
 
   return {
     deletedExpenseId: deletedExpense.id,
+    deletedExpense,
+    auditLogs: await getAuditLogs(tripId),
+    budgetSummary: await getBudgetSummary(tripId),
+    balances: (await getTripBalances(tripId)).balances
+  };
+}
+
+export async function restoreExpenseForTrip(userId, tripId, expenseId) {
+  await ensureOrganizer(userId, tripId);
+  await ensureTripOpenForExpenseDeletion(tripId);
+
+  const expense = isExpenseRepositoryEnabled()
+    ? await findExpenseRecord(tripId, expenseId, { includeDeleted: true })
+    : getExpense(tripId, expenseId);
+  if (!expense) {
+    throw notFound("Expense not found");
+  }
+
+  if (!expense.deletedAt) {
+    throw badRequest("Expense is not deleted");
+  }
+
+  const restoredExpense = isExpenseRepositoryEnabled()
+    ? await restoreExpenseRecord(tripId, expenseId, userId)
+    : restoreExpense(tripId, expenseId, userId);
+
+  return {
+    restoredExpenseId: restoredExpense.id,
+    restoredExpense,
+    auditLogs: await getAuditLogs(tripId),
     budgetSummary: await getBudgetSummary(tripId),
     balances: (await getTripBalances(tripId)).balances
   };
@@ -207,4 +242,12 @@ async function getTripBalances(tripId, options) {
   }
 
   return getBalances(tripId, options);
+}
+
+async function getAuditLogs(tripId) {
+  if (isExpenseRepositoryEnabled()) {
+    return listAuditLogRecordsForTrip(tripId);
+  }
+
+  return listAuditLogsForTrip(tripId);
 }

@@ -291,6 +291,12 @@ export async function deleteExpense(tripId, expenseId) {
   });
 }
 
+export async function restoreExpense(tripId, expenseId) {
+  return apiRequest(API_ROUTES.expenseRestore(tripId, expenseId), {
+    method: "POST"
+  });
+}
+
 export async function fetchBalances(tripId) {
   return apiRequest(API_ROUTES.balances(tripId));
 }
