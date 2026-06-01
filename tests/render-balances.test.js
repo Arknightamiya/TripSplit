@@ -3,7 +3,9 @@ import { test } from "node:test";
 import {
   buildSettlementTransfers,
   getDisplayableTransferDetails,
-  getParticipantTransferDetails
+  getParticipantTransferDetails,
+  renderBalances,
+  settlementInstructionText
 } from "../web/renderBalances.js";
 import { FALLBACK_CURRENCY_INFO, convertMoney } from "../web/currency.js";
 
@@ -85,6 +87,55 @@ test("getDisplayableTransferDetails hides transfers that round to zero in displa
     getDisplayableTransferDetails(row, transfers, "JPY", currencyInfo),
     [{ direction: "pay", name: "gogo#1", amount: 2 }]
   );
+});
+
+test("renderBalances labels the display currency as settlement currency", () => {
+  const panel = {
+    innerHTML: "",
+    querySelector() {
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    }
+  };
+  const trip = {
+    id: "trip1",
+    startedAt: "2026-07-01T00:00:00.000Z",
+    endedAt: "2026-07-05T00:00:00.000Z",
+    participants: [
+      { id: "dw1", name: "dw#1", displayName: "dw#1", joinStatus: "approved" }
+    ],
+    budgetSummary: {
+      mode: "total",
+      currencyCode: "USD",
+      totalBudget: 100,
+      participantCount: 1
+    },
+    expenses: []
+  };
+
+  renderBalances(panel, {
+    balances: [
+      {
+        participantId: "dw1",
+        participant: trip.participants[0],
+        budgetSpent: 0,
+        actualPaid: 0,
+        netBalance: 0
+      }
+    ],
+    trip,
+    currentUserId: "dw1",
+    currencyInfo: FALLBACK_CURRENCY_INFO
+  });
+
+  assert.match(panel.innerHTML, />\s*Settle in\s*</);
+  assert.match(panel.innerHTML, /Final bill in USD/);
+});
+
+test("settlementInstructionText names the transfer dialog settlement currency", () => {
+  assert.equal(settlementInstructionText("cny"), "Settle these payments in CNY.");
 });
 
 test("convertMoney converts through USD based rate maps for balance display", () => {

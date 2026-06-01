@@ -34,7 +34,7 @@ export function renderBalances(panel, {
       <div class="balance-title-row">
         <h2>Balances</h2>
         <label class="compact-select">
-          <span>Currency</span>
+          <span>Settle in</span>
           <select data-balance-currency>
             ${currencyOptionsHtml(normalizedCurrencyInfo, { selectedCode: selectedBalanceCurrencyCode })}
           </select>
@@ -188,7 +188,7 @@ function finalBillHtml(rows, currencyCode, currencyInfo) {
   return `
     <div class="final-bill">
       <div class="balance-title-row final-bill-title-row">
-        <h2>Final bill</h2>
+        <h2>Final bill in ${escapeHtml(normalizeCurrencyCode(currencyCode))}</h2>
       </div>
       <div class="final-bill-grid">${bills}</div>
       ${transferDialogHtml()}
@@ -348,8 +348,8 @@ function bindTransferDialog(panel, rows, currencyCode, currencyInfo) {
     const isCollector = roundCurrency(row.personalNet) > 0;
     title.textContent = isCollector ? "Collect from others" : "Pay others";
     summary.textContent = isCollector
-      ? `${row.name} should collect these personal reimbursements.`
-      : `${row.name} should pay these personal reimbursements.`;
+      ? `${row.name} should collect these personal reimbursements. ${settlementInstructionText(currencyCode)}`
+      : `${row.name} should pay these personal reimbursements. ${settlementInstructionText(currencyCode)}`;
     list.innerHTML = details.length
       ? details.map((detail) => `
         <li class="transfer-detail-row">
@@ -376,6 +376,10 @@ function bindTransferDialog(panel, rows, currencyCode, currencyInfo) {
       closeDialog();
     }
   });
+}
+
+export function settlementInstructionText(currencyCode) {
+  return `Settle these payments in ${normalizeCurrencyCode(currencyCode)}.`;
 }
 
 function getMinimumDisplayAmount(currencyCode, currencyInfo) {
