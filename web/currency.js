@@ -126,11 +126,17 @@ export function bindCurrencySelectLabels(root) {
 
   selects.forEach((select) => {
     if (select.dataset.currencyLabelsBound === "true") {
+      syncCurrencySelectControl(select);
       return;
     }
 
     select.dataset.currencyLabelsBound = "true";
     setCurrencySelectExpanded(select, false);
+
+    if (select.ownerDocument?.createElement) {
+      enhanceCurrencySelect(select);
+      return;
+    }
 
     select.addEventListener("pointerdown", () => setCurrencySelectExpanded(select, true));
     select.addEventListener("keydown", (event) => {
@@ -138,18 +144,147 @@ export function bindCurrencySelectLabels(root) {
         setCurrencySelectExpanded(select, true);
       }
     });
-    select.addEventListener("change", () => deferCurrencySelectCollapse(select));
+    select.addEventListener("input", () => confirmCurrencySelectChoice(select));
+    select.addEventListener("change", () => confirmCurrencySelectChoice(select));
+    select.addEventListener("click", () => confirmRepeatedCurrencyChoice(select));
     select.addEventListener("blur", () => deferCurrencySelectCollapse(select));
   });
 }
 
+function enhanceCurrencySelect(select) {
+  const document = select.ownerDocument;
+  const control = document.createElement("span");
+  const button = document.createElement("button");
+  const menu = document.createElement("span");
+
+  control.className = "currency-select-control";
+  button.type = "button";
+  button.className = "currency-select-button";
+  button.setAttribute("aria-haspopup", "listbox");
+  button.setAttribute("aria-expanded", "false");
+  menu.className = "currency-select-menu";
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+
+  control.append(button, menu);
+  select.classList.add("currency-native-select", "sr-only");
+  select.after(control);
+
+  select._currencyControl = { button, control, menu };
+  renderCurrencySelectMenu(select);
+  syncCurrencySelectControl(select);
+
+  button.addEventListener("click", () => {
+    if (select.disabled) {
+      return;
+    }
+    setCurrencyMenuOpen(select, menu.hidden);
+  });
+
+  select.addEventListener("change", () => syncCurrencySelectControl(select));
+  select.form?.addEventListener("reset", () => deferCurrencyControlSync(select));
+  document.addEventListener("pointerdown", (event) => {
+    if (!control.contains(event.target)) {
+      setCurrencyMenuOpen(select, false);
+    }
+  });
+}
+
+function renderCurrencySelectMenu(select) {
+  const { menu } = select._currencyControl || {};
+  if (!menu) {
+    return;
+  }
+
+  menu.innerHTML = "";
+  Array.from(select.options || []).forEach((option) => {
+    const item = select.ownerDocument.createElement("button");
+    const code = option.dataset.currencyCode || option.value;
+    item.type = "button";
+    item.className = "currency-select-option";
+    item.setAttribute("role", "option");
+    item.dataset.currencyValue = option.value;
+    item.textContent = option.dataset.fullLabel || code;
+    item.addEventListener("click", () => {
+      select.value = option.value;
+      const EventCtor = select.ownerDocument.defaultView?.Event || Event;
+      select.dispatchEvent(new EventCtor("change", { bubbles: true }));
+      setCurrencyMenuOpen(select, false);
+    });
+    menu.append(item);
+  });
+}
+
+function syncCurrencySelectControl(select) {
+  const control = select._currencyControl;
+  if (!control) {
+    setCurrencySelectExpanded(select, false);
+    return;
+  }
+
+  const selectedOption = select.options?.[select.selectedIndex];
+  const selectedCode = selectedOption?.dataset.currencyCode || selectedOption?.value || select.value;
+  control.button.textContent = selectedCode;
+  control.button.disabled = select.disabled;
+  Array.from(control.menu.querySelectorAll("[data-currency-value]")).forEach((item) => {
+    const isSelected = item.dataset.currencyValue === select.value;
+    item.classList.toggle("is-selected", isSelected);
+    item.setAttribute("aria-selected", String(isSelected));
+  });
+}
+
+function setCurrencyMenuOpen(select, isOpen) {
+  const control = select._currencyControl;
+  if (!control) {
+    return;
+  }
+
+  control.menu.hidden = !isOpen;
+  control.button.setAttribute("aria-expanded", String(isOpen));
+  control.control.classList.toggle("is-open", isOpen);
+  syncCurrencySelectControl(select);
+}
+
+function deferCurrencyControlSync(select) {
+  const schedule = globalThis.window?.setTimeout || globalThis.setTimeout;
+  schedule(() => syncCurrencySelectControl(select), 0);
+}
+
 function setCurrencySelectExpanded(select, isExpanded) {
+  if (isExpanded) {
+    select.dataset.currencyExpandedAt = String(Date.now());
+  }
+
   Array.from(select.options || []).forEach((option) => {
     option.textContent = isExpanded
       ? option.dataset.fullLabel || option.value
       : option.dataset.currencyCode || option.value;
   });
   select.classList.toggle("is-showing-options", isExpanded);
+}
+
+function confirmRepeatedCurrencyChoice(select) {
+  const expandedAt = Number(select.dataset.currencyExpandedAt || 0);
+  if (!select.classList.contains("is-showing-options") || Date.now() - expandedAt < 120) {
+    return;
+  }
+
+  confirmCurrencySelectChoice(select);
+}
+
+function confirmCurrencySelectChoice(select) {
+  compactSelectedCurrencyOption(select);
+  select.classList.remove("is-showing-options");
+  deferCurrencySelectCollapse(select);
+}
+
+function compactSelectedCurrencyOption(select) {
+  const selectedOption = select.options?.[select.selectedIndex];
+  if (!selectedOption) {
+    return;
+  }
+
+  selectedOption.textContent = selectedOption.dataset.currencyCode || selectedOption.value;
 }
 
 function deferCurrencySelectCollapse(select) {
