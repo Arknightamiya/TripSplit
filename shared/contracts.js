@@ -27,6 +27,7 @@ export const API_ROUTES = {
   budget: (tripId) => `${API_BASE}/trips/${tripId}/budget`,
   expenses: (tripId) => `${API_BASE}/trips/${tripId}/expenses`,
   expense: (tripId, expenseId) => `${API_BASE}/trips/${tripId}/expenses/${expenseId}`,
+  expenseRestore: (tripId, expenseId) => `${API_BASE}/trips/${tripId}/expenses/${expenseId}/restore`,
   balances: (tripId) => `${API_BASE}/trips/${tripId}/balances`
 };
 

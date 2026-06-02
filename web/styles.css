@@ -1825,6 +1825,38 @@ label.field select:disabled,
   font-size: 0.8rem;
 }
 
+.deleted-expense-section {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+.deleted-expense-header {
+  margin-bottom: 0.65rem;
+}
+
+.deleted-expense-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.deleted-expense-row {
+  background: #faf6f8;
+  color: var(--muted);
+}
+
+.deleted-expense-row .expense-title {
+  color: var(--text);
+}
+
+.deleted-expense-locked-note {
+  padding-bottom: 0.1rem;
+}
+
+.deleted-expense-locked-note .hint {
+  margin: 0;
+}
+
 .expense-amount {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -1912,6 +1944,17 @@ label.field select:disabled,
   min-width: 10rem;
 }
 
+.balance-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
+.balance-refresh-button {
+  min-width: 7rem;
+}
+
 .balance-panel-header {
   margin-bottom: 1rem;
 }
@@ -1929,7 +1972,7 @@ label.field select:disabled,
   margin: 0;
 }
 
-.balance-title-row .balance-end-trip-button {
+.balance-title-row .balance-actions {
   margin-left: auto;
 }
 
@@ -2516,11 +2559,18 @@ label.field select:disabled,
     gap: 0.55rem;
   }
 
-  .balance-title-row .balance-end-trip-button,
-  .balance-end-trip-button {
+  .balance-title-row .balance-actions {
+    flex-direction: column;
     width: 100%;
     min-width: 0;
     margin-left: 0;
+  }
+
+  .balance-title-row .balance-actions button,
+  .balance-end-trip-button,
+  .balance-refresh-button {
+    width: 100%;
+    min-width: 0;
   }
 
   .input-row {
@@ -2584,7 +2634,8 @@ label.field select:disabled,
     overflow-wrap: anywhere;
   }
 
-  .expense-row .button-danger {
+  .expense-row .button-danger,
+  .expense-row [data-restore-expense] {
     grid-column: 1 / -1;
     width: 100%;
   }

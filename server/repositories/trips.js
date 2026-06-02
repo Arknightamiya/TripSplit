@@ -1,6 +1,6 @@
 import { getDatabase } from "../db/pool.js";
 import { normalizeCurrencyAmount } from "../utils/currency.js";
-import { listExpenseRecordsForTrip } from "./expenses.js";
+import { listAuditLogRecordsForTrip, listExpenseRecordsForTrip } from "./expenses.js";
 
 export function isTripRepositoryEnabled() {
   return getDatabase().enabled;
@@ -295,12 +295,14 @@ export async function listTripSummaryRecordsForUser(userId) {
           SELECT COUNT(*)
           FROM expenses e
           WHERE e.trip_id = t.id
+            AND e.deleted_at IS NULL
         ) AS expense_count,
         COALESCE((
           SELECT SUM(e.amount)
           FROM expenses e
           WHERE e.trip_id = t.id
             AND e.expense_type = 'budget_payment'
+            AND e.deleted_at IS NULL
         ), 0) AS total_spent
       FROM trips t
       JOIN trip_participants tp ON tp.trip_id = t.id
@@ -337,6 +339,7 @@ export async function findTripRecordById(tripId) {
           FROM expenses e
           WHERE e.trip_id = t.id
             AND e.expense_type = 'budget_payment'
+            AND e.deleted_at IS NULL
         ), 0) AS total_spent
       FROM trips t
       LEFT JOIN budgets b ON b.trip_id = t.id
@@ -355,12 +358,16 @@ export async function findTripRecordById(tripId) {
   ).length;
 
   const expenses = await listExpenseRecordsForTrip(tripId);
+  const deletedExpenses = await listExpenseRecordsForTrip(tripId, { onlyDeleted: true });
+  const auditLogs = await listAuditLogRecordsForTrip(tripId);
 
   return mapTripDetailRow(
     tripResult.rows[0],
     participants,
     participantCount,
-    expenses
+    expenses,
+    deletedExpenses,
+    auditLogs
   );
 }
 
@@ -460,7 +467,7 @@ function mapTripSummaryRow(row) {
   };
 }
 
-function mapTripDetailRow(row, participants, participantCount, expenses = []) {
+function mapTripDetailRow(row, participants, participantCount, expenses = [], deletedExpenses = [], auditLogs = []) {
   const totalSpent = toCurrencyNumber(row.total_spent);
 
   return {
@@ -478,7 +485,9 @@ function mapTripDetailRow(row, participants, participantCount, expenses = []) {
       .map((participant) => participant.id),
     participants,
     budgetSummary: buildBudgetSummary(row, participantCount, totalSpent),
-    expenses
+    expenses,
+    deletedExpenses,
+    auditLogs
   };
 }
 

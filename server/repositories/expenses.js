@@ -58,7 +58,9 @@ export async function createExpenseRecord(tripId, input) {
           category,
           expense_type,
           payer_id,
-          created_at
+          created_at,
+          deleted_at,
+          deleted_by
       `,
       [
         tripId,
@@ -88,13 +90,21 @@ export async function createExpenseRecord(tripId, input) {
       );
     }
 
+    await insertAuditLog(transaction, {
+      tripId,
+      actorId: input.actorId || input.payerId,
+      action: "expense.created",
+      targetType: "expense",
+      targetId: expenseId
+    });
+
     return expenseId;
   });
 
   return findExpenseRecord(tripId, expenseId);
 }
 
-export async function findExpenseRecord(tripId, expenseId) {
+export async function findExpenseRecord(tripId, expenseId, { includeDeleted = false } = {}) {
   const result = await getDatabase().query(
     `
       SELECT
@@ -106,11 +116,14 @@ export async function findExpenseRecord(tripId, expenseId) {
         e.expense_type,
         e.payer_id,
         sr.type AS split_rule,
-        e.created_at
+        e.created_at,
+        e.deleted_at,
+        e.deleted_by
       FROM expenses e
       JOIN split_rules sr ON sr.id = e.split_rule_id
       WHERE e.trip_id = $1
         AND e.id = $2
+        ${includeDeleted ? "" : "AND e.deleted_at IS NULL"}
     `,
     [tripId, expenseId]
   );
@@ -123,7 +136,12 @@ export async function findExpenseRecord(tripId, expenseId) {
   return mapExpenseRow(result.rows[0], shares);
 }
 
-export async function listExpenseRecordsForTrip(tripId) {
+export async function listExpenseRecordsForTrip(tripId, { includeDeleted = false, onlyDeleted = false } = {}) {
+  const deletedFilter = onlyDeleted
+    ? "AND e.deleted_at IS NOT NULL"
+    : includeDeleted
+      ? ""
+      : "AND e.deleted_at IS NULL";
   const result = await getDatabase().query(
     `
       SELECT
@@ -135,10 +153,13 @@ export async function listExpenseRecordsForTrip(tripId) {
         e.expense_type,
         e.payer_id,
         sr.type AS split_rule,
-        e.created_at
+        e.created_at,
+        e.deleted_at,
+        e.deleted_by
       FROM expenses e
       JOIN split_rules sr ON sr.id = e.split_rule_id
       WHERE e.trip_id = $1
+        ${deletedFilter}
       ORDER BY e.created_at ASC, e.id ASC
     `,
     [tripId]
@@ -152,22 +173,78 @@ export async function listExpenseRecordsForTrip(tripId) {
   );
 }
 
-export async function deleteExpenseRecord(tripId, expenseId) {
+export async function deleteExpenseRecord(tripId, expenseId, actorId) {
   const expense = await findExpenseRecord(tripId, expenseId);
   if (!expense) {
     return null;
   }
 
-  await getDatabase().query(
+  await getDatabase().transaction(async (transaction) => {
+    await transaction.query(
+      `
+        UPDATE expenses
+        SET deleted_at = CURRENT_TIMESTAMP,
+            deleted_by = $3
+        WHERE trip_id = $1
+          AND id = $2
+          AND deleted_at IS NULL
+      `,
+      [tripId, expenseId, actorId]
+    );
+    await insertAuditLog(transaction, {
+      tripId,
+      actorId,
+      action: "expense.deleted",
+      targetType: "expense",
+      targetId: expenseId
+    });
+  });
+
+  return findExpenseRecord(tripId, expenseId, { includeDeleted: true });
+}
+
+export async function restoreExpenseRecord(tripId, expenseId, actorId) {
+  const expense = await findExpenseRecord(tripId, expenseId, { includeDeleted: true });
+  if (!expense || !expense.deletedAt) {
+    return null;
+  }
+
+  await getDatabase().transaction(async (transaction) => {
+    await transaction.query(
+      `
+        UPDATE expenses
+        SET deleted_at = NULL,
+            deleted_by = NULL
+        WHERE trip_id = $1
+          AND id = $2
+          AND deleted_at IS NOT NULL
+      `,
+      [tripId, expenseId]
+    );
+    await insertAuditLog(transaction, {
+      tripId,
+      actorId,
+      action: "expense.restored",
+      targetType: "expense",
+      targetId: expenseId
+    });
+  });
+
+  return findExpenseRecord(tripId, expenseId);
+}
+
+export async function listAuditLogRecordsForTrip(tripId) {
+  const result = await getDatabase().query(
     `
-      DELETE FROM expenses
+      SELECT id, trip_id, actor_id, action, target_type, target_id, created_at
+      FROM audit_logs
       WHERE trip_id = $1
-        AND id = $2
+      ORDER BY created_at ASC, id ASC
     `,
-    [tripId, expenseId]
+    [tripId]
   );
 
-  return expense;
+  return result.rows.map(mapAuditLogRow);
 }
 
 export async function getBudgetSummaryRecordByTripId(tripId) {
@@ -188,6 +265,7 @@ export async function getBudgetSummaryRecordByTripId(tripId) {
           FROM expenses e
           WHERE e.trip_id = $1
             AND e.expense_type = 'budget_payment'
+            AND e.deleted_at IS NULL
         ), 0) AS total_spent
       FROM budgets b
       WHERE b.trip_id = $1
@@ -284,6 +362,32 @@ function mapExpenseRow(row, expenseShares) {
     splitRule: row.split_rule,
     includedParticipantIds: normalizedExpenseShares.map((share) => share.participantId),
     expenseShares: normalizedExpenseShares,
+    createdAt: formatTimestamp(row.created_at),
+    deletedAt: formatTimestamp(row.deleted_at),
+    deletedBy: row.deleted_by === null || row.deleted_by === undefined
+      ? null
+      : String(row.deleted_by)
+  };
+}
+
+async function insertAuditLog(transaction, { tripId, actorId, action, targetType, targetId }) {
+  await transaction.query(
+    `
+      INSERT INTO audit_logs (trip_id, actor_id, action, target_type, target_id)
+      VALUES ($1, $2, $3, $4, $5)
+    `,
+    [tripId, actorId || null, action, targetType, targetId || null]
+  );
+}
+
+function mapAuditLogRow(row) {
+  return {
+    id: String(row.id),
+    tripId: String(row.trip_id),
+    actorId: row.actor_id === null || row.actor_id === undefined ? null : String(row.actor_id),
+    action: row.action,
+    targetType: row.target_type,
+    targetId: row.target_id === null || row.target_id === undefined ? null : String(row.target_id),
     createdAt: formatTimestamp(row.created_at)
   };
 }

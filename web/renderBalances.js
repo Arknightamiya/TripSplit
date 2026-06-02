@@ -5,6 +5,7 @@ export function renderBalances(panel, {
   trip,
   currentUserId,
   isOrganizer = false,
+  onRefresh,
   onEndTrip
 }) {
   const tripStarted = Boolean(trip.startedAt);
@@ -15,14 +16,21 @@ export function renderBalances(panel, {
     <div class="balance-panel-header">
       <div class="balance-title-row">
         <h2>Balances</h2>
-        ${isOrganizer ? `
+        <div class="balance-actions">
           <button
             type="button"
-            class="balance-end-trip-button"
-            data-end-trip
-            ${tripStarted && !tripEnded ? "" : "disabled"}
-          >${tripEnded ? "Trip Ended" : "End Trip"}</button>
-        ` : ""}
+            class="balance-refresh-button"
+            data-refresh-balances
+          >Refresh</button>
+          ${isOrganizer ? `
+            <button
+              type="button"
+              class="balance-end-trip-button"
+              data-end-trip
+              ${tripStarted && !tripEnded ? "" : "disabled"}
+            >${tripEnded ? "Trip Ended" : "End Trip"}</button>
+          ` : ""}
+        </div>
       </div>
     </div>
     <p class="form-error" data-balance-error hidden></p>
@@ -31,7 +39,24 @@ export function renderBalances(panel, {
   `;
 
   const endTripButton = panel.querySelector("[data-end-trip]");
+  const refreshButton = panel.querySelector("[data-refresh-balances]");
   const error = panel.querySelector("[data-balance-error]");
+  refreshButton?.addEventListener("click", async () => {
+    refreshButton.disabled = true;
+    error.textContent = "";
+    error.hidden = true;
+    try {
+      await onRefresh?.();
+    } catch (err) {
+      error.textContent = err.message || "Unable to refresh balances.";
+      error.hidden = false;
+    } finally {
+      if (refreshButton.isConnected) {
+        refreshButton.disabled = false;
+      }
+    }
+  });
+
   endTripButton?.addEventListener("click", async () => {
     endTripButton.disabled = true;
     error.textContent = "";

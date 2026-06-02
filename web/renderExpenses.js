@@ -2,7 +2,7 @@ import {
   EXPENSE_CATEGORIES,
   EXPENSE_TYPES
 } from "../shared/contracts.js";
-import { deleteExpense, postExpense } from "./api.js";
+import { deleteExpense, postExpense, restoreExpense } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
 
 export function renderExpenses(panel, { trip, currentUserId, onChange }) {
@@ -10,21 +10,25 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
   const isOrganizer = trip.organizerId === currentUserId;
   const tripStarted = Boolean(trip.startedAt);
   const tripEnded = Boolean(trip.endedAt);
+  const activeExpenses = trip.expenses || [];
+  const deletedExpenses = trip.deletedExpenses || [];
   panel.classList.toggle("is-locked", tripEnded);
 
   panel.innerHTML = `
     <div class="panel-header">
       <h2>Expenses</h2>
-      <span class="hint">${trip.expenses.length} recorded</span>
+      <span class="hint">${activeExpenses.length} recorded</span>
     </div>
     ${expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded)}
     ${
-      trip.expenses.length
-        ? `<div class="expense-list">${trip.expenses
+      activeExpenses.length
+        ? `<div class="expense-list">${activeExpenses
             .map((e) => expenseRowHtml(e, approved, currentUserId, isOrganizer, tripEnded))
             .join("")}</div>`
         : ""
     }
+    ${isOrganizer && tripEnded && deletedExpenses.length ? endedDeletedExpensesHintHtml(deletedExpenses) : ""}
+    ${isOrganizer && !tripEnded && deletedExpenses.length ? deletedExpensesHtml(deletedExpenses, approved) : ""}
   `;
 
   const form = panel.querySelector("#expense-form");
@@ -155,6 +159,19 @@ export function renderExpenses(panel, { trip, currentUserId, onChange }) {
       }
     });
   });
+
+  panel.querySelectorAll("[data-restore-expense]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await restoreExpense(trip.id, btn.dataset.restoreExpense);
+        await onChange();
+      } catch (err) {
+        error.textContent = err.message;
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 function preventInvalidNumberKey(event) {
@@ -185,6 +202,50 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer, tripEnded
       ${canDelete
         ? `<button type="button" class="button-danger" data-delete-expense="${expense.id}">Delete</button>`
         : `<span></span>`}
+    </div>
+  `;
+}
+
+function deletedExpensesHtml(expenses, approved) {
+  return `
+    <div class="deleted-expense-section">
+      <div class="panel-header deleted-expense-header">
+        <h3>Deleted expenses</h3>
+        <span class="hint">${expenses.length} recoverable</span>
+      </div>
+      <div class="expense-list deleted-expense-list">
+        ${expenses.map((expense) => deletedExpenseRowHtml(expense, approved)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function endedDeletedExpensesHintHtml(expenses) {
+  return `
+    <div class="deleted-expense-section deleted-expense-locked-note">
+      <div class="panel-header deleted-expense-header">
+        <h3>Deleted expenses</h3>
+        <span class="hint">${expenses.length} locked</span>
+      </div>
+      <p class="hint">This trip has ended. Deleted expenses can no longer be restored.</p>
+    </div>
+  `;
+}
+
+function deletedExpenseRowHtml(expense, approved) {
+  const payer = approved.find((p) => p.id === expense.payerId);
+  const expenseSummary = expense.expenseType === "budget_payment"
+    ? `${escapeHtml(expense.category)} · paid from trip budget · used by ${escapeHtml(splitParticipantNames(expense, approved))}`
+    : `${escapeHtml(expense.category)} · advanced by ${escapeHtml(displayName(payer))} · shared with ${escapeHtml(splitParticipantNames(expense, approved))}`;
+
+  return `
+    <div class="expense-row deleted-expense-row">
+      <div>
+        <div class="expense-title">${escapeHtml(expense.title)}</div>
+        <div class="expense-sub">${expenseSummary}</div>
+      </div>
+      <div class="expense-amount">${formatMoney(expense.amount)}</div>
+      <button type="button" data-restore-expense="${expense.id}">Restore</button>
     </div>
   `;
 }

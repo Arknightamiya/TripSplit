@@ -196,6 +196,8 @@ CREATE TABLE IF NOT EXISTS expenses (
   payer_id INTEGER NOT NULL,
   split_rule_id INTEGER NOT NULL REFERENCES split_rules(id),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP,
+  deleted_by INTEGER REFERENCES users(id),
   UNIQUE (id, trip_id),
   FOREIGN KEY (trip_id, payer_id)
     REFERENCES trip_participants(trip_id, user_id)
@@ -223,8 +225,24 @@ BEGIN
 
     ALTER TABLE expenses
       ALTER COLUMN expense_type SET DEFAULT 'personal_advance';
+
+    ALTER TABLE expenses
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+
+    ALTER TABLE expenses
+      ADD COLUMN IF NOT EXISTS deleted_by INTEGER REFERENCES users(id);
   END IF;
 END $$;
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id SERIAL PRIMARY KEY,
+  trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  actor_id INTEGER REFERENCES users(id),
+  action TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS expense_shares (
   expense_id INTEGER NOT NULL,
@@ -258,5 +276,7 @@ CREATE TABLE IF NOT EXISTS balance_summaries (
 CREATE INDEX IF NOT EXISTS idx_trips_organizer_id ON trips(organizer_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_trip_id ON expenses(trip_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_payer_id ON expenses(payer_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_deleted_at ON expenses(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_trip_id ON audit_logs(trip_id);
 CREATE INDEX IF NOT EXISTS idx_expense_shares_trip_id ON expense_shares(trip_id);
 CREATE INDEX IF NOT EXISTS idx_expense_shares_participant_id ON expense_shares(participant_id);

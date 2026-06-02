@@ -18,7 +18,8 @@ const state = {
   trips: [],
   friendRequests: [],
   friendships: [],
-  tripJoinRequests: []
+  tripJoinRequests: [],
+  auditLogs: []
 };
 
 export function resetStore() {
@@ -29,6 +30,7 @@ export function resetStore() {
   state.friendRequests = [];
   state.friendships = [];
   state.tripJoinRequests = [];
+  state.auditLogs = [];
 }
 
 export function listUsers() {
@@ -564,26 +566,66 @@ export function addExpense(tripId, expenseInput) {
     splitRule: expenseInput.splitRule || "equal",
     includedParticipantIds,
     expenseShares,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    deletedAt: null,
+    deletedBy: null
   };
 
   trip.expenses.push(expense);
+  createAuditLog({
+    tripId,
+    actorId: expenseInput.actorId || expenseInput.payerId,
+    action: "expense.created",
+    targetType: "expense",
+    targetId: expense.id
+  });
   return clone(expense);
 }
 
-export function deleteExpense(tripId, expenseId) {
+export function deleteExpense(tripId, expenseId, actorId) {
   const trip = getTripRecord(tripId);
   if (!trip) {
     return null;
   }
 
-  const index = trip.expenses.findIndex((expense) => expense.id === expenseId);
-  if (index === -1) {
+  const expense = trip.expenses.find((entry) => entry.id === expenseId);
+  if (!expense || expense.deletedAt) {
     return false;
   }
 
-  const [deletedExpense] = trip.expenses.splice(index, 1);
-  return clone(deletedExpense);
+  expense.deletedAt = new Date().toISOString();
+  expense.deletedBy = actorId || null;
+  createAuditLog({
+    tripId,
+    actorId,
+    action: "expense.deleted",
+    targetType: "expense",
+    targetId: expense.id
+  });
+  return clone(expense);
+}
+
+export function restoreExpense(tripId, expenseId, actorId) {
+  const trip = getTripRecord(tripId);
+  if (!trip) {
+    return null;
+  }
+
+  const expense = trip.expenses.find((entry) => entry.id === expenseId);
+  if (!expense || !expense.deletedAt) {
+    return false;
+  }
+
+  expense.deletedAt = null;
+  expense.deletedBy = null;
+  createAuditLog({
+    tripId,
+    actorId,
+    action: "expense.restored",
+    targetType: "expense",
+    targetId: expense.id
+  });
+  return clone(expense);
 }
 
 export function deleteTrip(tripId) {
@@ -631,6 +673,12 @@ export function getExpense(tripId, expenseId) {
   return expense ? clone(expense) : null;
 }
 
+export function listAuditLogsForTrip(tripId) {
+  return clone(
+    state.auditLogs.filter((entry) => String(entry.tripId) === String(tripId))
+  );
+}
+
 export function getBudgetSummaryByTripId(tripId) {
   const trip = getTripRecord(tripId);
   return trip ? getBudgetSummary(trip) : null;
@@ -643,9 +691,10 @@ export function getBalances(tripId, { includeParticipant = false } = {}) {
   }
 
   const hydratedTrip = hydrateTrip(trip);
+  const activeExpenses = activeTripExpenses(trip);
   const balances = calculateBalances({
     participantIds: approvedParticipantIds(trip),
-    expenses: trip.expenses
+    expenses: activeExpenses
   }).map((entry) => {
     if (!includeParticipant) {
       return entry;
@@ -733,7 +782,7 @@ function summarizeTrip(trip) {
     startedAt: trip.startedAt || null,
     endedAt: trip.endedAt || null,
     participantCount: approvedParticipantIds(trip).length,
-    expenseCount: trip.expenses.length,
+    expenseCount: activeTripExpenses(trip).length,
     budgetSummary: getBudgetSummary(trip)
   });
 }
@@ -769,7 +818,9 @@ function hydrateTrip(trip) {
       .map((participant) => participant.id),
     participants,
     budgetSummary: getBudgetSummary(trip),
-    expenses: trip.expenses
+    expenses: activeTripExpenses(trip),
+    deletedExpenses: deletedTripExpenses(trip),
+    auditLogs: state.auditLogs.filter((entry) => String(entry.tripId) === String(trip.id))
   });
 }
 
@@ -780,7 +831,7 @@ function getBudgetSummary(trip) {
 
   const participantCount = approvedParticipantIds(trip).length;
   const totalSpent = roundCurrency(
-    trip.expenses
+    activeTripExpenses(trip)
       .filter((expense) => normalizeExpenseType(expense.expenseType) === "budget_payment")
       .reduce((sum, expense) => sum + Number(expense.amount), 0)
   );
@@ -809,6 +860,28 @@ function createExpenseShares(amount, expenseType, payerId, includedParticipantId
 
   const participantIds = includedParticipantIds.length ? includedParticipantIds : [payerId];
   return splitCurrencyEvenly(amount, participantIds);
+}
+
+function activeTripExpenses(trip) {
+  return (trip.expenses || []).filter((expense) => !expense.deletedAt);
+}
+
+function deletedTripExpenses(trip) {
+  return (trip.expenses || []).filter((expense) => expense.deletedAt);
+}
+
+function createAuditLog({ tripId, actorId, action, targetType, targetId }) {
+  const entry = {
+    id: createId("audit"),
+    tripId: String(tripId),
+    actorId: actorId ? String(actorId) : null,
+    action,
+    targetType,
+    targetId: targetId ? String(targetId) : null,
+    createdAt: new Date().toISOString()
+  };
+  state.auditLogs.push(entry);
+  return clone(entry);
 }
 
 function createPersonalAdvanceShares(amount, payerId, includedParticipantIds) {
