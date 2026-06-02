@@ -22,5 +22,8 @@ export function errorHandler(error, _req, res, _next) {
     console.error(error);
   }
 
-  res.status(statusCode).json({ error: message });
+  res.status(statusCode).json({
+    error: message,
+    ...(error.details || {})
+  });
 }

@@ -55,6 +55,9 @@ const verificationError = document.querySelector("#verification-error");
 const verificationEmail = document.querySelector("#verification-email");
 const resendCodeButton = document.querySelector("#resend-code-button");
 const verificationCodeInputs = Array.from(document.querySelectorAll(".verification-code-input"));
+const RESEND_COOLDOWN_ERROR_MESSAGE = "Please wait before requesting another verification code";
+const RESEND_INTERVAL_MS = 60_000;
+const RESEND_READY_BUFFER_MS = 250;
 const differentAccountButton = document.querySelector("#different-account-button");
 const currentUserName = document.querySelector("#current-user-name");
 const currentUserId = document.querySelector("#current-user-id");
@@ -216,6 +219,7 @@ let appRefreshInFlight = false;
 let friendsLoadedAt = 0;
 let friendsLoadPromise = null;
 let pendingRegistrationEmail = "";
+let resendCooldownTimer = null;
 let detailRefreshSequence = 0;
 
 setUnauthorizedHandler(handleSessionExpired);
@@ -674,21 +678,25 @@ async function handleResendRegistrationCode() {
   resendCodeButton.textContent = "Sending...";
 
   try {
-    await resendRegistrationCode({ email: pendingRegistrationEmail });
+    const result = await resendRegistrationCode({ email: pendingRegistrationEmail });
     setFormError(verificationError, "New code sent. Please check your email.");
     window.setTimeout(() => {
       if (verificationError.textContent === "New code sent. Please check your email.") {
         setFormError(verificationError, "");
       }
     }, 3000);
+    startResendCooldown(result.retryAfterSeconds ?? result.resendAvailableAt);
   } catch (error) {
     setFormError(verificationError, error.message || "Unable to resend code.");
-  } finally {
-    startResendCooldown();
+    if (error.message === RESEND_COOLDOWN_ERROR_MESSAGE) {
+      startResendCooldown(error.payload?.retryAfterSeconds);
+      return;
+    }
+    setResendButtonReady();
   }
 }
 
-function showVerificationForm(email) {
+function showVerificationForm(email, options = {}) {
   pendingRegistrationEmail = email;
   loginForm.hidden = true;
   registerForm.hidden = true;
@@ -700,16 +708,55 @@ function showVerificationForm(email) {
   });
   setFormError(verificationError, "");
   verificationCodeInputs[0]?.focus();
-  startResendCooldown();
+  startResendCooldown(options.resendAvailableAt);
 }
 
-function startResendCooldown() {
+function startResendCooldown(cooldownValue) {
+  if (resendCooldownTimer) {
+    window.clearTimeout(resendCooldownTimer);
+  }
+
+  const fallbackAvailableAtMs = Date.now() + RESEND_INTERVAL_MS;
+  let availableAtMs = fallbackAvailableAtMs;
+
+  if (typeof cooldownValue === "number" && Number.isFinite(cooldownValue)) {
+    availableAtMs = Date.now() + Math.max(0, cooldownValue * 1000) + RESEND_READY_BUFFER_MS;
+  } else {
+    const availableAt = Date.parse(cooldownValue);
+    if (Number.isFinite(availableAt)) {
+      availableAtMs = availableAt + RESEND_READY_BUFFER_MS;
+    }
+  }
+
+  availableAtMs = Math.min(availableAtMs, fallbackAvailableAtMs);
+
+  updateResendCooldown(availableAtMs);
+}
+
+function setResendButtonReady() {
+  if (resendCooldownTimer) {
+    window.clearTimeout(resendCooldownTimer);
+    resendCooldownTimer = null;
+  }
+
+  resendCodeButton.disabled = false;
+  resendCodeButton.textContent = "Resend code";
+}
+
+function updateResendCooldown(availableAtMs) {
+  const remainingMs = Math.max(0, availableAtMs - Date.now());
+
+  if (remainingMs <= 0) {
+    setResendButtonReady();
+    return;
+  }
+
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
   resendCodeButton.disabled = true;
-  resendCodeButton.textContent = "Resend available soon";
-  window.setTimeout(() => {
-    resendCodeButton.disabled = false;
-    resendCodeButton.textContent = "Resend code";
-  }, 60000);
+  resendCodeButton.textContent = `Resend in ${remainingSeconds}s`;
+  resendCooldownTimer = window.setTimeout(() => {
+    updateResendCooldown(availableAtMs);
+  }, Math.min(remainingMs, 1000));
 }
 
 function setupVerificationCodeInputs() {

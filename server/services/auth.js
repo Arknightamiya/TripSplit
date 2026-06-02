@@ -30,9 +30,11 @@ const TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const VERIFICATION_CODE_TTL_MINUTES = 5;
 const VERIFICATION_CODE_TTL_MS = VERIFICATION_CODE_TTL_MINUTES * 60 * 1000;
 const RESEND_INTERVAL_MS = 60 * 1000;
+const RESEND_CLOCK_DRIFT_TOLERANCE_MS = 5 * 1000;
 const MAX_VERIFICATION_ATTEMPTS = 5;
 const PASSWORD_POLICY_ERROR =
   "Password must be at least 8 characters long and include uppercase, lowercase, number, and symbol.";
+const resendCooldowns = new Map();
 
 export async function registerUser(input = {}) {
   requireFields(input, ["name", "email", "password"]);
@@ -50,6 +52,7 @@ export async function registerUser(input = {}) {
   const code = generateVerificationCode();
   const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS).toISOString();
   const resendAvailableAt = new Date(Date.now() + RESEND_INTERVAL_MS).toISOString();
+  rememberResendCooldown(email, resendAvailableAt);
 
   const pendingRegistration = await upsertAuthPendingRegistration({
     email,
@@ -139,13 +142,18 @@ export async function resendRegistrationCode(input = {}) {
     throw conflict("An account with this email already exists");
   }
 
-  if (Date.parse(pendingRegistration.resendAvailableAt) > Date.now()) {
-    throw badRequest("Please wait before requesting another verification code");
+  const cooldownRemainingMs = getResendCooldownRemainingMs(email, pendingRegistration);
+
+  if (cooldownRemainingMs > 0) {
+    throw badRequest("Please wait before requesting another verification code", {
+      retryAfterSeconds: Math.ceil(cooldownRemainingMs / 1000)
+    });
   }
 
   const code = generateVerificationCode();
   const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS).toISOString();
   const resendAvailableAt = new Date(Date.now() + RESEND_INTERVAL_MS).toISOString();
+  rememberResendCooldown(email, resendAvailableAt);
 
   const updatedRegistration = await updateAuthPendingRegistration(email, {
     verificationCodeHash: hashVerificationCode(email, code),
@@ -164,6 +172,7 @@ export async function resendRegistrationCode(input = {}) {
     email: updatedRegistration.email,
     expiresAt: updatedRegistration.expiresAt,
     resendAvailableAt: updatedRegistration.resendAvailableAt,
+    retryAfterSeconds: Math.ceil(RESEND_INTERVAL_MS / 1000),
     message: "Verification code sent"
   };
 }
@@ -217,6 +226,36 @@ export function isStrongPassword(password) {
 
 function generateVerificationCode() {
   return String(randomBytes(4).readUInt32BE() % 1000000).padStart(6, "0");
+}
+
+function rememberResendCooldown(email, resendAvailableAt) {
+  resendCooldowns.set(normalizeEmail(email), Date.parse(resendAvailableAt));
+}
+
+function getResendCooldownRemainingMs(email, pendingRegistration) {
+  const now = Date.now();
+  const storedAvailableAt = Date.parse(pendingRegistration.resendAvailableAt);
+  const storedRemainingMs = Number.isFinite(storedAvailableAt) ? storedAvailableAt - now : 0;
+
+  if (storedRemainingMs <= 0) {
+    resendCooldowns.delete(normalizeEmail(email));
+    return 0;
+  }
+
+  const rememberedAvailableAt = resendCooldowns.get(normalizeEmail(email));
+  const rememberedRemainingMs = Number.isFinite(rememberedAvailableAt)
+    ? rememberedAvailableAt - now
+    : 0;
+
+  if (rememberedRemainingMs > 0) {
+    return Math.min(rememberedRemainingMs, RESEND_INTERVAL_MS);
+  }
+
+  if (storedRemainingMs > RESEND_INTERVAL_MS + RESEND_CLOCK_DRIFT_TOLERANCE_MS) {
+    return 0;
+  }
+
+  return Math.min(storedRemainingMs, RESEND_INTERVAL_MS);
 }
 
 function hashVerificationCode(email, code) {

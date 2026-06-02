@@ -915,9 +915,9 @@ test("resend registration code refreshes code and enforces cooldown", async () =
   });
 
   assert.equal(cooldownResponse.status, 400);
-  assert.deepEqual(cooldownResponse.body, {
-    error: "Please wait before requesting another verification code"
-  });
+  assert.equal(cooldownResponse.body.error, "Please wait before requesting another verification code");
+  assert.ok(cooldownResponse.body.retryAfterSeconds > 0);
+  assert.ok(cooldownResponse.body.retryAfterSeconds <= 60);
 
   updatePendingRegistration("resend-user@example.com", {
     resendAvailableAt: new Date(Date.now() - 1000).toISOString()
