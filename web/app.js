@@ -487,14 +487,21 @@ function stopAppAutoRefresh() {
 }
 
 async function refreshVisibleAppState() {
-  if (shouldSkipAppRefresh()) {
+  if (shouldSkipBackgroundAppRefresh()) {
     return;
   }
 
   appRefreshInFlight = true;
   try {
+    const friendsRefresh = loadFriends({ force: true });
+
+    if (shouldSkipContentAppRefresh()) {
+      await friendsRefresh;
+      return;
+    }
+
     await Promise.all([
-      loadFriends(),
+      friendsRefresh,
       loadTrips(),
       refreshActiveFriendProfile(),
       activeMainTab === "lobby"
@@ -508,11 +515,16 @@ async function refreshVisibleAppState() {
   }
 }
 
-function shouldSkipAppRefresh() {
+function shouldSkipBackgroundAppRefresh() {
   return (
     appView.hidden ||
     document.hidden ||
-    appRefreshInFlight ||
+    appRefreshInFlight
+  );
+}
+
+function shouldSkipContentAppRefresh() {
+  return (
     hasBlockingModal() ||
     hasOpenDateCalendar() ||
     isEditingFormField()
@@ -521,7 +533,7 @@ function shouldSkipAppRefresh() {
 
 function hasBlockingModal() {
   return Array.from(document.querySelectorAll(".modal-overlay:not([hidden])")).some(
-    (dialog) => dialog !== friendProfileDialog
+    (dialog) => ![friendProfileDialog, friendRequestsDialog].includes(dialog)
   );
 }
 
@@ -1602,13 +1614,15 @@ function openFriendRequestsDialog(options = {}) {
   highlightedTripInvitationId = options.highlightTripInvitationId
     ? String(options.highlightTripInvitationId)
     : null;
-  activeRequestTab = options.tab || getDefaultRequestTab();
+  const requestedTab = options.tab || null;
+  activeRequestTab = requestedTab || getDefaultRequestTab();
   renderFriendRequestsDialog();
   friendRequestsDialog.hidden = false;
   scrollHighlightedTripInvitation();
   if (!options.skipPersist) {
     storeUiState();
   }
+  refreshFriendRequestsDialog(requestedTab);
 }
 
 function closeFriendRequestsDialog() {
@@ -1616,6 +1630,23 @@ function closeFriendRequestsDialog() {
   highlightedTripInvitationId = null;
   setFormError(friendRequestsError, "");
   storeUiState();
+}
+
+async function refreshFriendRequestsDialog(requestedTab = null) {
+  try {
+    await loadFriends({ force: true });
+    if (friendRequestsDialog.hidden) {
+      return;
+    }
+
+    activeRequestTab = requestedTab || getDefaultRequestTab();
+    renderFriendRequestsDialog();
+    storeUiState();
+  } catch (error) {
+    if (!friendRequestsDialog.hidden) {
+      setFormError(friendRequestsError, error.message || "Unable to load requests.");
+    }
+  }
 }
 
 function renderFriendRequestsDialog() {
