@@ -1802,6 +1802,64 @@ input::placeholder {
   margin: 0.75rem 0;
 }
 
+.budget-visual {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1.35rem 0 1.35rem;
+}
+
+.budget-top-row,
+.budget-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.budget-total-label,
+.budget-per-person,
+.budget-remaining {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.budget-total-label strong,
+.budget-spent strong,
+.budget-remaining strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.budget-spent {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.budget-spent strong {
+  color: inherit;
+}
+
+.budget-bar-track {
+  width: 100%;
+  height: 1rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 600ms ease;
+}
+
+.budget-over-warning {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .budget-stat {
   padding: 0.7rem 0.85rem;
   border: 1px solid var(--border);
@@ -2294,7 +2352,7 @@ label.field select:disabled,
 }
 
 .budget-actions {
-  margin-top: 0.75rem;
+  margin-top: 1rem;
 }
 
 .budget-entry-row {
@@ -2826,6 +2884,13 @@ select[data-currency-select].is-showing-options {
   .budget-stat-value {
     font-size: 1rem;
     overflow-wrap: anywhere;
+  }
+
+  .budget-top-row,
+  .budget-bottom-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
   }
 
   .budget-entry-row,

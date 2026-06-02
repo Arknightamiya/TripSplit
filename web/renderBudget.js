@@ -147,31 +147,26 @@ function buildBudgetPayload(action, summary, mode, amount, participantCount = 1,
 }
 
 function statsHtml(s, currencyInfo) {
-  const overClass = s.overBudgetAmount > 0 ? " is-over" : "";
   const currencyCode = s.currencyCode || DEFAULT_CURRENCY_CODE;
+  const spentPercent = s.totalBudget > 0
+    ? Math.min((Number(s.totalSpent || 0) / Number(s.totalBudget || 0)) * 100, 100)
+    : 0;
+  const isOver = s.overBudgetAmount > 0;
+  const barColor = isOver ? "var(--danger)" : "var(--accent-strong)";
   return `
-    <div class="budget-grid">
-      <div class="budget-stat">
-        <span class="budget-stat-label">Total Budget</span>
-        <span class="budget-stat-value">${formatMoney(s.totalBudget, currencyCode, currencyInfo)}</span>
+    <div class="budget-visual">
+      <div class="budget-top-row">
+        <span class="budget-total-label">Total: <strong>${formatMoney(s.totalBudget, currencyCode, currencyInfo)}</strong></span>
+        ${s.perPersonBudget != null ? `<span class="budget-per-person">${formatMoney(s.perPersonBudget, currencyCode, currencyInfo)} / person</span>` : ""}
       </div>
-      ${s.perPersonBudget != null ? `
-        <div class="budget-stat">
-          <span class="budget-stat-label">Per Person</span>
-          <span class="budget-stat-value">${formatMoney(s.perPersonBudget, currencyCode, currencyInfo)}</span>
-        </div>` : ""}
-      <div class="budget-stat">
-        <span class="budget-stat-label">Spent</span>
-        <span class="budget-stat-value">${formatMoney(s.totalSpent, currencyCode, currencyInfo)}</span>
+      <div class="budget-bar-track">
+        <div class="budget-bar-fill" style="width: ${spentPercent}%; background: ${barColor};"></div>
       </div>
-      <div class="budget-stat">
-        <span class="budget-stat-label">Remaining</span>
-        <span class="budget-stat-value">${formatMoney(s.remainingBudget, currencyCode, currencyInfo)}</span>
+      <div class="budget-bottom-row">
+        <span class="budget-spent" style="color: ${barColor};">Spent: <strong>${formatMoney(s.totalSpent, currencyCode, currencyInfo)}</strong></span>
+        <span class="budget-remaining">Remaining: <strong>${formatMoney(s.remainingBudget, currencyCode, currencyInfo)}</strong></span>
       </div>
-      <div class="budget-stat${overClass}">
-        <span class="budget-stat-label">Over Budget</span>
-        <span class="budget-stat-value">${formatMoney(s.overBudgetAmount, currencyCode, currencyInfo)}</span>
-      </div>
+      ${isOver ? `<p class="budget-over-warning">Over budget by ${formatMoney(s.overBudgetAmount, currencyCode, currencyInfo)}</p>` : ""}
     </div>
   `;
 }
