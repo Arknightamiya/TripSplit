@@ -352,6 +352,7 @@ deleteFriendDialog.addEventListener("click", (event) => {
 });
 joinTripNo.addEventListener("click", closeJoinTripDialog);
 joinTripYes.addEventListener("click", confirmJoinTripRequest);
+joinTripDialog.addEventListener("keydown", handleJoinTripDialogKeydown);
 joinTripDialog.addEventListener("click", (event) => {
   if (event.target === joinTripDialog) {
     closeJoinTripDialog();
@@ -474,6 +475,7 @@ function showAppView(user) {
 function startAppAutoRefresh() {
   // Keep the current scroll/detail position stable. Manual changes still refresh affected panels.
   stopAppAutoRefresh();
+  appRefreshTimer = window.setInterval(refreshVisibleAppState, APP_REFRESH_INTERVAL_MS);
 }
 
 function stopAppAutoRefresh() {
@@ -494,6 +496,7 @@ async function refreshVisibleAppState() {
     await Promise.all([
       loadFriends(),
       loadTrips(),
+      refreshActiveFriendProfile(),
       activeMainTab === "lobby"
         ? loadFriendPublicTripLobby({ showLoading: false })
         : Promise.resolve()
@@ -510,14 +513,16 @@ function shouldSkipAppRefresh() {
     appView.hidden ||
     document.hidden ||
     appRefreshInFlight ||
-    hasOpenModal() ||
+    hasBlockingModal() ||
     hasOpenDateCalendar() ||
     isEditingFormField()
   );
 }
 
-function hasOpenModal() {
-  return Boolean(document.querySelector(".modal-overlay:not([hidden])"));
+function hasBlockingModal() {
+  return Array.from(document.querySelectorAll(".modal-overlay:not([hidden])")).some(
+    (dialog) => dialog !== friendProfileDialog
+  );
 }
 
 function hasOpenDateCalendar() {
@@ -1875,6 +1880,21 @@ async function openFriendProfile(friendId, options = {}) {
   }
 }
 
+async function refreshActiveFriendProfile() {
+  const friendId = activeFriendProfile?.friend?.id;
+  if (friendProfileDialog.hidden || !friendId) {
+    return;
+  }
+
+  const latestProfile = await fetchFriendProfile(friendId);
+  if (friendProfileDialog.hidden || String(activeFriendProfile?.friend?.id || "") !== String(friendId)) {
+    return;
+  }
+
+  activeFriendProfile = latestProfile;
+  renderFriendProfile(activeFriendProfile);
+}
+
 function renderFriendProfile(profile) {
   const { friend, publicTrips } = profile;
   const friendIdentity = `@${getUserId(friend)} · ${friend.email || ""}`;
@@ -2019,12 +2039,22 @@ function openJoinTripDialog(tripId) {
   setFormError(joinTripError, "");
   joinTripCopy.textContent = `Send a request to join ${trip.destination || trip.name}?`;
   joinTripDialog.hidden = false;
+  joinTripYes.focus({ preventScroll: true });
 }
 
 function closeJoinTripDialog() {
   joinTripDialog.hidden = true;
   pendingJoinTrip = null;
   setFormError(joinTripError, "");
+}
+
+function handleJoinTripDialogKeydown(event) {
+  if (event.key !== "Enter" || joinTripDialog.hidden || joinTripYes.disabled) {
+    return;
+  }
+
+  event.preventDefault();
+  confirmJoinTripRequest();
 }
 
 async function confirmJoinTripRequest() {
