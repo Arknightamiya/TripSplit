@@ -11,6 +11,19 @@ import {
   normalizeCurrencyInfo
 } from "./currency.js";
 
+function categoryIcon(category) {
+  const icons = {
+    lodging: "🏨",
+    food: "🍽️",
+    transportation: "✈️",
+    tickets: "🎟️",
+    drinks: "🍹",
+    emergency: "🚨",
+    other: "📦"
+  };
+  return icons[category] || "📦";
+}
+
 export function renderExpenses(panel, { trip, currentUserId, onChange, currencyInfo }) {
   const normalizedCurrencyInfo = normalizeCurrencyInfo(currencyInfo);
   const approved = trip.participants.filter((p) => p.joinStatus === "approved");
@@ -22,7 +35,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
   panel.innerHTML = `
     <div class="panel-header">
       <h2>Expenses</h2>
-      <span class="hint">${trip.expenses.length} recorded</span>
+      <span class="expense-count-badge">${trip.expenses.length} recorded</span>
     </div>
     ${expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded, normalizedCurrencyInfo)}
     ${
@@ -186,7 +199,7 @@ function expenseRowHtml(expense, approved, currentUserId, isOrganizer, tripEnded
   return `
     <div class="expense-row">
       <div>
-        <div class="expense-title">${escapeHtml(expense.title)}</div>
+        <div class="expense-title">${categoryIcon(expense.category)} ${escapeHtml(expense.title)}</div>
         <div class="expense-sub">
           ${expenseSummary}
         </div>

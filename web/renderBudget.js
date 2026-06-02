@@ -18,7 +18,7 @@ export function renderBudget(panel, { trip, isOrganizer, onChange, currencyInfo 
   panel.innerHTML = `
     <div class="panel-header">
       <h2>Budget</h2>
-      <span class="hint">${summary ? labelForMode(summary.mode) : "No budget yet"}</span>
+      <span class="expense-count-badge">${summary ? labelForMode(summary.mode) : "No budget yet"}</span>
     </div>
     ${summary ? statsHtml(summary, normalizedCurrencyInfo) : ""}
     ${isOrganizer ? budgetFormHtml(summary, tripStarted, tripEnded, normalizedCurrencyInfo) : ""}

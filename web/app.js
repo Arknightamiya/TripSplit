@@ -1434,7 +1434,7 @@ function renderFriendsList() {
   );
 
   if (!friends.length) {
-    friendsList.innerHTML = `<p class="empty friend-empty">${query ? "No matching friends." : "No friends yet."}</p>`;
+    friendsList.innerHTML = `<p class="empty friend-empty">${query ? "No matching friends." : "No friends yet. Add one now!"}</p>`;
     return;
   }
 

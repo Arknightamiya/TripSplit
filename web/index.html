@@ -117,12 +117,16 @@
             </div>
             <label class="friend-search">
               <span class="sr-only">Search friends</span>
-              <input id="friends-search" placeholder="Search friends" />
+              <div class="friend-search-wrap">
+                <span class="friend-search-icon" aria-hidden="true">🔍</span>
+                <input id="friends-search" placeholder="Search friends" />
+              </div>
             </label>
             <button type="button" id="friend-requests-button" class="request-entry">
               <span class="request-dot" id="friend-requests-dot" hidden></span>
               Requests
-              <span id="friend-requests-count" class="request-count">0</span>
+              <span id="friend-requests-count" class="request-count expense-count-badge">0</span>
+              <span class="request-chevron" aria-hidden="true">›</span>
             </button>
             <div id="friends-list" class="friends-list"></div>
           </aside>
@@ -130,7 +134,7 @@
           <div class="app-main">
             <section class="hero">
               <div>
-                <h1>TripSplit</h1>
+                <h1>Trip<span>Split</span></h1>
                 <p class="hero-copy">
                   Plan group trips, track shared spending, and settle balances fairly.
                 </p>
@@ -161,12 +165,15 @@
               <section id="your-trips-panel" data-main-panel="trips">
                 <form id="trip-form" class="input-row trip-input-row">
                   <div class="trip-create-main-row">
-                    <input
-                      id="trip-name"
-                      name="name"
-                      placeholder="Destination"
-                      required
-                    />
+                    <div class="destination-input-wrap">
+                      <span class="destination-icon" aria-hidden="true">📍</span>
+                      <input
+                        id="trip-name"
+                        name="name"
+                        placeholder="Destination"
+                        required
+                      />
+                    </div>
                     <div class="date-range-field trip-create-date-range" aria-label="Trip dates">
                       <label>
                         <span>Start</span>
@@ -240,7 +247,10 @@
 
                 <form id="trip-edit-form" class="trip-edit-form">
                   <div class="trip-edit-main-row">
-                    <input name="name" placeholder="Destination" required />
+                    <div class="destination-input-wrap">
+                      <span class="destination-icon" aria-hidden="true">📍</span>
+                      <input name="name" placeholder="Destination" required />
+                    </div>
                     <div class="date-range-field trip-edit-date-range" aria-label="Trip dates">
                       <label>
                         <span>Start</span>
