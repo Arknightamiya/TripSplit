@@ -24,6 +24,7 @@ export const API_ROUTES = {
   tripParticipants: (tripId) => `${API_BASE}/trips/${tripId}/participants`,
   tripParticipant: (tripId, participantId) => `${API_BASE}/trips/${tripId}/participants/${participantId}`,
   participants: (tripId) => `${API_BASE}/trips/${tripId}/participants`,
+  currencies: `${API_BASE}/currencies`,
   budget: (tripId) => `${API_BASE}/trips/${tripId}/budget`,
   expenses: (tripId) => `${API_BASE}/trips/${tripId}/expenses`,
   expense: (tripId, expenseId) => `${API_BASE}/trips/${tripId}/expenses/${expenseId}`,

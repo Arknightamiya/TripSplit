@@ -24,6 +24,17 @@ test("private trip APIs require bearer auth", async () => {
   });
 });
 
+test("currency API returns fallback supported currencies without a database", async () => {
+  const response = await request("/api/currencies");
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.baseCurrencyCode, "USD");
+  assert.equal(response.body.rates.USD, 1);
+  assert.equal(response.body.rates.JPY, 157);
+  assert.ok(response.body.currencies.some((currency) => currency.code === "USD"));
+  assert.ok(response.body.currencies.some((currency) => currency.code === "JPY" && currency.rate === 157));
+});
+
 test("invalid and expired tokens return explicit 401 session errors", async () => {
   const { user } = await loginAsDemoUser();
   const invalidTokenResponse = await request("/api/me", {
@@ -1772,6 +1783,7 @@ test("organizer can set total and per-person budgets", async () => {
     headers: authHeaders(token),
     body: {
       mode: "total",
+      currencyCode: "CAD",
       totalBudget: 1200
     }
   });
@@ -1787,9 +1799,11 @@ test("organizer can set total and per-person budgets", async () => {
   assert.equal(totalBudgetResponse.status, 200);
   assert.equal(totalBudgetResponse.body.budgetSummary.totalBudget, 1200);
   assert.equal(totalBudgetResponse.body.budgetSummary.perPersonBudget, null);
+  assert.equal(totalBudgetResponse.body.budgetSummary.currencyCode, "CAD");
   assert.equal(perPersonBudgetResponse.status, 200);
   assert.equal(perPersonBudgetResponse.body.budgetSummary.totalBudget, 400);
   assert.equal(perPersonBudgetResponse.body.budgetSummary.perPersonBudget, 400);
+  assert.equal(perPersonBudgetResponse.body.budgetSummary.currencyCode, "USD");
 });
 
 test("started trips can only increase the existing budget", async () => {
@@ -1918,6 +1932,7 @@ test("expense API creates equal shares and recalculates balances", async () => {
       amount: 30,
       category: "food",
       expenseType: "personal_advance",
+      currencyCode: "EUR",
       payerId: user.id,
       splitRule: "equal",
       includedParticipantIds: [teammate.user.id]
@@ -1925,6 +1940,7 @@ test("expense API creates equal shares and recalculates balances", async () => {
   });
 
   assert.equal(response.status, 201);
+  assert.equal(response.body.expense.currencyCode, "EUR");
   assert.deepEqual(response.body.expense.includedParticipantIds, [teammate.user.id]);
   assert.equal(response.body.expense.expenseShares[0].shareAmount, 15);
   assert.equal(response.body.balances[0].actualPaid, 30);
@@ -1941,6 +1957,58 @@ test("expense API creates equal shares and recalculates balances", async () => {
     (balance) => balance.participantId === teammate.user.id
   );
   assert.equal(teammateBalance.participant.displayName, "Expense Buddy");
+});
+
+test("expense API defaults to USD currency and rejects unsupported currency codes", async () => {
+  const { token, user } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+  const teammate = await registerUser({
+    name: "Currency Teammate",
+    email: "currency-teammate@example.com"
+  });
+  await request(`/api/trips/${tripId}/participants`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      userId: teammate.user.id
+    }
+  });
+  await startTripForTest(token, tripId);
+
+  const defaultCurrencyResponse = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Default Currency",
+      amount: 20,
+      category: "food",
+      expenseType: "personal_advance",
+      payerId: user.id,
+      splitRule: "equal",
+      includedParticipantIds: [teammate.user.id]
+    }
+  });
+  const unsupportedCurrencyResponse = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Unsupported Currency",
+      amount: 20,
+      category: "food",
+      expenseType: "personal_advance",
+      currencyCode: "DOGE",
+      payerId: user.id,
+      splitRule: "equal",
+      includedParticipantIds: [teammate.user.id]
+    }
+  });
+
+  assert.equal(defaultCurrencyResponse.status, 201);
+  assert.equal(defaultCurrencyResponse.body.expense.currencyCode, "USD");
+  assert.equal(unsupportedCurrencyResponse.status, 400);
+  assert.deepEqual(unsupportedCurrencyResponse.body, {
+    error: "Unsupported expense currency"
+  });
 });
 
 test("expense API rejects recording expenses before the trip starts", async () => {
@@ -2085,6 +2153,57 @@ test("expense API creates budget-payment shares without personal reimbursement b
       }
     ]
   );
+});
+
+test("budget summary converts mixed-currency budget payments to the budget currency", async () => {
+  const { token, user } = await loginAsDemoUser();
+  const tripId = await createTrip(token);
+
+  await request(`/api/trips/${tripId}/budget`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      mode: "total",
+      totalBudget: 5000,
+      currencyCode: "USD"
+    }
+  });
+  await startTripForTest(token, tripId);
+
+  const flight = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Flight",
+      amount: 1000,
+      category: "transportation",
+      expenseType: "budget_payment",
+      payerId: user.id,
+      currencyCode: "USD",
+      splitRule: "equal",
+      includedParticipantIds: [user.id]
+    }
+  });
+  const hotel = await request(`/api/trips/${tripId}/expenses`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: {
+      title: "Hotel",
+      amount: 1000,
+      category: "lodging",
+      expenseType: "budget_payment",
+      payerId: user.id,
+      currencyCode: "JPY",
+      splitRule: "equal",
+      includedParticipantIds: [user.id]
+    }
+  });
+
+  assert.equal(flight.status, 201);
+  assert.equal(hotel.status, 201);
+  assert.equal(hotel.body.budgetSummary.currencyCode, "USD");
+  assert.equal(hotel.body.budgetSummary.totalSpent, 1006.37);
+  assert.equal(hotel.body.budgetSummary.remainingBudget, 3993.63);
 });
 
 test("expense API distributes leftover cents so equal split balances are conserved", async () => {

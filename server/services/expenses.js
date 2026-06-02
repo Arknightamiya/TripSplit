@@ -23,6 +23,7 @@ import {
 } from "../repositories/expenses.js";
 import { findTripRecordById } from "../repositories/trips.js";
 import { badRequest, forbidden, notFound } from "../utils/errors.js";
+import { isSupportedCurrencyCode, normalizeCurrencyCode } from "../utils/currency.js";
 import { requireFields } from "../validators/request.js";
 import { ensureApprovedParticipant, ensureOrganizer } from "./trips.js";
 
@@ -36,6 +37,7 @@ export async function createExpenseForTrip(userId, tripId, input = {}) {
   const normalizedInput = {
     ...input,
     expenseType,
+    currencyCode: normalizeExpenseCurrencyCode(input.currencyCode),
     payerId,
     splitRule: input.splitRule || "equal"
   };
@@ -218,6 +220,15 @@ function normalizeIncludedParticipantIds(values, expenseType, payerId) {
 
 function normalizeExpenseType(expenseType) {
   return expenseType === "shared" ? "personal_advance" : expenseType;
+}
+
+function normalizeExpenseCurrencyCode(currencyCode) {
+  const normalizedCurrencyCode = normalizeCurrencyCode(currencyCode);
+  if (!isSupportedCurrencyCode(normalizedCurrencyCode)) {
+    throw badRequest("Unsupported expense currency");
+  }
+
+  return normalizedCurrencyCode;
 }
 
 async function getApprovedParticipantIds(tripId) {

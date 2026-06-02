@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildSettlementTransfers, getParticipantTransferDetails } from "../web/renderBalances.js";
+import {
+  buildSettlementTransfers,
+  getDisplayableTransferDetails,
+  getParticipantTransferDetails,
+  renderBalances,
+  settlementInstructionText
+} from "../web/renderBalances.js";
+import { FALLBACK_CURRENCY_INFO, convertMoney } from "../web/currency.js";
 
 test("buildSettlementTransfers settles only personal reimbursement balances", () => {
   const transfers = buildSettlementTransfers([
@@ -59,4 +66,98 @@ test("getParticipantTransferDetails returns no rows for settled participants", (
     getParticipantTransferDetails({ id: "dw1", name: "dw#1", personalNet: 0 }, []),
     []
   );
+});
+
+test("getDisplayableTransferDetails hides transfers that round to zero in display currency", () => {
+  const row = { id: "dw1", name: "dw#1", personalNet: -3 };
+  const transfers = [
+    { fromId: "dw1", from: "dw#1", toId: "b", to: "gogo#1", amount: 2 },
+    { fromId: "dw1", from: "dw#1", toId: "h", to: "friendh#1", amount: 0.33 }
+  ];
+  const currencyInfo = {
+    baseCurrencyCode: "USD",
+    rates: { USD: 1, JPY: 157 },
+    currencies: [
+      { code: "USD", symbol: "$", decimalPlaces: 2 },
+      { code: "JPY", symbol: "¥", decimalPlaces: 0 }
+    ]
+  };
+
+  assert.deepEqual(
+    getDisplayableTransferDetails(row, transfers, "JPY", currencyInfo),
+    [{ direction: "pay", name: "gogo#1", amount: 2 }]
+  );
+});
+
+test("renderBalances labels the display currency as settlement currency", () => {
+  const panel = {
+    innerHTML: "",
+    querySelector() {
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    }
+  };
+  const trip = {
+    id: "trip1",
+    startedAt: "2026-07-01T00:00:00.000Z",
+    endedAt: "2026-07-05T00:00:00.000Z",
+    participants: [
+      { id: "dw1", name: "dw#1", displayName: "dw#1", joinStatus: "approved" }
+    ],
+    budgetSummary: {
+      mode: "total",
+      currencyCode: "USD",
+      totalBudget: 100,
+      participantCount: 1
+    },
+    expenses: []
+  };
+
+  renderBalances(panel, {
+    balances: [
+      {
+        participantId: "dw1",
+        participant: trip.participants[0],
+        budgetSpent: 0,
+        actualPaid: 0,
+        netBalance: 0
+      }
+    ],
+    trip,
+    currentUserId: "dw1",
+    currencyInfo: FALLBACK_CURRENCY_INFO
+  });
+
+  assert.match(panel.innerHTML, />\s*Settle in\s*</);
+  assert.match(panel.innerHTML, /Final bill in USD/);
+});
+
+test("settlementInstructionText names the transfer dialog settlement currency", () => {
+  assert.equal(settlementInstructionText("cny"), "Settle these payments in CNY.");
+});
+
+test("convertMoney converts through USD based rate maps for balance display", () => {
+  const currencyInfo = {
+    baseCurrencyCode: "USD",
+    rates: {
+      USD: 1,
+      EUR: 0.8,
+      JPY: 160
+    },
+    currencies: [
+      { code: "USD", symbol: "$", decimalPlaces: 2 },
+      { code: "EUR", symbol: "€", decimalPlaces: 2 },
+      { code: "JPY", symbol: "¥", decimalPlaces: 0 }
+    ]
+  };
+
+  assert.equal(convertMoney(80, "EUR", "USD", currencyInfo), 100);
+  assert.equal(convertMoney(10, "USD", "JPY", currencyInfo), 1600);
+});
+
+test("fallback currency info can convert JPY balances without a fetched database rate", () => {
+  assert.equal(convertMoney(157, "JPY", "USD", FALLBACK_CURRENCY_INFO), 1);
+  assert.equal(convertMoney(1, "USD", "JPY", FALLBACK_CURRENCY_INFO), 157);
 });

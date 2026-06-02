@@ -3,6 +3,7 @@ import {
   deleteTrip,
   endTrip,
   fetchBalances,
+  fetchCurrencies,
   fetchCurrentUserProfile,
   fetchFriendProfile,
   fetchFriendPublicTrips,
@@ -40,6 +41,7 @@ import { renderBalances } from "./renderBalances.js";
 import { renderBudget } from "./renderBudget.js";
 import { renderExpenses } from "./renderExpenses.js";
 import { escapeHtml, formatBudgetSummary, pluralize, renderTrips } from "./renderTrips.js";
+import { FALLBACK_CURRENCY_INFO, normalizeCurrencyInfo } from "./currency.js";
 
 const authView = document.querySelector("#auth-view");
 const appView = document.querySelector("#app-view");
@@ -196,6 +198,7 @@ let profileAvatarDataUrl = "";
 let activeRequestTab = "friends";
 let highlightedTripInvitationId = null;
 let tripEditFormHydratedTripId = null;
+let currencyInfo = FALLBACK_CURRENCY_INFO;
 const SAVED_LOGIN_STORAGE_KEY = "tripsplit.savedLogin";
 const UI_STATE_STORAGE_KEY = "tripsplit.uiState";
 const MAX_AVATAR_FILE_SIZE = 8_000_000;
@@ -1432,7 +1435,7 @@ function renderFriendsList() {
   );
 
   if (!friends.length) {
-    friendsList.innerHTML = `<p class="empty friend-empty">${query ? "No matching friends." : "No friends yet."}</p>`;
+    friendsList.innerHTML = `<p class="empty friend-empty">${query ? "No matching friends." : "No friends yet. Add one now!"}</p>`;
     return;
   }
 
@@ -2333,8 +2336,13 @@ function openTripRemoveParticipantDialog() {
     return;
   }
 
-  if (activeTripDetail.startedAt) {
-    setFormError(tripEditError, "Trip has already started; participants cannot be removed.");
+  if (activeTripDetail.startedAt || activeTripDetail.endedAt) {
+    setFormError(
+      tripEditError,
+      activeTripDetail.endedAt
+        ? "Trip has ended; participants are locked."
+        : "Trip has already started; participants cannot be removed."
+    );
     return;
   }
 
@@ -2570,7 +2578,7 @@ function populateTripEditPanel(trip, isOrganizer, options = {}) {
 
   if (!options.force && shouldPreserveTripEditDraft(trip)) {
     updateTripInviteButton(trip);
-    tripRemoveParticipantButton.disabled = getRemovableParticipants(trip).length === 0;
+    updateTripRemoveParticipantButton(trip);
     return;
   }
 
@@ -2583,12 +2591,20 @@ function populateTripEditPanel(trip, isOrganizer, options = {}) {
   tripEditFormHydratedTripId = String(trip.id);
   updateTripInviteButton(trip);
   setTripEditLocked(tripStarted || tripEnded);
-  tripRemoveParticipantButton.disabled =
-    tripStarted || tripEnded || getRemovableParticipants(trip).length === 0;
-  tripRemoveParticipantButton.classList.toggle("is-disabled", tripStarted || tripEnded);
+  updateTripRemoveParticipantButton(trip);
   tripStartButton.disabled = tripStarted || tripEnded;
   tripStartButton.textContent = tripEnded ? "Trip Ended" : tripStarted ? "Trip Started" : "Start Trip";
   tripStartButton.classList.toggle("is-disabled", tripStarted || tripEnded);
+}
+
+function updateTripRemoveParticipantButton(trip) {
+  const tripStarted = Boolean(trip?.startedAt);
+  const tripEnded = Boolean(trip?.endedAt);
+  const isLocked = tripStarted || tripEnded;
+
+  tripRemoveParticipantButton.disabled =
+    isLocked || getRemovableParticipants(trip).length === 0;
+  tripRemoveParticipantButton.classList.toggle("is-disabled", isLocked);
 }
 
 function setTripEditLocked(isLocked) {
@@ -2791,7 +2807,8 @@ async function refreshDetail() {
   const currentUser = getStoredCurrentUser();
   const [{ trip }, { balances }] = await Promise.all([
     fetchTrip(requestTripId),
-    fetchBalances(requestTripId)
+    fetchBalances(requestTripId),
+    loadCurrencyInfo()
   ]);
 
   if (
@@ -2828,16 +2845,27 @@ async function refreshDetail() {
   detailDelete.dataset.tripId = String(trip.id);
   populateTripEditPanel(trip, isOrganizer);
   setFormError(tripEditError, "");
-  renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips });
-  renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips });
+  renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips, currencyInfo });
+  renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips, currencyInfo });
   renderBalances(balancesPanel, {
     balances,
     trip,
     currentUserId: currentUser?.id,
     isOrganizer,
     onRefresh: refreshDetail,
-    onEndTrip: handleEndTrip
+    onEndTrip: handleEndTrip,
+    currencyInfo
   });
+}
+
+async function loadCurrencyInfo() {
+  try {
+    currencyInfo = normalizeCurrencyInfo(await fetchCurrencies());
+  } catch {
+    currencyInfo = FALLBACK_CURRENCY_INFO;
+  }
+
+  return currencyInfo;
 }
 
 async function handleEndTrip() {

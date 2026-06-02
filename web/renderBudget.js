@@ -1,8 +1,16 @@
 import { postBudget } from "./api.js";
 import { escapeHtml, formatMoney } from "./renderTrips.js";
+import {
+  DEFAULT_CURRENCY_CODE,
+  bindCurrencySelectLabels,
+  convertMoney,
+  currencyOptionsHtml,
+  normalizeCurrencyInfo
+} from "./currency.js";
 
-export function renderBudget(panel, { trip, isOrganizer, onChange }) {
-  const summary = trip.budgetSummary;
+export function renderBudget(panel, { trip, isOrganizer, onChange, currencyInfo }) {
+  const normalizedCurrencyInfo = normalizeCurrencyInfo(currencyInfo);
+  const summary = getDisplayBudgetSummary(trip, normalizedCurrencyInfo);
   const tripStarted = Boolean(trip.startedAt);
   const tripEnded = Boolean(trip.endedAt);
   const participantCount = getApprovedParticipantCount(trip, summary);
@@ -10,10 +18,10 @@ export function renderBudget(panel, { trip, isOrganizer, onChange }) {
   panel.innerHTML = `
     <div class="panel-header">
       <h2>Budget</h2>
-      <span class="hint">${summary ? labelForMode(summary.mode) : "No budget yet"}</span>
+      <span class="expense-count-badge">${summary ? labelForMode(summary.mode) : "No budget yet"}</span>
     </div>
-    ${summary ? statsHtml(summary) : ""}
-    ${isOrganizer ? budgetFormHtml(summary, tripStarted, tripEnded) : ""}
+    ${summary ? statsHtml(summary, normalizedCurrencyInfo) : ""}
+    ${isOrganizer ? budgetFormHtml(summary, tripStarted, tripEnded, normalizedCurrencyInfo) : ""}
   `;
 
   if (!isOrganizer) return;
@@ -23,6 +31,7 @@ export function renderBudget(panel, { trip, isOrganizer, onChange }) {
   if (!form) return;
 
   const error = panel.querySelector("#budget-error");
+  bindCurrencySelectLabels(form);
   const modeControl = form.elements.mode;
   const modeSelect = form.querySelector('select[name="mode"]');
   const amountInput = form.querySelector('input[name="amount"]');
@@ -57,11 +66,19 @@ export function renderBudget(panel, { trip, isOrganizer, onChange }) {
     error.textContent = "";
     const mode = modeControl?.value || summary?.mode || "total";
     const amount = Number(amountInput.value);
+    const currencyCode = form.elements.currencyCode?.value || summary?.currencyCode || DEFAULT_CURRENCY_CODE;
     if (!(amount > 0)) {
       error.textContent = "Enter a positive amount.";
       return;
     }
-    const payload = buildBudgetPayload(form.dataset.budgetAction, summary, mode, amount, participantCount);
+    const payload = buildBudgetPayload(
+      form.dataset.budgetAction,
+      summary,
+      mode,
+      amount,
+      participantCount,
+      currencyCode
+    );
     try {
       await postBudget(trip.id, payload);
       await onChange();
@@ -71,11 +88,46 @@ export function renderBudget(panel, { trip, isOrganizer, onChange }) {
   });
 }
 
-function buildBudgetPayload(action, summary, mode, amount, participantCount = 1) {
+function getDisplayBudgetSummary(trip, currencyInfo) {
+  const summary = trip.budgetSummary;
+  if (!summary) {
+    return null;
+  }
+
+  const currencyCode = summary.currencyCode || DEFAULT_CURRENCY_CODE;
+  const budgetPayments = Array.isArray(trip.expenses)
+    ? trip.expenses.filter((expense) => expense.expenseType === "budget_payment")
+    : [];
+
+  if (!budgetPayments.length) {
+    return summary;
+  }
+
+  const totalSpent = roundCurrency(budgetPayments.reduce((sum, expense) => {
+    const convertedAmount = convertMoney(
+      expense.amount,
+      expense.currencyCode || DEFAULT_CURRENCY_CODE,
+      currencyCode,
+      currencyInfo
+    );
+    return sum + (convertedAmount ?? 0);
+  }, 0));
+  const totalBudget = Number(summary.totalBudget || 0);
+
+  return {
+    ...summary,
+    totalSpent,
+    remainingBudget: roundCurrency(Math.max(totalBudget - totalSpent, 0)),
+    overBudgetAmount: roundCurrency(Math.max(totalSpent - totalBudget, 0))
+  };
+}
+
+function buildBudgetPayload(action, summary, mode, amount, participantCount = 1, currencyCode = DEFAULT_CURRENCY_CODE) {
   if (action === "add" && summary) {
     if (mode === "total") {
       return {
         mode: "total",
+        currencyCode,
         totalBudget: roundCurrency(Number(summary.totalBudget || 0) + amount)
       };
     }
@@ -84,45 +136,46 @@ function buildBudgetPayload(action, summary, mode, amount, participantCount = 1)
       || roundCurrency(Number(summary.totalBudget || 0) / Math.max(participantCount, 1));
     return {
       mode: "per-person",
+      currencyCode,
       perPersonBudget: roundCurrency(currentPerPerson + amount)
     };
   }
 
   return mode === "total"
-    ? { mode, totalBudget: amount }
-    : { mode, perPersonBudget: amount };
+    ? { mode, currencyCode, totalBudget: amount }
+    : { mode, currencyCode, perPersonBudget: amount };
 }
 
-function statsHtml(s) {
-  const overClass = s.overBudgetAmount > 0 ? " is-over" : "";
+function statsHtml(s, currencyInfo) {
+  const currencyCode = s.currencyCode || DEFAULT_CURRENCY_CODE;
+  const spentPercent = s.totalBudget > 0
+    ? Math.min((Number(s.totalSpent || 0) / Number(s.totalBudget || 0)) * 100, 100)
+    : 0;
+  const isOver = s.overBudgetAmount > 0;
+  const barColor = isOver ? "var(--danger)" : "var(--accent-strong)";
   return `
-    <div class="budget-grid">
-      <div class="budget-stat">
-        <span class="budget-stat-label">Total Budget</span>
-        <span class="budget-stat-value">${formatMoney(s.totalBudget)}</span>
+    <div class="budget-visual">
+      <div class="budget-top-row">
+        <span class="budget-total-label">Total: <strong>${formatMoney(s.totalBudget, currencyCode, currencyInfo)}</strong></span>
+        ${s.perPersonBudget != null ? `<span class="budget-per-person">${formatMoney(s.perPersonBudget, currencyCode, currencyInfo)} / person</span>` : ""}
       </div>
-      ${s.perPersonBudget != null ? `
-        <div class="budget-stat">
-          <span class="budget-stat-label">Per Person</span>
-          <span class="budget-stat-value">${formatMoney(s.perPersonBudget)}</span>
-        </div>` : ""}
-      <div class="budget-stat">
-        <span class="budget-stat-label">Spent</span>
-        <span class="budget-stat-value">${formatMoney(s.totalSpent)}</span>
+      <div class="budget-bar-track">
+        <div class="budget-bar-fill" style="width: ${spentPercent}%; background: ${barColor};"></div>
       </div>
-      <div class="budget-stat">
-        <span class="budget-stat-label">Remaining</span>
-        <span class="budget-stat-value">${formatMoney(s.remainingBudget)}</span>
+      <div class="budget-bottom-row">
+        <span class="budget-spent" style="color: ${barColor};">Spent: <strong>${formatMoney(s.totalSpent, currencyCode, currencyInfo)}</strong></span>
+        <span class="budget-remaining">Remaining: <strong>${formatMoney(s.remainingBudget, currencyCode, currencyInfo)}</strong></span>
       </div>
-      <div class="budget-stat${overClass}">
-        <span class="budget-stat-label">Over Budget</span>
-        <span class="budget-stat-value">${formatMoney(s.overBudgetAmount)}</span>
-      </div>
+      ${isOver ? `<p class="budget-over-warning">Over budget by ${formatMoney(s.overBudgetAmount, currencyCode, currencyInfo)}</p>` : ""}
     </div>
   `;
 }
 
-function budgetFormHtml(summary, tripStarted, tripEnded) {
+function roundCurrency(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function budgetFormHtml(summary, tripStarted, tripEnded, currencyInfo) {
   if (tripEnded) {
     return "";
   }
@@ -135,6 +188,7 @@ function budgetFormHtml(summary, tripStarted, tripEnded) {
       <form id="budget-form" class="form-grid budget-form" data-budget-action="add" hidden>
         <p class="hint">Trip has started. You can only add more budget.</p>
         <input type="hidden" name="mode" value="${escapeHtml(summary.mode)}" />
+        <input type="hidden" name="currencyCode" value="${escapeHtml(summary.currencyCode || DEFAULT_CURRENCY_CODE)}" />
         <div class="budget-entry-row budget-add-row">
           <label class="field">
             <span data-amount-label>${summary.mode === "total" ? "Additional total budget ($)" : "Additional per-person budget ($)"}</span>
@@ -155,6 +209,9 @@ function budgetFormHtml(summary, tripStarted, tripEnded) {
     : "";
   const formHidden = summary ? "hidden" : "";
   const action = summary ? "update" : "set";
+  const currencyOptions = currencyOptionsHtml(currencyInfo, {
+    selectedCode: summary?.currencyCode || DEFAULT_CURRENCY_CODE
+  });
   return `
     ${summary ? `
       <div class="section-actions budget-actions">
@@ -172,6 +229,10 @@ function budgetFormHtml(summary, tripStarted, tripEnded) {
         <label class="field">
           <span data-amount-label>Total budget ($)</span>
           <input type="number" name="amount" min="0" step="0.01" value="${escapeHtml(amountValue)}" required />
+        </label>
+        <label class="field">
+          <span>Currency</span>
+          <select name="currencyCode" data-currency-select>${currencyOptions}</select>
         </label>
         <div class="section-actions">
           <button type="submit">${summary ? "Update Budget" : "Set Budget"}</button>
@@ -204,8 +265,4 @@ function preventInvalidNumberKey(event) {
 
 function sanitizeNumberInput(event) {
   event.target.value = event.target.value.replace(/[eE+-]/g, "");
-}
-
-function roundCurrency(value) {
-  return Math.round(value * 100) / 100;
 }

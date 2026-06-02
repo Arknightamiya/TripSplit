@@ -1,5 +1,12 @@
 import { getDatabase } from "../db/pool.js";
-import { normalizeCurrencyAmount } from "../utils/currency.js";
+import {
+  DEFAULT_CURRENCY_CODE,
+  FALLBACK_EXCHANGE_RATES,
+  convertCurrencyAmount,
+  normalizeCurrencyAmount,
+  normalizeCurrencyCode
+} from "../utils/currency.js";
+import { getLatestExchangeRateMap } from "./currencies.js";
 import { listAuditLogRecordsForTrip, listExpenseRecordsForTrip } from "./expenses.js";
 
 export function isTripRepositoryEnabled() {
@@ -223,6 +230,7 @@ export async function endTripRecord(tripId) {
 
 export async function setBudgetRecord(tripId, budgetInput) {
   const mode = budgetInput.mode;
+  const currencyCode = normalizeCurrencyCode(budgetInput.currencyCode);
   const totalBudget =
     mode === "total"
       ? normalizeCurrencyAmount(budgetInput.totalBudget ?? budgetInput.amount)
@@ -234,16 +242,17 @@ export async function setBudgetRecord(tripId, budgetInput) {
 
   await getDatabase().query(
     `
-      INSERT INTO budgets (trip_id, mode, total_budget, per_person_budget)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO budgets (trip_id, mode, total_budget, per_person_budget, currency_code)
+      VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (trip_id)
       DO UPDATE SET
         mode = EXCLUDED.mode,
         total_budget = EXCLUDED.total_budget,
         per_person_budget = EXCLUDED.per_person_budget,
+        currency_code = EXCLUDED.currency_code,
         updated_at = CURRENT_TIMESTAMP
     `,
-    [tripId, mode, totalBudget, perPersonBudget]
+    [tripId, mode, totalBudget, perPersonBudget, currencyCode]
   );
 
   return (await findTripRecordById(tripId))?.budgetSummary ?? null;
@@ -285,6 +294,7 @@ export async function listTripSummaryRecordsForUser(userId) {
         b.mode,
         b.total_budget,
         b.per_person_budget,
+        COALESCE(b.currency_code, $2) AS currency_code,
         (
           SELECT COUNT(*)
           FROM trip_participants approved_tp
@@ -312,10 +322,14 @@ export async function listTripSummaryRecordsForUser(userId) {
         AND tp.join_status = 'approved'
       ORDER BY t.created_at DESC, t.id DESC
     `,
-    [userId]
+    [userId, DEFAULT_CURRENCY_CODE]
   );
 
-  return result.rows.map(mapTripSummaryRow);
+  const totalSpentByTripId = await calculateBudgetSpendForTripRows(result.rows);
+
+  return result.rows.map((row) =>
+    mapTripSummaryRow(row, totalSpentByTripId.get(String(row.id)) ?? 0)
+  );
 }
 
 export async function findTripRecordById(tripId) {
@@ -334,6 +348,7 @@ export async function findTripRecordById(tripId) {
         b.mode,
         b.total_budget,
         b.per_person_budget,
+        COALESCE(b.currency_code, $2) AS currency_code,
         COALESCE((
           SELECT SUM(e.amount)
           FROM expenses e
@@ -345,7 +360,7 @@ export async function findTripRecordById(tripId) {
       LEFT JOIN budgets b ON b.trip_id = t.id
       WHERE t.id = $1
     `,
-    [tripId]
+    [tripId, DEFAULT_CURRENCY_CODE]
   );
 
   if (!tripResult.rows[0]) {
@@ -360,6 +375,7 @@ export async function findTripRecordById(tripId) {
   const expenses = await listExpenseRecordsForTrip(tripId);
   const deletedExpenses = await listExpenseRecordsForTrip(tripId, { onlyDeleted: true });
   const auditLogs = await listAuditLogRecordsForTrip(tripId);
+  const totalSpentByTripId = await calculateBudgetSpendForTripRows([tripResult.rows[0]]);
 
   return mapTripDetailRow(
     tripResult.rows[0],
@@ -367,7 +383,8 @@ export async function findTripRecordById(tripId) {
     participantCount,
     expenses,
     deletedExpenses,
-    auditLogs
+    auditLogs,
+    totalSpentByTripId.get(String(tripId)) ?? 0
   );
 }
 
@@ -446,9 +463,11 @@ async function listParticipantRecordsForTrip(tripId) {
   }));
 }
 
-function mapTripSummaryRow(row) {
+function mapTripSummaryRow(row, totalSpentOverride = null) {
   const participantCount = Number(row.participant_count);
-  const totalSpent = toCurrencyNumber(row.total_spent);
+  const totalSpent = totalSpentOverride === null
+    ? toCurrencyNumber(row.total_spent)
+    : roundCurrency(Number(totalSpentOverride));
 
   return {
     id: String(row.id),
@@ -467,8 +486,18 @@ function mapTripSummaryRow(row) {
   };
 }
 
-function mapTripDetailRow(row, participants, participantCount, expenses = [], deletedExpenses = [], auditLogs = []) {
-  const totalSpent = toCurrencyNumber(row.total_spent);
+function mapTripDetailRow(
+  row,
+  participants,
+  participantCount,
+  expenses = [],
+  deletedExpenses = [],
+  auditLogs = [],
+  totalSpentOverride = null
+) {
+  const totalSpent = totalSpentOverride === null
+    ? toCurrencyNumber(row.total_spent)
+    : roundCurrency(Number(totalSpentOverride));
 
   return {
     id: String(row.id),
@@ -508,11 +537,67 @@ function buildBudgetSummary(row, participantCount, totalSpent) {
     mode: row.mode,
     totalBudget,
     perPersonBudget,
+    currencyCode: String(row.currency_code || DEFAULT_CURRENCY_CODE).trim(),
     participantCount,
     totalSpent,
     remainingBudget,
     overBudgetAmount
   };
+}
+
+async function calculateBudgetSpendForTripRows(rows) {
+  const budgetRows = rows.filter((row) => row.mode);
+  const tripIds = budgetRows.map((row) => String(row.id));
+  if (!tripIds.length) {
+    return new Map();
+  }
+
+  const budgetCurrencyByTripId = new Map(
+    budgetRows.map((row) => [
+      String(row.id),
+      String(row.currency_code || DEFAULT_CURRENCY_CODE).trim()
+    ])
+  );
+  const result = await getDatabase().query(
+    `
+      SELECT trip_id, amount, COALESCE(currency_code, $2) AS currency_code
+      FROM expenses
+      WHERE trip_id = ANY($1::bigint[])
+        AND expense_type = 'budget_payment'
+    `,
+    [tripIds, DEFAULT_CURRENCY_CODE]
+  );
+  const ratesByCode = await getBudgetSpendRates();
+  const totalSpentByTripId = new Map(tripIds.map((tripId) => [tripId, 0]));
+
+  for (const row of result.rows) {
+    const tripId = String(row.trip_id);
+    const budgetCurrencyCode = budgetCurrencyByTripId.get(tripId) || DEFAULT_CURRENCY_CODE;
+    const convertedAmount = convertCurrencyAmount(
+      Number(row.amount),
+      row.currency_code || DEFAULT_CURRENCY_CODE,
+      budgetCurrencyCode,
+      ratesByCode
+    );
+
+    totalSpentByTripId.set(
+      tripId,
+      roundCurrency((totalSpentByTripId.get(tripId) || 0) + convertedAmount)
+    );
+  }
+
+  return totalSpentByTripId;
+}
+
+async function getBudgetSpendRates() {
+  try {
+    return {
+      ...FALLBACK_EXCHANGE_RATES,
+      ...(await getLatestExchangeRateMap(DEFAULT_CURRENCY_CODE))
+    };
+  } catch {
+    return FALLBACK_EXCHANGE_RATES;
+  }
 }
 
 function formatDate(value) {

@@ -44,6 +44,7 @@ import {
 } from "../repositories/users.js";
 import { hashPassword } from "./auth.js";
 import { badRequest, conflict, forbidden, notFound } from "../utils/errors.js";
+import { isSupportedCurrencyCode, normalizeCurrencyCode } from "../utils/currency.js";
 import { requireFields } from "../validators/request.js";
 
 const PARTICIPANT_ROLES = ["organizer", "participant"];
@@ -370,8 +371,12 @@ async function ensureTripOpenForParticipantChanges(tripId) {
 
 export async function setTripBudget(userId, tripId, input = {}) {
   await ensureOrganizer(userId, tripId);
+  const normalizedInput = {
+    ...input,
+    currencyCode: normalizeBudgetCurrencyCode(input.currencyCode)
+  };
 
-  if (!isValidBudgetInput(input)) {
+  if (!isValidBudgetInput(normalizedInput)) {
     throw badRequest("Invalid budget input");
   }
 
@@ -387,19 +392,28 @@ export async function setTripBudget(userId, tripId, input = {}) {
     throw conflict("Trip has ended; budget is locked");
   }
 
-  validateStartedTripBudgetChange(trip, input);
+  validateStartedTripBudgetChange(trip, normalizedInput);
 
   if (isTripRepositoryEnabled()) {
     return {
       tripId,
-      budgetSummary: await setBudgetRecord(tripId, input)
+      budgetSummary: await setBudgetRecord(tripId, normalizedInput)
     };
   }
 
   return {
     tripId,
-    budgetSummary: setBudget(tripId, input)
+    budgetSummary: setBudget(tripId, normalizedInput)
   };
+}
+
+function normalizeBudgetCurrencyCode(currencyCode) {
+  const normalizedCurrencyCode = normalizeCurrencyCode(currencyCode);
+  if (!isSupportedCurrencyCode(normalizedCurrencyCode)) {
+    throw badRequest("Unsupported budget currency");
+  }
+
+  return normalizedCurrencyCode;
 }
 
 function validateStartedTripBudgetChange(trip, input) {
