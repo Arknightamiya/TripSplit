@@ -150,7 +150,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
       return;
     }
     try {
-      await postExpense(trip.id, {
+      const result = await postExpense(trip.id, {
         title,
         amount,
         category: formData.get("category"),
@@ -163,7 +163,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
       form.reset();
       syncSplitControls();
       submitButton.disabled = !tripStarted || tripEnded;
-      await onChange();
+      await onChange(result, { type: "expense:create" });
     } catch (err) {
       error.textContent = err.message;
     }
@@ -173,8 +173,8 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       try {
-        await deleteExpense(trip.id, btn.dataset.deleteExpense);
-        await onChange();
+        const result = await deleteExpense(trip.id, btn.dataset.deleteExpense);
+        await onChange(result, { type: "expense:delete" });
       } catch (err) {
         error.textContent = err.message;
         btn.disabled = false;
@@ -186,8 +186,8 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       try {
-        await restoreExpense(trip.id, btn.dataset.restoreExpense);
-        await onChange();
+        const result = await restoreExpense(trip.id, btn.dataset.restoreExpense);
+        await onChange(result, { type: "expense:restore" });
       } catch (err) {
         error.textContent = err.message;
         btn.disabled = false;

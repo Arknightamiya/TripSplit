@@ -80,8 +80,8 @@ export function renderBudget(panel, { trip, isOrganizer, onChange, currencyInfo 
       currencyCode
     );
     try {
-      await postBudget(trip.id, payload);
-      await onChange();
+      const result = await postBudget(trip.id, payload);
+      await onChange(result, { type: "budget" });
     } catch (err) {
       error.textContent = err.message;
     }

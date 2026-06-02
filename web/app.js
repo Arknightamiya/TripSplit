@@ -177,6 +177,7 @@ const tripRemoveParticipantErrorClose = document.querySelector(
 
 let activeTripId = null;
 let activeTripDetail = null;
+let activeTripBalances = [];
 let friendsState = {
   friends: [],
   incomingRequests: [],
@@ -206,11 +207,14 @@ const AVATAR_IMAGE_SIZE = 256;
 const AVATAR_IMAGE_QUALITY = 0.86;
 const SESSION_EXPIRED_MESSAGE = SESSION_EXPIRED_ERROR_MESSAGE;
 const APP_REFRESH_INTERVAL_MS = 5000;
+const FRIENDS_CACHE_TTL_MS = 30_000;
 const PASSWORD_POLICY_MESSAGE =
   "Password must be at least 8 characters long and include uppercase, lowercase, number, and symbol.";
 let sessionExpiredHandled = false;
 let appRefreshTimer = null;
 let appRefreshInFlight = false;
+let friendsLoadedAt = 0;
+let friendsLoadPromise = null;
 let pendingRegistrationEmail = "";
 let detailRefreshSequence = 0;
 
@@ -375,13 +379,15 @@ async function restoreAuthSession() {
     storeCurrentUser(user);
     showAppView(user);
     switchMainTab(savedUiState.activeMainTab, { skipLoad: true, skipPersist: true });
-    await loadFriends();
     activeTripId = savedUiState.activeTripId || null;
     syncDetailVisibility();
-    await loadTrips();
-    if (activeMainTab === "lobby") {
-      await loadFriendPublicTripLobby({ showLoading: true });
-    }
+    await Promise.all([
+      loadFriends(),
+      loadTrips(),
+      activeMainTab === "lobby"
+        ? loadFriendPublicTripLobby({ showLoading: true })
+        : Promise.resolve()
+    ]);
     await restoreUiOverlay(savedUiState);
     storeUiState();
   } catch (error) {
@@ -412,6 +418,7 @@ function showAuthView(message = "") {
   closeAuthenticatedDialogs();
   activeTripId = null;
   activeTripDetail = null;
+  activeTripBalances = [];
   friendsState = {
     friends: [],
     incomingRequests: [],
@@ -484,11 +491,13 @@ async function refreshVisibleAppState() {
 
   appRefreshInFlight = true;
   try {
-    await loadFriends();
-    await loadTrips();
-    if (activeMainTab === "lobby") {
-      await loadFriendPublicTripLobby({ showLoading: false });
-    }
+    await Promise.all([
+      loadFriends(),
+      loadTrips(),
+      activeMainTab === "lobby"
+        ? loadFriendPublicTripLobby({ showLoading: false })
+        : Promise.resolve()
+    ]);
   } catch {
     // Background refresh should not interrupt the current view; explicit actions still show errors.
   } finally {
@@ -797,8 +806,7 @@ async function submitAuthForm({
     storeAuthSession(authResult);
     onSuccess?.(authResult);
     showAppView(authResult.user);
-    await loadFriends();
-    await loadTrips();
+    await Promise.all([loadFriends(), loadTrips()]);
   } catch (error) {
     setFormError(errorNode, error.message || "Unable to authenticate.");
   } finally {
@@ -1257,24 +1265,59 @@ function loadImage(src) {
   });
 }
 
-async function loadFriends() {
-  try {
-    friendsState = await fetchFriends();
+async function loadFriends(options = {}) {
+  const maxAgeMs = Number(options.maxAgeMs || 0);
+  const force = Boolean(options.force);
+  const canUseCache =
+    !force &&
+    maxAgeMs > 0 &&
+    friendsLoadedAt > 0 &&
+    Date.now() - friendsLoadedAt < maxAgeMs;
+
+  if (canUseCache) {
     renderFriendsList();
     renderFriendRequestIndicator();
     if (!friendRequestsDialog.hidden) {
       renderFriendRequestsDialog();
     }
+    return friendsState;
+  }
+
+  if (friendsLoadPromise && !force) {
+    return friendsLoadPromise;
+  }
+
+  friendsLoadPromise = (async () => {
+    try {
+      friendsState = await fetchFriends();
+      friendsLoadedAt = Date.now();
+      renderFriendsList();
+      renderFriendRequestIndicator();
+      if (!friendRequestsDialog.hidden) {
+        renderFriendRequestsDialog();
+      }
+      return friendsState;
+    } catch {
+      friendsLoadedAt = 0;
+      friendsState = {
+        friends: [],
+        incomingRequests: [],
+        outgoingRequests: [],
+        tripJoinRequests: [],
+        tripInvitations: []
+      };
+      renderFriendsList();
+      renderFriendRequestIndicator();
+      return friendsState;
+    } finally {
+      friendsLoadPromise = null;
+    }
+  })();
+
+  try {
+    return await friendsLoadPromise;
   } catch {
-    friendsState = {
-      friends: [],
-      incomingRequests: [],
-      outgoingRequests: [],
-      tripJoinRequests: [],
-      tripInvitations: []
-    };
-    renderFriendsList();
-    renderFriendRequestIndicator();
+    return friendsState;
   }
 }
 
@@ -1775,8 +1818,7 @@ async function handleTripJoinRequestAction(requestId, action) {
 
   try {
     await respondToTripJoinRequest(requestId, action);
-    await loadFriends();
-    await loadTrips();
+    await Promise.all([loadFriends({ force: true }), loadTrips()]);
   } catch (error) {
     setFormError(friendRequestsError, error.message || "Unable to update trip request.");
   }
@@ -1790,11 +1832,11 @@ async function handleTripInvitationAction(tripId, action) {
     if (String(highlightedTripInvitationId || "") === String(tripId || "")) {
       highlightedTripInvitationId = null;
     }
-    await loadFriends();
-    await loadTrips();
-    if (activeMainTab === "lobby") {
-      await loadFriendPublicTripLobby();
-    }
+    await Promise.all([
+      loadFriends({ force: true }),
+      loadTrips(),
+      activeMainTab === "lobby" ? loadFriendPublicTripLobby() : Promise.resolve()
+    ]);
   } catch (error) {
     setFormError(friendRequestsError, error.message || "Unable to update trip invitation.");
   }
@@ -2211,7 +2253,7 @@ async function openCreateTripInviteDialog() {
   createTripInviteList.innerHTML = `<p class="empty">Loading friends...</p>`;
 
   try {
-    await loadFriends();
+    await loadFriends({ maxAgeMs: FRIENDS_CACHE_TTL_MS });
     createInviteFriends = friendsState.friends || [];
     const availableFriendIds = new Set(createInviteFriends.map((friend) => String(friend.id)));
     selectedCreateInviteFriendIds = new Set(
@@ -2311,7 +2353,7 @@ async function openTripInviteDialog() {
   tripInviteSend.disabled = true;
 
   try {
-    await loadFriends();
+    await loadFriends({ maxAgeMs: FRIENDS_CACHE_TTL_MS });
     const trip = activeTripDetail || (await fetchTrip(activeTripId)).trip;
     inviteableFriends = getInviteableFriends(trip);
     renderTripInviteDialog();
@@ -2645,11 +2687,16 @@ function shouldPreserveTripEditDraft(trip) {
 }
 
 async function loadTrips() {
+  return loadTripsWithOptions();
+}
+
+async function loadTripsWithOptions(options = {}) {
+  const shouldRefreshDetail = options.refreshDetail !== false;
   const { trips } = await fetchTrips();
   renderTrips(trips, tripList, { activeTripId, onSelect: openTrip });
   if (activeTripId && !trips.find((t) => t.id === activeTripId)) {
     closeDetail();
-  } else if (activeTripId) {
+  } else if (activeTripId && shouldRefreshDetail) {
     await refreshDetail();
   }
 }
@@ -2672,6 +2719,7 @@ async function openTrip(tripId) {
 function closeDetail() {
   activeTripId = null;
   activeTripDetail = null;
+  activeTripBalances = [];
   tripEditFormHydratedTripId = null;
   detailSection.hidden = true;
   storeUiState();
@@ -2825,6 +2873,7 @@ async function refreshDetail() {
     (participant) => participant.joinStatus === "pending"
   );
   activeTripDetail = trip;
+  activeTripBalances = balances;
 
   detailTitle.textContent = trip.name;
   detailMeta.textContent = formatTripMeta(trip, approvedParticipants.length);
@@ -2845,8 +2894,18 @@ async function refreshDetail() {
   detailDelete.dataset.tripId = String(trip.id);
   populateTripEditPanel(trip, isOrganizer);
   setFormError(tripEditError, "");
-  renderBudget(budgetPanel, { trip, isOrganizer, onChange: loadTrips, currencyInfo });
-  renderExpenses(expensesPanel, { trip, currentUserId: currentUser?.id, onChange: loadTrips, currencyInfo });
+  renderBudget(budgetPanel, {
+    trip,
+    isOrganizer,
+    onChange: handleBudgetChanged,
+    currencyInfo
+  });
+  renderExpenses(expensesPanel, {
+    trip,
+    currentUserId: currentUser?.id,
+    onChange: handleExpenseChanged,
+    currencyInfo
+  });
   renderBalances(balancesPanel, {
     balances,
     trip,
@@ -2855,6 +2914,156 @@ async function refreshDetail() {
     onRefresh: refreshDetail,
     onEndTrip: handleEndTrip,
     currencyInfo
+  });
+}
+
+function renderActiveTripPanels() {
+  if (!activeTripDetail) {
+    return;
+  }
+
+  const currentUser = getStoredCurrentUser();
+  const trip = activeTripDetail;
+  const approvedParticipants = (trip.participants || []).filter(
+    (participant) => participant.joinStatus === "approved"
+  );
+  const pendingParticipants = (trip.participants || []).filter(
+    (participant) => participant.joinStatus === "pending"
+  );
+  const isOrganizer = trip.organizerId === currentUser?.id;
+  const tripStarted = Boolean(trip.startedAt);
+  const tripEnded = Boolean(trip.endedAt);
+
+  detailTitle.textContent = trip.name;
+  detailMeta.textContent = formatTripMeta(trip, approvedParticipants.length);
+  detailParticipants.innerHTML = approvedParticipants
+    .map(renderTripParticipantChip)
+    .join("");
+  detailPendingInvitationsWrap.hidden = pendingParticipants.length === 0;
+  detailPendingInvitations.innerHTML = pendingParticipants
+    .map(renderTripParticipantChip)
+    .join("");
+  detailDelete.hidden = !isOrganizer;
+  detailDelete.disabled = tripStarted || tripEnded;
+  detailDelete.classList.toggle("is-disabled", tripStarted || tripEnded);
+  detailDelete.dataset.tripId = String(trip.id);
+  populateTripEditPanel(trip, isOrganizer);
+  setFormError(tripEditError, "");
+  renderBudget(budgetPanel, {
+    trip,
+    isOrganizer,
+    onChange: handleBudgetChanged,
+    currencyInfo
+  });
+  renderExpenses(expensesPanel, {
+    trip,
+    currentUserId: currentUser?.id,
+    onChange: handleExpenseChanged,
+    currencyInfo
+  });
+  renderBalances(balancesPanel, {
+    balances: activeTripBalances,
+    trip,
+    currentUserId: currentUser?.id,
+    isOrganizer,
+    onRefresh: refreshDetail,
+    onEndTrip: handleEndTrip,
+    currencyInfo
+  });
+}
+
+async function handleBudgetChanged(result) {
+  if (!activeTripDetail) {
+    await loadTrips();
+    return;
+  }
+
+  if (result?.budgetSummary) {
+    activeTripDetail = {
+      ...activeTripDetail,
+      budgetSummary: result.budgetSummary
+    };
+    renderActiveTripPanels();
+    refreshTripListInBackground();
+    return;
+  }
+
+  await refreshDetail();
+  refreshTripListInBackground();
+}
+
+async function handleExpenseChanged(result, change = {}) {
+  if (!activeTripDetail) {
+    await loadTrips();
+    return;
+  }
+
+  const nextTrip = applyExpenseChange(activeTripDetail, result, change.type);
+  if (!nextTrip) {
+    await refreshDetail();
+    refreshTripListInBackground();
+    return;
+  }
+
+  activeTripDetail = nextTrip;
+  if (Array.isArray(result?.balances)) {
+    activeTripBalances = result.balances;
+  }
+  renderActiveTripPanels();
+  refreshTripListInBackground();
+}
+
+function applyExpenseChange(trip, result, changeType) {
+  if (!result || !changeType) {
+    return null;
+  }
+
+  const activeExpenses = Array.isArray(trip.expenses) ? [...trip.expenses] : [];
+  const deletedExpenses = Array.isArray(trip.deletedExpenses) ? [...trip.deletedExpenses] : [];
+  const nextTrip = {
+    ...trip,
+    expenses: activeExpenses,
+    deletedExpenses,
+    budgetSummary: result.budgetSummary || trip.budgetSummary
+  };
+
+  if (changeType === "expense:create" && result.expense) {
+    nextTrip.expenses = [...activeExpenses, result.expense];
+    return nextTrip;
+  }
+
+  if (changeType === "expense:delete" && result.deletedExpenseId) {
+    const deletedId = String(result.deletedExpenseId);
+    nextTrip.expenses = activeExpenses.filter((expense) => String(expense.id) !== deletedId);
+    if (result.deletedExpense) {
+      nextTrip.deletedExpenses = [
+        result.deletedExpense,
+        ...deletedExpenses.filter((expense) => String(expense.id) !== deletedId)
+      ];
+    }
+    return nextTrip;
+  }
+
+  if (changeType === "expense:restore" && result.restoredExpenseId) {
+    const restoredId = String(result.restoredExpenseId);
+    nextTrip.deletedExpenses = deletedExpenses.filter(
+      (expense) => String(expense.id) !== restoredId
+    );
+    if (result.restoredExpense) {
+      nextTrip.expenses = [
+        ...activeExpenses.filter((expense) => String(expense.id) !== restoredId),
+        result.restoredExpense
+      ];
+    }
+    return nextTrip;
+  }
+
+  return null;
+}
+
+function refreshTripListInBackground() {
+  loadTripsWithOptions({ refreshDetail: false }).catch(() => {
+    // The visible detail panel already reflects the user's change.
   });
 }
 
