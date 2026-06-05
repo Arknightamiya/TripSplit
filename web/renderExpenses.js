@@ -55,6 +55,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
   const error = panel.querySelector("#expense-error");
   bindCurrencySelectLabels(form);
   const titleInput = form.elements.title;
+  const categorySelect = form.elements.category;
   const amountInput = form.elements.amount;
   const payerSelect = form.elements.payerId;
   const typeSelect = form.elements.expenseType;
@@ -119,10 +120,13 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
       return;
     }
     titleInput.setCustomValidity("");
+    categorySelect.setCustomValidity("");
+    typeSelect.setCustomValidity("");
     amountInput.setCustomValidity("");
 
     const formData = new FormData(form);
     const title = String(formData.get("title") || "").trim();
+    const category = formData.get("category");
     const amount = Number(formData.get("amount"));
     const expenseType = formData.get("expenseType");
     const payerId = expenseType === "budget_payment"
@@ -134,6 +138,20 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
       titleInput.setCustomValidity(error.textContent);
       titleInput.reportValidity();
       titleInput.setCustomValidity("");
+      return;
+    }
+    if (!category) {
+      error.textContent = "Category is required.";
+      categorySelect.setCustomValidity(error.textContent);
+      categorySelect.reportValidity();
+      categorySelect.setCustomValidity("");
+      return;
+    }
+    if (!expenseType) {
+      error.textContent = "Type is required.";
+      typeSelect.setCustomValidity(error.textContent);
+      typeSelect.reportValidity();
+      typeSelect.setCustomValidity("");
       return;
     }
     if (!(amount > 0)) {
@@ -153,7 +171,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
       const result = await postExpense(trip.id, {
         title,
         amount,
-        category: formData.get("category"),
+        category,
         expenseType,
         currencyCode: formData.get("currencyCode") || DEFAULT_CURRENCY_CODE,
         payerId,
@@ -306,11 +324,11 @@ const typeOptions = `<option value="" disabled selected>Select type</option>` + 
         </label>
         <label class="field">
           <span>Category</span>
-          <select name="category" ${tripEnded ? "disabled" : ""}>${categoryOptions}</select>
+          <select name="category" ${tripEnded ? "disabled" : ""} required>${categoryOptions}</select>
         </label>
         <label class="field">
           <span>Type</span>
-          <select name="expenseType" ${tripEnded ? "disabled" : ""}>${typeOptions}</select>
+          <select name="expenseType" ${tripEnded ? "disabled" : ""} required>${typeOptions}</select>
         </label>
         <label class="field" data-payer-field>
           <span>Payer</span>
