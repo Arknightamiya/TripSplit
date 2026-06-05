@@ -77,7 +77,7 @@ export function renderExpenses(panel, { trip, currentUserId, onChange, currencyI
       payerSelect.value = currentUserId;
     }
 
-    const controlsLocked = tripEnded;
+    const controlsLocked = !tripStarted || tripEnded;
     payerField.hidden = false;
     payerSelect.disabled = controlsLocked || isBudgetPayment;
     splitLabel.textContent = isPersonalAdvance ? "Shared with" : "Split between";
@@ -293,6 +293,8 @@ function deletedExpenseRowHtml(expense, approved, currencyInfo) {
 }
 
 function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, tripEnded, currencyInfo) {
+  const controlsDisabled = !tripStarted || tripEnded;
+  const disabledAttr = controlsDisabled ? "disabled" : "";
   const payerOptions = approved
     .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(displayName(p))}</option>`)
     .join("");
@@ -309,7 +311,7 @@ const typeOptions = `<option value="" disabled selected>Select type</option>` + 
   const participantChips = approved
     .map((p) => `
       <label data-participant-choice>
-        <input type="checkbox" name="includedParticipantIds" value="${p.id}" ${tripEnded ? "disabled" : ""} checked />
+        <input type="checkbox" name="includedParticipantIds" value="${p.id}" ${disabledAttr} checked />
         ${escapeHtml(displayName(p))}
       </label>
     `)
@@ -320,27 +322,27 @@ const typeOptions = `<option value="" disabled selected>Select type</option>` + 
       <div class="expense-entry-row">
         <label class="field">
           <span>Title</span>
-          <input type="text" name="title" placeholder="e.g. Dinner" ${tripEnded ? "disabled" : ""} required />
+          <input type="text" name="title" placeholder="e.g. Dinner" ${disabledAttr} required />
         </label>
         <label class="field">
           <span>Category</span>
-          <select name="category" ${tripEnded ? "disabled" : ""} required>${categoryOptions}</select>
+          <select name="category" ${disabledAttr} required>${categoryOptions}</select>
         </label>
         <label class="field">
           <span>Type</span>
-          <select name="expenseType" ${tripEnded ? "disabled" : ""} required>${typeOptions}</select>
+          <select name="expenseType" ${disabledAttr} required>${typeOptions}</select>
         </label>
         <label class="field" data-payer-field>
           <span>Payer</span>
-          <select name="payerId" ${tripEnded ? "disabled" : ""}>${payerOptions}</select>
+          <select name="payerId" ${disabledAttr}>${payerOptions}</select>
         </label>
         <label class="field">
           <span>Amount</span>
-          <input type="number" name="amount" min="0" step="0.01" placeholder="e.g. 100" ${tripEnded ? "disabled" : ""} required />
+          <input type="number" name="amount" min="0" step="0.01" placeholder="e.g. 100" ${disabledAttr} required />
         </label>
         <label class="field">
           <span>Currency</span>
-          <select name="currencyCode" data-currency-select ${tripEnded ? "disabled" : ""}>${currencyOptions}</select>
+          <select name="currencyCode" data-currency-select ${disabledAttr}>${currencyOptions}</select>
         </label>
       </div>
       <div class="expense-secondary-row">
