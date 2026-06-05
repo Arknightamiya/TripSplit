@@ -167,7 +167,7 @@ function tableHtml(rows, currencyCode, currencyInfo) {
             <th>Member</th>
             <th>Budget Used</th>
             <th>Budget Left</th>
-            <th>Advanced Paid</th>
+            <th>Advance Paid</th>
             <th>personal reimbursements</th>
           </tr>
         </thead>

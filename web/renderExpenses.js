@@ -278,13 +278,13 @@ function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, trip
   const payerOptions = approved
     .map((p) => `<option value="${p.id}" ${p.id === currentUserId ? "selected" : ""}>${escapeHtml(displayName(p))}</option>`)
     .join("");
-  const categoryOptions = EXPENSE_CATEGORIES
-    .map((c) => `<option value="${c}">${escapeHtml(c)}</option>`)
-    .join("");
-  const typeOptions = EXPENSE_TYPES
-    .filter((type) => isOrganizer || type !== "budget_payment")
-    .map((type) => `<option value="${type}">${escapeHtml(typeLabel(type))}</option>`)
-    .join("");
+  const categoryOptions = `<option value="" disabled selected>Select category</option>` + EXPENSE_CATEGORIES
+  .map((c) => `<option value="${c}">${escapeHtml(c)}</option>`)
+  .join("");
+
+const typeOptions = `<option value="" disabled selected>Select type</option>` + EXPENSE_TYPES
+  .map((t) => `<option value="${t}">${escapeHtml(t.replace("_", " "))}</option>`)
+  .join("");
   const currencyOptions = currencyOptionsHtml(currencyInfo, {
     selectedCode: DEFAULT_CURRENCY_CODE
   });
@@ -302,7 +302,7 @@ function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, trip
       <div class="expense-entry-row">
         <label class="field">
           <span>Title</span>
-          <input type="text" name="title" placeholder="Dinner" ${tripEnded ? "disabled" : ""} required />
+          <input type="text" name="title" placeholder="e.g. Dinner" ${tripEnded ? "disabled" : ""} required />
         </label>
         <label class="field">
           <span>Category</span>
@@ -318,7 +318,7 @@ function expenseFormHtml(approved, currentUserId, isOrganizer, tripStarted, trip
         </label>
         <label class="field">
           <span>Amount</span>
-          <input type="number" name="amount" min="0" step="0.01" ${tripEnded ? "disabled" : ""} required />
+          <input type="number" name="amount" min="0" step="0.01" placeholder="e.g. 100" ${tripEnded ? "disabled" : ""} required />
         </label>
         <label class="field">
           <span>Currency</span>

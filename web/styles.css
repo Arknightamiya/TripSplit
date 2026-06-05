@@ -49,7 +49,16 @@ select {
 .page {
   width: min(1240px, calc(100% - 2rem));
   margin: 0 auto;
+  margin-top: 24px;
   padding: 1.5rem 0 4rem;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent-strong);
+}
+
+select:has(option[value=""]:checked) {
+  color: rgba(128, 106, 117, 0.68);
 }
 
 .sr-only {
@@ -2186,14 +2195,14 @@ label.field select:disabled,
 .balance-table td.personal-net-positive,
 .final-bill-lines dd.personal-net-positive,
 .final-bill-lines dd.final-net-positive {
-  color: var(--danger);
+  color: var(--success);
   font-weight: 700;
 }
 
 .balance-table td.personal-net-negative,
 .final-bill-lines dd.personal-net-negative,
 .final-bill-lines dd.final-net-negative {
-  color: var(--success);
+  color: var(--danger);
   font-weight: 700;
 }
 
