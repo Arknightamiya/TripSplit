@@ -197,7 +197,7 @@ function finalBillHtml(rows, currencyCode, currencyInfo) {
             <dd>${budgetStatusText(budgetBalance, currencyCode, currencyInfo)}</dd>
           </div>
           <div>
-            <dt>Advanced Paid</dt>
+            <dt>Advance Paid</dt>
             <dd>${formatMoney(row.advanced, currencyCode, currencyInfo)}</dd>
           </div>
           <div>
