@@ -53,7 +53,7 @@ export function formatMoney(value, currencyCode, currencyInfo) {
 
 export function formatBudgetSummary(budgetSummary) {
   if (!budgetSummary) {
-    return "0 budget";
+    return "No budget set";
   }
 
   if (budgetSummary.mode === "per-person") {

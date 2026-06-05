@@ -1558,13 +1558,15 @@ input::placeholder {
 }
 
 .trip-visibility.is-public {
-  background: #f1ecef;
-}
-
-.trip-visibility.is-private {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent-strong);
+}
+
+.trip-visibility.is-private {
+  background: #f1ecef;
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 .trip-detail {
