@@ -1,13 +1,19 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { Readable, Writable } from "node:stream";
 import { beforeEach, test } from "node:test";
 import { createApp } from "../server/app.js";
 import { getLastRegistrationVerificationCode } from "../server/services/email.js";
 import { seedStore } from "../server/services/seed.js";
 import { resetStore, updatePendingRegistration } from "../server/store.js";
+import {
+  authHeaders,
+  createRequest,
+  registerUser as registerTestUser,
+  startRegistration as startTestRegistration
+} from "./helpers/api.js";
 
 let app;
+const request = createRequest(() => app);
 
 beforeEach(async () => {
   resetStore();
@@ -2609,83 +2615,110 @@ test("soft-deleted expenses are hidden from trip detail and can be restored by o
   assert.equal(detailAfterRestore.body.trip.budgetSummary.totalSpent, 450);
 });
 
-test("organizer can delete another payer's expense", async () => {
-  const organizer = await loginAsDemoUser();
-  const payer = await loginAsDemoUser({
-    email: "sam@example.com",
-    password: "Demo-password1!"
-  });
-  const { tripId, expenseId } = await createStartedTripWithExpense(organizer.token, {
-    payerId: payer.user.id,
-    expenseType: "personal_advance"
-  });
+for (const permissionCase of [
+  {
+    name: "organizer can delete another payer's expense",
+    async setup() {
+      const organizer = await loginAsDemoUser();
+      const payer = await loginAsDemoUser({
+        email: "sam@example.com",
+        password: "Demo-password1!"
+      });
+      const { tripId, expenseId } = await createStartedTripWithExpense(organizer.token, {
+        payerId: payer.user.id,
+        expenseType: "personal_advance"
+      });
 
-  const response = await request(`/api/trips/${tripId}/expenses/${expenseId}`, {
-    method: "DELETE",
-    headers: authHeaders(organizer.token)
-  });
+      return {
+        token: organizer.token,
+        path: `/api/trips/${tripId}/expenses/${expenseId}`,
+        expenseId
+      };
+    },
+    assertResponse(response, { expenseId }) {
+      assert.equal(response.status, 200);
+      assert.equal(response.body.deletedExpenseId, expenseId);
+    }
+  },
+  {
+    name: "expense payer can delete their own expense",
+    async setup() {
+      const organizer = await loginAsDemoUser();
+      const payer = await loginAsDemoUser({
+        email: "sam@example.com",
+        password: "Demo-password1!"
+      });
+      const { tripId, expenseId } = await createStartedTripWithExpense(organizer.token, {
+        payerId: payer.user.id,
+        expenseType: "personal_advance"
+      });
 
-  assert.equal(response.status, 200);
-  assert.equal(response.body.deletedExpenseId, expenseId);
-});
+      return {
+        token: payer.token,
+        path: `/api/trips/${tripId}/expenses/${expenseId}`,
+        expenseId
+      };
+    },
+    assertResponse(response, { expenseId }) {
+      assert.equal(response.status, 200);
+      assert.equal(response.body.deletedExpenseId, expenseId);
+      assert.equal(
+        response.body.auditLogs.some((entry) => entry.action === "expense.deleted"),
+        true
+      );
+    }
+  },
+  {
+    name: "regular participants cannot delete another participant's expense",
+    async setup() {
+      const { token } = await loginAsDemoUser({
+        email: "jordan@example.com",
+        password: "Demo-password1!"
+      });
 
-test("expense payer can delete their own expense", async () => {
-  const organizer = await loginAsDemoUser();
-  const payer = await loginAsDemoUser({
-    email: "sam@example.com",
-    password: "Demo-password1!"
-  });
-  const { tripId, expenseId } = await createStartedTripWithExpense(organizer.token, {
-    payerId: payer.user.id,
-    expenseType: "personal_advance"
-  });
+      return {
+        token,
+        path: "/api/trips/trip_4/expenses/expense_5"
+      };
+    },
+    assertResponse(response) {
+      assert.equal(response.status, 403);
+      assert.deepEqual(response.body, {
+        error: "Only the expense payer or trip organizer can delete this expense"
+      });
+    }
+  },
+  {
+    name: "non-participants cannot delete trip expenses",
+    async setup() {
+      const outsider = await registerUser({
+        name: "Expense Outsider",
+        email: "expense-outsider@example.com"
+      });
 
-  const response = await request(`/api/trips/${tripId}/expenses/${expenseId}`, {
-    method: "DELETE",
-    headers: authHeaders(payer.token)
-  });
+      return {
+        token: outsider.token,
+        path: "/api/trips/trip_4/expenses/expense_5"
+      };
+    },
+    assertResponse(response) {
+      assert.equal(response.status, 403);
+      assert.deepEqual(response.body, {
+        error: "You are not an approved participant on this trip"
+      });
+    }
+  }
+]) {
+  test(permissionCase.name, async () => {
+    const context = await permissionCase.setup();
+    const response = await request(context.path, {
+      method: "DELETE",
+      headers: authHeaders(context.token)
+    });
 
-  assert.equal(response.status, 200);
-  assert.equal(response.body.deletedExpenseId, expenseId);
-  assert.equal(
-    response.body.auditLogs.some((entry) => entry.action === "expense.deleted"),
-    true
-  );
-});
-
-test("regular participants cannot delete another participant's expense", async () => {
-  const { token } = await loginAsDemoUser({
-    email: "jordan@example.com",
-    password: "Demo-password1!"
+    permissionCase.assertResponse(response, context);
   });
-
-  const response = await request("/api/trips/trip_4/expenses/expense_5", {
-    method: "DELETE",
-    headers: authHeaders(token)
-  });
-
-  assert.equal(response.status, 403);
-  assert.deepEqual(response.body, {
-    error: "Only the expense payer or trip organizer can delete this expense"
-  });
-});
-
-test("non-participants cannot delete trip expenses", async () => {
-  const outsider = await registerUser({
-    name: "Expense Outsider",
-    email: "expense-outsider@example.com"
-  });
-
-  const response = await request("/api/trips/trip_4/expenses/expense_5", {
-    method: "DELETE",
-    headers: authHeaders(outsider.token)
-  });
-
-  assert.equal(response.status, 403);
-  assert.deepEqual(response.body, {
-    error: "You are not an approved participant on this trip"
-  });
-});
+}
 
 test("ended trips block expense deletion for organizer and payer", async () => {
   const organizer = await loginAsDemoUser();
@@ -2760,41 +2793,12 @@ async function loginAsDemoUser({
   return response.body;
 }
 
-async function registerUser({
-  name,
-  email,
-  password = "Demo-password1!"
-}) {
-  await startRegistration({ name, email, password });
-
-  const response = await request("/api/auth/register/verify", {
-    method: "POST",
-    body: {
-      email,
-      code: getLastRegistrationVerificationCode(email)
-    }
-  });
-
-  assert.equal(response.status, 201);
-  return response.body;
+function registerUser(input) {
+  return registerTestUser(request, input);
 }
 
-async function startRegistration({
-  name,
-  email,
-  password = "Demo-password1!"
-}) {
-  const response = await request("/api/auth/register", {
-    method: "POST",
-    body: {
-      name,
-      email,
-      password
-    }
-  });
-
-  assert.equal(response.status, 202);
-  return response.body;
+function startRegistration(input) {
+  return startTestRegistration(request, input);
 }
 
 async function createTrip(token) {
@@ -2898,82 +2902,4 @@ function signTestToken(payload) {
 
 function base64UrlJson(value) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
-}
-
-function authHeaders(token) {
-  return {
-    Authorization: `Bearer ${token}`
-  };
-}
-
-function request(path, { method = "GET", headers = {}, body } = {}) {
-  return new Promise((resolve, reject) => {
-    const rawBody = body === undefined ? null : JSON.stringify(body);
-    const req = new Readable({
-      read() {
-        if (rawBody !== null) {
-          this.push(rawBody);
-        }
-        this.push(null);
-      }
-    });
-    req.method = method;
-    req.url = path;
-    req.headers = normalizeHeaders({
-      ...headers,
-      ...(rawBody === null
-        ? {}
-        : {
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(rawBody)
-          })
-    });
-
-    const chunks = [];
-    const responseHeaders = {};
-    const res = new Writable({
-      write(chunk, _encoding, callback) {
-        chunks.push(Buffer.from(chunk));
-        callback();
-      }
-    });
-
-    res.statusCode = 200;
-    res.req = req;
-    res.setHeader = (name, value) => {
-      responseHeaders[name.toLowerCase()] = value;
-    };
-    res.getHeader = (name) => responseHeaders[name.toLowerCase()];
-    res.getHeaders = () => responseHeaders;
-    res.removeHeader = (name) => {
-      delete responseHeaders[name.toLowerCase()];
-    };
-    res.writeHead = (statusCode, headersToWrite = {}) => {
-      res.statusCode = statusCode;
-      for (const [name, value] of Object.entries(headersToWrite)) {
-        res.setHeader(name, value);
-      }
-    };
-    res.end = (chunk) => {
-      if (chunk) {
-        chunks.push(Buffer.from(chunk));
-      }
-
-      const text = Buffer.concat(chunks).toString("utf8");
-      resolve({
-        status: res.statusCode,
-        headers: responseHeaders,
-        text,
-        body: text ? JSON.parse(text) : null
-      });
-    };
-
-    app.handle(req, res, reject);
-  });
-}
-
-function normalizeHeaders(headers) {
-  return Object.fromEntries(
-    Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value])
-  );
 }

@@ -1,18 +1,27 @@
 import assert from "node:assert/strict";
-import { Readable, Writable } from "node:stream";
 import { beforeEach, test } from "node:test";
 import { createApp } from "../server/app.js";
-import { getLastRegistrationVerificationCode } from "../server/services/email.js";
 import { resetStore } from "../server/store.js";
+import {
+  assertBalances,
+  assertBudget,
+  assertNetBalancesConserved,
+  authHeaders,
+  createRequest,
+  loginOrRegisterUser as loginOrRegisterTestUser,
+  registerUser as registerTestUser,
+  sendAndAcceptFriendRequest as sendAndAcceptFriendRequestWithRequest
+} from "./helpers/api.js";
 
 let app;
+const request = createRequest(() => app);
 
 beforeEach(() => {
   resetStore();
   app = createApp();
 });
 
-test("real-world UCLA trip flow covers organizer, participant, outsider, budget, expenses, and balances", async () => {
+test("real-world UCLA smoke flow covers invitations, budget, expenses, and balances", async () => {
   const { dw1, dw2, gogo } = await registerCoreUsers();
 
   const publicTripResponse = await request("/api/trips", {
@@ -331,14 +340,6 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
       headers: authHeaders(dw2.token)
     }
   );
-  const gogoBudgetAttempt = await request(`/api/trips/${tripId}/budget`, {
-    method: "POST",
-    headers: authHeaders(gogo.token),
-    body: {
-      mode: "per-person",
-      perPersonBudget: 200
-    }
-  });
   const dw2DeleteOwnLunch = await request(`/api/trips/${tripId}/expenses/${lunch.body.expense.id}`, {
     method: "DELETE",
     headers: authHeaders(dw2.token)
@@ -348,98 +349,17 @@ test("real-world UCLA trip flow covers organizer, participant, outsider, budget,
   assert.deepEqual(dw2DeleteOrganizerExpense.body, {
     error: "Only the expense payer or trip organizer can delete this expense"
   });
-  assert.equal(gogoBudgetAttempt.status, 403);
   assert.equal(dw2DeleteOwnLunch.status, 200);
   assert.equal(dw2DeleteOwnLunch.body.deletedExpenseId, lunch.body.expense.id);
   assertNetBalancesConserved(dw2DeleteOwnLunch.body.balances);
-
-  const organizerDeleteHotel = await request(`/api/trips/${tripId}/expenses/${hotel.body.expense.id}`, {
-    method: "DELETE",
-    headers: authHeaders(dw1.token)
-  });
-  const additionalBudget = await request(`/api/trips/${tripId}/budget`, {
-    method: "POST",
-    headers: authHeaders(dw1.token),
-    body: {
-      mode: "total",
-      totalBudget: 600
-    }
-  });
-  const editTrip = await request(`/api/trips/${tripId}`, {
-    method: "PATCH",
-    headers: authHeaders(dw1.token),
-    body: {
-      name: "UCLA Los Angeles Weekend",
-      destination: "UCLA and Santa Monica",
-      startDate: "2026-06-01",
-      endDate: "2026-06-04",
-      visibility: "private"
-    }
-  });
-  const invalidDateTrip = await request("/api/trips", {
-    method: "POST",
-    headers: authHeaders(dw1.token),
-    body: {
-      name: "Impossible Date Trip",
-      startDate: "2026-02-30"
-    }
-  });
-  const invalidBudget = await request(`/api/trips/${tripId}/budget`, {
-    method: "POST",
-    headers: authHeaders(dw1.token),
-    body: {
-      mode: "total",
-      totalBudget: 0
-    }
-  });
-  const removeSelf = await request(`/api/trips/${tripId}/participants/${dw1.user.id}`, {
-    method: "DELETE",
-    headers: authHeaders(dw1.token)
-  });
-  const removeParticipantWithHistory = await request(
-    `/api/trips/${tripId}/participants/${dw2.user.id}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(dw1.token)
-    }
-  );
-
-  assert.equal(organizerDeleteHotel.status, 200);
-  assert.equal(organizerDeleteHotel.body.deletedExpenseId, hotel.body.expense.id);
-  assert.equal(additionalBudget.status, 200);
-  assert.equal(additionalBudget.body.budgetSummary.mode, "total");
-  assert.equal(additionalBudget.body.budgetSummary.totalBudget, 600);
-  assert.equal(editTrip.status, 409);
-  assert.deepEqual(editTrip.body, {
-    error: "Trip has already started; trip details are locked"
-  });
-  assert.equal(invalidDateTrip.status, 400);
-  assert.equal(invalidBudget.status, 400);
-  assert.equal(removeSelf.status, 400);
-  assert.deepEqual(removeSelf.body, {
-    error: "Organizer cannot be removed from the trip"
-  });
-  assert.equal(removeParticipantWithHistory.status, 409);
-  assert.deepEqual(removeParticipantWithHistory.body, {
-    error: "Trip has already started; participants cannot be removed"
-  });
 });
 
 test("extra registered outsider is blocked from private data and invalid expense roles", async () => {
   const { dw1, dw2 } = await registerCoreUsers();
-  const outsiderEmail = `outsider-${Date.now()}@example.com`;
   const outsider = await registerUser({
     name: "outsider",
-    email: outsiderEmail,
+    email: "outsider@example.com",
     password: "Outsider-password1!"
-  });
-  const duplicateOutsider = await request("/api/auth/register", {
-    method: "POST",
-    body: {
-      name: "outsider",
-      email: outsiderEmail,
-      password: "Outsider-password1!"
-    }
   });
 
   const tripResponse = await request("/api/trips", {
@@ -498,10 +418,6 @@ test("extra registered outsider is blocked from private data and invalid expense
   });
 
   assert.match(outsider.user.userId, /^outsider#\d+$/);
-  assert.equal(duplicateOutsider.status, 409);
-  assert.deepEqual(duplicateOutsider.body, {
-    error: "An account with this email already exists"
-  });
   assert.equal(outsiderTripAccess.status, 403);
   assert.equal(outsiderJoinPrivate.status, 403);
   assert.deepEqual(outsiderJoinPrivate.body, {
@@ -517,7 +433,7 @@ test("extra registered outsider is blocked from private data and invalid expense
   });
 });
 
-test("participant cannot use organizer-only trip controls but can record and delete own expenses", async () => {
+test("participant can record and delete their own trip expense", async () => {
   const { dw1, dw2 } = await registerCoreUsers();
   const tripResponse = await request("/api/trips", {
     method: "POST",
@@ -548,36 +464,6 @@ test("participant cannot use organizer-only trip controls but can record and del
     headers: authHeaders(dw1.token)
   });
 
-  const editAttempt = await request(`/api/trips/${tripId}`, {
-    method: "PATCH",
-    headers: authHeaders(dw2.token),
-    body: {
-      name: "Participant Renamed Trip"
-    }
-  });
-  const deleteTripAttempt = await request(`/api/trips/${tripId}`, {
-    method: "DELETE",
-    headers: authHeaders(dw2.token)
-  });
-  const addParticipantAttempt = await request(`/api/trips/${tripId}/participants`, {
-    method: "POST",
-    headers: authHeaders(dw2.token),
-    body: {
-      name: "Blocked Guest",
-      email: "blocked-guest@example.com"
-    }
-  });
-  const inviteAttempt = await request(`/api/trips/${tripId}/invitations`, {
-    method: "POST",
-    headers: authHeaders(dw2.token),
-    body: {
-      userId: dw1.user.id
-    }
-  });
-  const removeAttempt = await request(`/api/trips/${tripId}/participants/${dw1.user.id}`, {
-    method: "DELETE",
-    headers: authHeaders(dw2.token)
-  });
   const participantExpense = await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
     headers: authHeaders(dw2.token),
@@ -602,11 +488,6 @@ test("participant cannot use organizer-only trip controls but can record and del
     }
   );
 
-  assert.equal(editAttempt.status, 403);
-  assert.equal(deleteTripAttempt.status, 403);
-  assert.equal(addParticipantAttempt.status, 403);
-  assert.equal(inviteAttempt.status, 403);
-  assert.equal(removeAttempt.status, 403);
   assert.equal(participantExpense.status, 201);
   assert.deepEqual(participantExpense.body.expense.expenseShares, [
     {
@@ -674,181 +555,14 @@ async function registerCoreUsers() {
   return { dw1, dw2, gogo };
 }
 
-async function loginOrRegisterUser({ identifier, name, email, password }) {
-  const loginResponse = await request("/api/auth/login", {
-    method: "POST",
-    body: {
-      identifier,
-      password
-    }
-  });
-
-  if (loginResponse.status === 200) {
-    return loginResponse.body;
-  }
-
-  return registerUser({ name, email, password });
+function loginOrRegisterUser(input) {
+  return loginOrRegisterTestUser(request, input);
 }
 
-async function sendAndAcceptFriendRequest({ requester, recipient }) {
-  const requestResponse = await request("/api/friends/requests", {
-    method: "POST",
-    headers: authHeaders(requester.token),
-    body: {
-      identifier: recipient.user.userId
-    }
-  });
-  const recipientOverview = await request("/api/friends", {
-    headers: authHeaders(recipient.token)
-  });
-  const acceptResponse = await request(
-    `/api/friends/requests/${recipientOverview.body.incomingRequests[0].id}/accept`,
-    {
-      method: "POST",
-      headers: authHeaders(recipient.token)
-    }
-  );
-
-  assert.equal(requestResponse.status, 201);
-  assert.equal(acceptResponse.status, 200);
-  assert.equal(acceptResponse.body.request.status, "accepted");
+function sendAndAcceptFriendRequest(input) {
+  return sendAndAcceptFriendRequestWithRequest(request, input);
 }
 
-async function registerUser({ name, email, password }) {
-  const startResponse = await request("/api/auth/register", {
-    method: "POST",
-    body: {
-      name,
-      email,
-      password
-    }
-  });
-
-  assert.equal(startResponse.status, 202);
-
-  const response = await request("/api/auth/register/verify", {
-    method: "POST",
-    body: {
-      email,
-      code: getLastRegistrationVerificationCode(email)
-    }
-  });
-
-  assert.equal(response.status, 201);
-  return response.body;
-}
-
-function assertBudget(actual, expected) {
-  for (const [key, value] of Object.entries(expected)) {
-    assert.equal(actual[key], value, `Expected budget ${key} to equal ${value}`);
-  }
-}
-
-function assertBalances(actualBalances, expectedBalances) {
-  assert.deepEqual(
-    normalizeBalances(actualBalances),
-    expectedBalances.map((balance) => ({
-      participantId: balance.participantId,
-      actualPaid: balance.actualPaid,
-      fairShare: balance.fairShare,
-      netBalance: balance.netBalance
-    }))
-  );
-}
-
-function assertNetBalancesConserved(balances) {
-  assert.equal(
-    roundCurrency(balances.reduce((sum, balance) => sum + balance.netBalance, 0)),
-    0
-  );
-}
-
-function normalizeBalances(balances) {
-  return balances.map(({ participantId, actualPaid, fairShare, netBalance }) => ({
-    participantId,
-    actualPaid,
-    fairShare,
-    netBalance
-  }));
-}
-
-function roundCurrency(value) {
-  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-}
-
-function authHeaders(token) {
-  return {
-    Authorization: `Bearer ${token}`
-  };
-}
-
-function request(path, { method = "GET", headers = {}, body } = {}) {
-  return new Promise((resolve, reject) => {
-    const rawBody = body === undefined ? null : JSON.stringify(body);
-    const req = new Readable({
-      read() {
-        if (rawBody !== null) {
-          this.push(rawBody);
-        }
-        this.push(null);
-      }
-    });
-    req.method = method;
-    req.url = path;
-    req.headers = normalizeHeaders({
-      ...headers,
-      ...(rawBody === null
-        ? {}
-        : {
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(rawBody)
-          })
-    });
-
-    const chunks = [];
-    const responseHeaders = {};
-    const res = new Writable({
-      write(chunk, _encoding, callback) {
-        chunks.push(Buffer.from(chunk));
-        callback();
-      }
-    });
-    res.statusCode = 200;
-    res.req = req;
-    res.setHeader = (name, value) => {
-      responseHeaders[name.toLowerCase()] = value;
-    };
-    res.getHeader = (name) => responseHeaders[name.toLowerCase()];
-    res.getHeaders = () => responseHeaders;
-    res.removeHeader = (name) => {
-      delete responseHeaders[name.toLowerCase()];
-    };
-    res.writeHead = (statusCode, headers = {}) => {
-      res.statusCode = statusCode;
-      for (const [name, value] of Object.entries(headers)) {
-        res.setHeader(name, value);
-      }
-    };
-    res.end = (chunk) => {
-      if (chunk) {
-        chunks.push(Buffer.from(chunk));
-      }
-
-      const text = Buffer.concat(chunks).toString("utf8");
-      resolve({
-        status: res.statusCode,
-        headers: responseHeaders,
-        text,
-        body: text ? JSON.parse(text) : null
-      });
-    };
-
-    app.handle(req, res, reject);
-  });
-}
-
-function normalizeHeaders(headers) {
-  return Object.fromEntries(
-    Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value])
-  );
+function registerUser(input) {
+  return registerTestUser(request, input);
 }

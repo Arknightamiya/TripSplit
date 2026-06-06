@@ -1,215 +1,238 @@
 # TripSplit
 
-TripSplit is a CS130 project web application for shared travel budgeting, trip-budget payments, and fair reimbursement tracking.
+TripSplit is a CS130 web application for planning group trips, tracking shared spending, and calculating fair reimbursements. It is built as a runnable Express app with a static HTML/CSS/JavaScript frontend, JWT authentication, optional PostgreSQL persistence, and automated tests for the core API and settlement workflows.
 
-It is designed for small groups traveling together, such as friends, roommates, student clubs, or campus organizations. The goal of TripSplit is to help a group create a trip, set a budget, record trip-budget payments and personal advances, track spending during the trip, and calculate final balances for each participant.
+The app is designed for small travel groups such as friends, roommates, student clubs, or campus organizations. A trip organizer can create a trip, invite participants, set a budget, track expenses during the trip, and review final balances when it is time to settle up.
 
 ## Team
 
 Team Name: XZWSD
 
-## Current Integration Baseline
+## Current Product
 
-The shared implementation baseline is documented in:
+TripSplit currently supports these workflows:
 
-- `docs/integration-baseline.md`
-- `docs/reference-architecture-notes.md`
-- `docs/api-contract.md`
-- `database/schema.sql`
-- `docs/branch-plan.md`
+- Account registration, email verification, login, JWT session handling, and profile updates with display names and uploaded avatar data URLs.
+- Friends, friend requests, public trip discovery, trip invitations, and join requests for public trips.
+- Trip creation, trip metadata updates, public/private visibility, participant management, and trip start/end lifecycle controls.
+- Total trip budgets and per-person budgets with remaining and over-budget summaries.
+- Two expense types:
+  - `budget_payment`: organizer-recorded spending from the shared trip budget.
+  - `personal_advance`: participant-recorded out-of-pocket payments that selected trip members should reimburse.
+- Balance and settlement views that keep shared-budget usage separate from personal reimbursement balances.
+- Currency display, fallback currency rates, mixed-currency budget summaries, and an optional background currency refresh scheduler.
 
-The API contract and PostgreSQL schema are the source of truth for feature branches. Frontend and backend work should use the same field names, response shapes, access-control assumptions, and database relationships defined there.
-
-The reference architecture notes summarize reusable structure lessons from the prior BruinDating project, including central API helpers, auth state, protected routes, backend domain separation, shared theme discipline, and environment configuration.
-
-The backend starter now uses Express routes, middleware, services, JWT auth, and a PostgreSQL pool boundary. Persistence is still in memory until the backend feature branches replace the store internals with PostgreSQL queries.
-
-## Project Motivation
-
-Group travel often creates financial confusion. Before a trip, travelers may agree on a total budget or a per-person budget. During the trip, different people may pay for hotels, food, transportation, tickets, drinks, or emergency purchases.
-
-Without a shared system, groups often rely on spreadsheets, notes, or chat messages. These methods can become hard to maintain and may lead to mistakes when calculating who paid for what and who still owes money.
-
-TripSplit provides one shared place for trip budgeting, expense tracking, and final settlement calculation.
-
-## Core Features
-
-The MVP focuses on four main workflows:
-
-1. Create a trip
-
-   A trip organizer can create a trip with a name, destination, start date, and end date. The organizer can invite or add other participants.
-
-2. Set a budget
-
-   The trip organizer can set either a total trip budget or a per-person budget. The system tracks total spending, remaining budget, and over-budget amount.
-
-3. Record trip payments
-
-   Organizers can record payments made from the shared trip budget. Participants can record personal advances when they pay out of pocket for selected trip members. Purely personal purchases do not need to be entered.
-
-4. View final balances
-
-   Each participant can view shared-budget usage separately from personal reimbursement balances. A positive personal net balance means the participant should be reimbursed, while a negative personal net balance means the participant owes reimbursement.
-
-## Non-Goals
-
-TripSplit does not include the following features in the MVP:
-
-- Integrated payment processing
-- Direct money transfer
-- Automatic charging
-- Long-term household budgeting
-- Recurring shared bills outside a trip context
-- Social media-style interaction features
-
-Actual payment or money transfer should be completed through external tools such as banking apps, Venmo, Zelle, or credit/debit cards.
+TripSplit does not move money directly. Final payment should happen through external tools such as banking apps, Venmo, Zelle, cash, or card payments.
 
 ## Tech Stack
 
-Planned technology stack:
+- Runtime: Node.js 20+
+- Backend: Express 5
+- Frontend: static HTML, CSS, and browser JavaScript modules
+- Persistence: in-memory store by default; PostgreSQL repository path through `pg` when `DATABASE_URL` is configured
+- Authentication: JWT bearer tokens
+- Email: optional Gmail SMTP through `nodemailer`
+- Testing: Node's built-in test runner
+- Database schema: PostgreSQL DDL in `database/schema.sql`
 
-- Frontend: React
-- Backend: Node.js with Express
-- Database: PostgreSQL
-- Authentication: JWT-based authentication
-- API Style: REST API
-- Testing:
-  - Unit tests for settlement logic
-  - Integration tests for core API workflows
+## Getting Started
 
-## Main Data Model
-
-The main system entities are:
-
-- User
-- Trip
-- TripParticipant
-- Budget
-- Expense
-- ExpenseShare
-- SplitRule
-- BalanceSummary
-
-The core settlement formula is:
-
-net balance = actual paid amount - fair share amount
-
-A positive net balance means the participant paid more than their fair share.
-
-A negative net balance means the participant paid less than their fair share.
-
-## Planned REST APIs
-
-The system will use REST APIs between the React frontend and Express backend.
-
-Important planned endpoints include:
-
-- POST /auth/register
-- POST /auth/register/verify
-- POST /auth/register/resend-code
-- POST /auth/login
-- GET /trips
-- POST /trips
-- POST /trips/{tripId}/participants
-- GET /trips/{tripId}
-- POST /trips/{tripId}/budget
-- POST /trips/{tripId}/expenses
-- GET /trips/{tripId}/balances
-- DELETE /trips/{tripId}/expenses/{expenseId}
-
-All private trip APIs require authentication. Users who are not approved participants should not be able to access or modify private trip data.
-
-
-## How to Run the Project
-
-The repo includes a lightweight runnable scaffold that matches the planned MVP architecture.
-
-1. Make the startup script executable once:
+Install dependencies:
 
 ```bash
-chmod +x start.sh
+npm install
 ```
 
-2. Start the app:
+Optional environment setup:
+
+```bash
+cp .env.example .env
+```
+
+Configure `.env` when you want PostgreSQL persistence, email verification delivery, currency refresh scheduling, or a custom port. Do not commit real secrets.
+
+Important environment variables:
+
+- `PORT`: server port, defaults to `3000`
+- `DATABASE_URL`: enables the PostgreSQL repository path when present
+- `JWT_SECRET`: signing secret for JWTs
+- `CORS_ORIGIN`: allowed browser origin, defaults to `http://localhost:3000`
+- `EMAIL_PROVIDER`, `EMAIL_USER`, `EMAIL_APP_PASSWORD`, `EMAIL_FROM`: optional Gmail email delivery settings
+- `CURRENCY_REFRESH_ENABLED`, `CURRENCY_REFRESH_ON_START`, `CURRENCY_REFRESH_INTERVAL_HOURS`: optional exchange-rate refresh controls
+
+Run the app:
+
+```bash
+npm start
+```
+
+or:
 
 ```bash
 ./start.sh
 ```
 
-3. Open:
+Open:
 
 ```text
 http://localhost:3000
 ```
 
-You can also run:
+When `DATABASE_URL` is not set, TripSplit uses the in-memory store and seeds demo users/trips for local development. The seeded demo password is:
+
+```text
+Demo-password1!
+```
+
+When `DATABASE_URL` is set, the app uses PostgreSQL repositories and does not seed the in-memory demo data. Apply the schema before using a new database:
+
+```bash
+npm run db:schema
+```
+
+You can also check database connectivity with:
+
+```bash
+npm run db:check
+```
+
+## Testing
+
+Run the default test suite:
 
 ```bash
 npm test
 ```
 
-to verify the settlement logic placeholder.
+The default suite covers settlement logic, core Express API workflows, real-world API smoke scenarios, currency display/conversion helpers, auth storage scoping, balance rendering helpers, and the currency refresh scheduler. The PostgreSQL smoke test is intentionally skipped in this default run so ordinary local tests do not write to a real database by accident.
+
+Run the PostgreSQL-backed smoke test:
+
+```bash
+npm run test:db
+```
+
+`test:db` loads `.env`, sets `TRIPSPLIT_DATABASE_SMOKE=1`, and runs `tests/database-smoke.test.js`. Use a disposable database with `database/schema.sql` already applied. A successful real DB run should report `pass 1` and `skipped 0`.
+
+Useful database and currency scripts:
+
+```bash
+npm run db:schema
+npm run db:check
+npm run db:currency:refresh
+npm run db:currency:convert
+```
+
+## API Overview
+
+The frontend talks to the backend through `/api/...` REST routes. Private app routes require a bearer token.
+
+Route families:
+
+- `/api/auth`: registration, verification, resend code, and login
+- `/api/me`: current user profile read/update
+- `/api/friends`: friend requests, friend search, public trip lobby, trip join requests, and trip invitations
+- `/api/trips`: trip list, create, detail, update, delete, start/end, participants, invitations, and budgets
+- `/api/trips/:tripId/expenses`: create, soft-delete, and restore expenses
+- `/api/trips/:tripId/balances`: trip balance summaries
+- `/api/currencies`: supported currencies and exchange-rate metadata
+- `/api/health`: API health check
+
+The API contract and expected response shapes are documented in `docs/api-contract.md`.
+
+## Data Model
+
+The main domain entities are:
+
+- User
+- FriendRequest and Friendship
+- Trip
+- TripParticipant
+- TripJoinRequest
+- Budget
+- Expense
+- ExpenseShare
+- SplitRule
+- BalanceSummary
+- Currency and CurrencyExchangeRate
+- AuditLog
+
+The core personal reimbursement formula is:
+
+```text
+net balance = actual paid amount - fair share amount
+```
+
+A positive personal net balance means the participant paid more than their fair share and should be reimbursed. A negative personal net balance means the participant owes reimbursement.
+
+Budget spending is tracked separately from personal reimbursement balances so shared-budget usage does not create personal repayment obligations.
 
 ## Project Structure
 
-The scaffold uses a mostly flat structure so the team can move quickly in CS130 while still leaving room to grow:
-
 ```text
 TripSplit/
-├── package.json
-├── start.sh
+├── database/
+│   ├── schema.sql
+│   └── *.sh
+├── docs/
+│   ├── api-contract.md
+│   ├── integration-baseline.md
+│   ├── reference-architecture-notes.md
+│   └── testing-plan.md
+├── scripts/
+│   └── db/
 ├── server/
 │   ├── app.js
-│   ├── db.js
-│   ├── db/
-│   │   └── pool.js
 │   ├── index.js
+│   ├── db/
 │   ├── middleware/
+│   ├── repositories/
 │   ├── routes/
 │   ├── services/
+│   ├── utils/
+│   ├── validators/
 │   ├── settlement.js
 │   └── store.js
 ├── shared/
 │   └── contracts.js
+├── tests/
+│   ├── helpers/
+│   ├── api.test.js
+│   ├── database-smoke.test.js
+│   ├── real-world-scenarios.test.js
+│   └── *.test.js
 ├── web/
-│   ├── api.js
 │   ├── app.js
+│   ├── api.js
+│   ├── forms.js
+│   ├── renderBalances.js
+│   ├── renderBudget.js
+│   ├── renderExpenses.js
+│   ├── renderTrips.js
+│   ├── currency.js
 │   ├── index.html
 │   └── styles.css
-└── tests/
-    └── settlement.test.js
+├── package.json
+└── start.sh
 ```
 
 ## Architecture Notes
 
-- `server/`
-  - Runs an Express backend now.
-  - Keeps app creation, routes, middleware, services, database boundary, in-memory data, and settlement logic separated so backend branches can migrate service internals cleanly to PostgreSQL.
+- `server/app.js` wires the Express app, API route families, static frontend serving, and error middleware.
+- `server/services/` owns business rules for auth, users, friends, trips, expenses, currencies, and seed data.
+- `server/repositories/` contains PostgreSQL-backed implementations used when the database layer is enabled.
+- `server/store.js` is the in-memory fallback data layer used by default local tests and development without `DATABASE_URL`.
+- `web/` is a browser-module frontend with render modules for trips, budgets, expenses, balances, and currency display.
+- `tests/helpers/api.js` provides the shared in-process Express request harness used by API and smoke tests.
 
-- `web/`
-  - Provides an intentionally minimal frontend shell with a single input and button.
-  - Can later be replaced by a React app with the same REST endpoints.
+## Supporting Docs
 
-- `shared/`
-  - Stores API contracts and constants that both the frontend and backend can reference.
+These files provide deeper implementation and coordination context:
 
-- `tests/`
-  - Covers settlement logic and key API workflows such as auth, private trip access, trip creation, expense shares, and balance recalculation.
-
-## Current Scaffold Scope
-
-The current scaffold intentionally keeps things small:
-
-- Backend persistence is in memory only
-- PostgreSQL hookup exists as a pool boundary in `server/db/pool.js`; it no-ops until `DATABASE_URL` is set and services start using it
-- Authentication uses starter JWT behavior with seeded demo users
-- Frontend is an intentionally tiny starter UI rather than full React
-- The REST route shape already follows the planned API direction from this README
-
-This gives the team a working baseline now, while keeping the path open for:
-
-- React frontend setup
-- PostgreSQL integration
-- JWT auth hardening
-- Broader unit and integration testing
+- `docs/api-contract.md`: route-level request and response contract
+- `docs/testing-plan.md`: automated test coverage and priorities
+- `docs/integration-baseline.md`: integration expectations across branches
+- `docs/reference-architecture-notes.md`: architecture guidance and conventions
+- `docs/branch-plan.md`: historical branch planning notes
+- `docs/cloud-db-verification.md`: prior hosted PostgreSQL verification notes
+- `database/schema.sql`: PostgreSQL schema source of truth
