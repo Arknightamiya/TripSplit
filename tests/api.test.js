@@ -74,7 +74,47 @@ test("login returns JWT and lists trips for the authenticated participant", asyn
   assert.equal(response.status, 200);
   assert.equal(response.body.trips.length, 1);
   assert.equal(response.body.trips[0].name, "San Diego Weekend");
+  assert.equal(response.body.trips[0].participantCount, 2);
   assert.equal(response.body.trips[0].budgetSummary.totalBudget, 900);
+});
+
+test("seeded demo data includes a friend, a public lobby trip, and no Jordan trip access", async () => {
+  const alex = await loginAsDemoUser();
+  const jordan = await loginAsDemoUser({ email: "jordan@example.com" });
+
+  const alexFriends = await request("/api/friends", {
+    headers: authHeaders(alex.token)
+  });
+  const alexLobby = await request("/api/friends/public-trips", {
+    headers: authHeaders(alex.token)
+  });
+  const alexTrip = await request("/api/trips/trip_4", {
+    headers: authHeaders(alex.token)
+  });
+  const jordanFriends = await request("/api/friends", {
+    headers: authHeaders(jordan.token)
+  });
+  const jordanTrips = await request("/api/trips", {
+    headers: authHeaders(jordan.token)
+  });
+
+  assert.equal(alexFriends.status, 200);
+  assert.equal(alexFriends.body.friends.length, 1);
+  assert.equal(alexFriends.body.friends[0].email, "sam@example.com");
+  assert.equal(alexLobby.status, 200);
+  assert.equal(alexLobby.body.publicTrips.length, 1);
+  assert.equal(alexLobby.body.publicTrips[0].name, "Yosemite Weekend");
+  assert.equal(alexLobby.body.publicTrips[0].organizer.email, "sam@example.com");
+  assert.equal(alexTrip.status, 200);
+  assert.deepEqual(alexTrip.body.trip.participantIds, ["user_1", "user_2"]);
+  assert.equal(
+    alexTrip.body.trip.participants.some((participant) => participant.email === "jordan@example.com"),
+    false
+  );
+  assert.equal(jordanFriends.status, 200);
+  assert.equal(jordanFriends.body.friends.length, 0);
+  assert.equal(jordanTrips.status, 200);
+  assert.deepEqual(jordanTrips.body.trips, []);
 });
 
 test("login accepts username or email as the identifier", async () => {
@@ -2107,7 +2147,7 @@ test("expense API creates budget-payment shares without personal reimbursement b
       expenseType: "budget_payment",
       payerId: "user_1",
       splitRule: "equal",
-      includedParticipantIds: ["user_1", "user_2", "user_3"]
+      includedParticipantIds: ["user_1", "user_2"]
     }
   });
 
@@ -2115,15 +2155,11 @@ test("expense API creates budget-payment shares without personal reimbursement b
   assert.deepEqual(response.body.expense.expenseShares, [
     {
       participantId: "user_1",
-      shareAmount: 33
+      shareAmount: 49.5
     },
     {
       participantId: "user_2",
-      shareAmount: 33
-    },
-    {
-      participantId: "user_3",
-      shareAmount: 33
+      shareAmount: 49.5
     }
   ]);
   assert.equal(response.body.budgetSummary.totalSpent, 99);
@@ -2138,23 +2174,16 @@ test("expense API creates budget-payment shares without personal reimbursement b
     [
       {
         participantId: "user_1",
-        budgetSpent: 33,
+        budgetSpent: 49.5,
         actualPaid: 450,
-        fairShare: 180,
-        netBalance: 270
+        fairShare: 270,
+        netBalance: 180
       },
       {
         participantId: "user_2",
-        budgetSpent: 33,
+        budgetSpent: 49.5,
         actualPaid: 90,
-        fairShare: 180,
-        netBalance: -90
-      },
-      {
-        participantId: "user_3",
-        budgetSpent: 33,
-        actualPaid: 0,
-        fairShare: 180,
+        fairShare: 270,
         netBalance: -180
       }
     ]
@@ -2213,9 +2242,31 @@ test("budget summary converts mixed-currency budget payments to the budget curre
 });
 
 test("expense API distributes leftover cents so equal split balances are conserved", async () => {
-  const { token } = await loginAsDemoUser();
+  const { token, user } = await loginAsDemoUser();
+  const firstDebtor = await registerUser({
+    name: "Remainder Debtor A",
+    email: "remainder-debtor-a@example.com"
+  });
+  const secondDebtor = await registerUser({
+    name: "Remainder Debtor B",
+    email: "remainder-debtor-b@example.com"
+  });
+  const tripId = await createTrip(token);
 
-  const response = await request("/api/trips/trip_4/expenses", {
+  for (const debtor of [firstDebtor, secondDebtor]) {
+    const participantResponse = await request(`/api/trips/${tripId}/participants`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: {
+        userId: debtor.user.id
+      }
+    });
+    assert.equal(participantResponse.status, 200);
+  }
+
+  await startTripForTest(token, tripId);
+
+  const response = await request(`/api/trips/${tripId}/expenses`, {
     method: "POST",
     headers: authHeaders(token),
     body: {
@@ -2223,20 +2274,20 @@ test("expense API distributes leftover cents so equal split balances are conserv
       amount: 500,
       category: "tickets",
       expenseType: "personal_advance",
-      payerId: "user_1",
+      payerId: user.id,
       splitRule: "equal",
-      includedParticipantIds: ["user_2", "user_3"]
+      includedParticipantIds: [firstDebtor.user.id, secondDebtor.user.id]
     }
   });
 
   assert.equal(response.status, 201);
   assert.deepEqual(response.body.expense.expenseShares, [
     {
-      participantId: "user_2",
+      participantId: firstDebtor.user.id,
       shareAmount: 166.67
     },
     {
-      participantId: "user_3",
+      participantId: secondDebtor.user.id,
       shareAmount: 166.66
     }
   ]);
@@ -2371,23 +2422,16 @@ test("expense API splits personal advances without increasing budget spending", 
       expenseType: "personal_advance",
       payerId: "user_1",
       splitRule: "equal",
-      includedParticipantIds: ["user_1", "user_2", "user_3"]
+      includedParticipantIds: ["user_1", "user_2"]
     }
   });
 
   assert.equal(response.status, 201);
-  assert.deepEqual(response.body.expense.includedParticipantIds, [
-    "user_2",
-    "user_3"
-  ]);
+  assert.deepEqual(response.body.expense.includedParticipantIds, ["user_2"]);
   assert.deepEqual(response.body.expense.expenseShares, [
     {
       participantId: "user_2",
-      shareAmount: 15
-    },
-    {
-      participantId: "user_3",
-      shareAmount: 15
+      shareAmount: 22.5
     }
   ]);
   assert.equal(response.body.budgetSummary.totalSpent, 0);
@@ -2404,22 +2448,15 @@ test("expense API splits personal advances without increasing budget spending", 
         participantId: "user_1",
         budgetSpent: 0,
         actualPaid: 495,
-        fairShare: 195,
-        netBalance: 300
+        fairShare: 292.5,
+        netBalance: 202.5
       },
       {
         participantId: "user_2",
         budgetSpent: 0,
         actualPaid: 90,
-        fairShare: 195,
-        netBalance: -105
-      },
-      {
-        participantId: "user_3",
-        budgetSpent: 0,
-        actualPaid: 0,
-        fairShare: 195,
-        netBalance: -195
+        fairShare: 292.5,
+        netBalance: -202.5
       }
     ]
   );
@@ -2499,23 +2536,16 @@ test("balance API calculates participant totals from expenses and shares", async
       {
         participantId: "user_1",
         actualPaid: 450,
-        fairShare: 180,
-        netBalance: 270,
+        fairShare: 270,
+        netBalance: 180,
         participantName: "Alex Organizer"
       },
       {
         participantId: "user_2",
         actualPaid: 90,
-        fairShare: 180,
-        netBalance: -90,
-        participantName: "Sam Traveler"
-      },
-      {
-        participantId: "user_3",
-        actualPaid: 0,
-        fairShare: 180,
+        fairShare: 270,
         netBalance: -180,
-        participantName: "Jordan Budgeter"
+        participantName: "Sam Traveler"
       }
     ]
   );
@@ -2549,20 +2579,14 @@ test("organizer can delete an expense and recalculate budget and balances", asyn
       {
         participantId: "user_1",
         actualPaid: 0,
-        fairShare: 30,
-        netBalance: -30
+        fairShare: 45,
+        netBalance: -45
       },
       {
         participantId: "user_2",
         actualPaid: 90,
-        fairShare: 30,
-        netBalance: 60
-      },
-      {
-        participantId: "user_3",
-        actualPaid: 0,
-        fairShare: 30,
-        netBalance: -30
+        fairShare: 45,
+        netBalance: 45
       }
     ]
   );
@@ -2672,7 +2696,7 @@ for (const permissionCase of [
     name: "regular participants cannot delete another participant's expense",
     async setup() {
       const { token } = await loginAsDemoUser({
-        email: "jordan@example.com",
+        email: "sam@example.com",
         password: "Demo-password1!"
       });
 

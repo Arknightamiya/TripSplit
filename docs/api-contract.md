@@ -120,15 +120,11 @@ is over budget. `overBudgetAmount` should be `0` until spending exceeds
   "currencyCode": "USD",
   "payerId": "user_1",
   "splitRule": "equal",
-  "includedParticipantIds": ["user_2", "user_3"],
+  "includedParticipantIds": ["user_2"],
   "expenseShares": [
     {
       "participantId": "user_2",
-      "shareAmount": 150
-    },
-    {
-      "participantId": "user_3",
-      "shareAmount": 150
+      "shareAmount": 225
     }
   ],
   "createdAt": "2026-05-13T00:00:00.000Z",
@@ -720,16 +716,16 @@ Response:
       "organizerName": "Alex Organizer",
       "startedAt": "2026-06-05T12:00:00.000Z",
       "endedAt": null,
-      "participantCount": 3,
+      "participantCount": 2,
       "expenseCount": 2,
       "budgetSummary": {
         "mode": "total",
         "totalBudget": 900,
         "perPersonBudget": null,
         "currencyCode": "USD",
-        "participantCount": 3,
-        "totalSpent": 540,
-        "remainingBudget": 360,
+        "participantCount": 2,
+        "totalSpent": 0,
+        "remainingBudget": 900,
         "overBudgetAmount": 0
       }
     }
@@ -823,13 +819,20 @@ Response:
     "organizerId": "user_1",
     "startedAt": "2026-06-05T12:00:00.000Z",
     "endedAt": null,
-    "participantIds": ["user_1", "user_2", "user_3"],
+    "participantIds": ["user_1", "user_2"],
     "participants": [
       {
         "id": "user_1",
         "name": "Alex Organizer",
         "email": "alex@example.com",
         "role": "organizer",
+        "joinStatus": "approved"
+      },
+      {
+        "id": "user_2",
+        "name": "Sam Traveler",
+        "email": "sam@example.com",
+        "role": "participant",
         "joinStatus": "approved"
       }
     ],
@@ -838,9 +841,9 @@ Response:
       "totalBudget": 900,
       "perPersonBudget": null,
       "currencyCode": "USD",
-      "participantCount": 3,
-      "totalSpent": 540,
-      "remainingBudget": 360,
+      "participantCount": 2,
+      "totalSpent": 0,
+      "remainingBudget": 900,
       "overBudgetAmount": 0
     },
     "expenses": [],
@@ -968,12 +971,18 @@ Response:
     "organizerId": "user_1",
     "startedAt": "2026-06-05T12:00:00.000Z",
     "endedAt": null,
-    "participantIds": ["user_1", "user_2", "user_3"],
+    "participantIds": ["user_1", "user_2"],
     "participants": [
       {
         "id": "user_1",
         "displayName": "Alex Organizer",
         "role": "organizer",
+        "joinStatus": "approved"
+      },
+      {
+        "id": "user_2",
+        "displayName": "Sam Traveler",
+        "role": "participant",
         "joinStatus": "approved"
       }
     ],
@@ -1011,12 +1020,18 @@ Response:
     "organizerId": "user_1",
     "startedAt": "2026-06-05T12:00:00.000Z",
     "endedAt": "2026-06-07T20:00:00.000Z",
-    "participantIds": ["user_1", "user_2", "user_3"],
+    "participantIds": ["user_1", "user_2"],
     "participants": [
       {
         "id": "user_1",
         "displayName": "Alex Organizer",
         "role": "organizer",
+        "joinStatus": "approved"
+      },
+      {
+        "id": "user_2",
+        "displayName": "Sam Traveler",
+        "role": "participant",
         "joinStatus": "approved"
       }
     ],
@@ -1235,7 +1250,7 @@ Request:
   "currencyCode": "USD",
   "payerId": "user_1",
   "splitRule": "equal",
-  "includedParticipantIds": ["user_2", "user_3"]
+  "includedParticipantIds": ["user_2"]
 }
 ```
 
@@ -1255,15 +1270,11 @@ Response:
     "currencyCode": "USD",
     "payerId": "user_1",
     "splitRule": "equal",
-    "includedParticipantIds": ["user_2", "user_3"],
+    "includedParticipantIds": ["user_2"],
     "expenseShares": [
       {
         "participantId": "user_2",
-        "shareAmount": 150
-      },
-      {
-        "participantId": "user_3",
-        "shareAmount": 150
+        "shareAmount": 225
       }
     ],
     "createdAt": "2026-05-13T00:00:00.000Z",
@@ -1275,7 +1286,7 @@ Response:
     "totalBudget": 900,
     "perPersonBudget": null,
     "currencyCode": "USD",
-    "participantCount": 3,
+    "participantCount": 2,
     "totalSpent": 0,
     "remainingBudget": 900,
     "overBudgetAmount": 0
@@ -1285,22 +1296,15 @@ Response:
       "participantId": "user_1",
       "budgetSpent": 0,
       "actualPaid": 450,
-      "fairShare": 150,
-      "netBalance": 300
+      "fairShare": 225,
+      "netBalance": 225
     },
     {
       "participantId": "user_2",
       "budgetSpent": 0,
       "actualPaid": 0,
-      "fairShare": 150,
-      "netBalance": -150
-    },
-    {
-      "participantId": "user_3",
-      "budgetSpent": 0,
-      "actualPaid": 0,
-      "fairShare": 150,
-      "netBalance": -150
+      "fairShare": 225,
+      "netBalance": -225
     }
   ]
 }
@@ -1336,15 +1340,11 @@ Response:
     "currencyCode": "USD",
     "payerId": "user_1",
     "splitRule": "equal",
-    "includedParticipantIds": ["user_2", "user_3"],
+    "includedParticipantIds": ["user_2"],
     "expenseShares": [
       {
         "participantId": "user_2",
-        "shareAmount": 150
-      },
-      {
-        "participantId": "user_3",
-        "shareAmount": 150
+        "shareAmount": 225
       }
     ],
     "createdAt": "2026-05-13T00:00:00.000Z",
@@ -1367,7 +1367,7 @@ Response:
     "totalBudget": 900,
     "perPersonBudget": null,
     "currencyCode": "USD",
-    "participantCount": 3,
+    "participantCount": 2,
     "totalSpent": 0,
     "remainingBudget": 900,
     "overBudgetAmount": 0
@@ -1409,15 +1409,11 @@ Response:
     "currencyCode": "USD",
     "payerId": "user_1",
     "splitRule": "equal",
-    "includedParticipantIds": ["user_2", "user_3"],
+    "includedParticipantIds": ["user_2"],
     "expenseShares": [
       {
         "participantId": "user_2",
-        "shareAmount": 150
-      },
-      {
-        "participantId": "user_3",
-        "shareAmount": 150
+        "shareAmount": 225
       }
     ],
     "createdAt": "2026-05-13T00:00:00.000Z",
@@ -1440,7 +1436,7 @@ Response:
     "totalBudget": 900,
     "perPersonBudget": null,
     "currencyCode": "USD",
-    "participantCount": 3,
+    "participantCount": 2,
     "totalSpent": 0,
     "remainingBudget": 900,
     "overBudgetAmount": 0
@@ -1472,13 +1468,26 @@ Response:
       "participantId": "user_1",
       "budgetSpent": 0,
       "actualPaid": 450,
-      "fairShare": 150,
-      "netBalance": 300,
+      "fairShare": 270,
+      "netBalance": 180,
       "participant": {
         "id": "user_1",
         "name": "Alex Organizer",
         "displayName": "Alex Organizer",
         "email": "alex@example.com"
+      }
+    },
+    {
+      "participantId": "user_2",
+      "budgetSpent": 0,
+      "actualPaid": 90,
+      "fairShare": 270,
+      "netBalance": -180,
+      "participant": {
+        "id": "user_2",
+        "name": "Sam Traveler",
+        "displayName": "Sam Traveler",
+        "email": "sam@example.com"
       }
     }
   ]

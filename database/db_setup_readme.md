@@ -38,19 +38,28 @@ The script:
 - starts a local PostgreSQL Docker container on `localhost:5433`
 - writes `.env` with a local `DATABASE_URL`
 - applies `database/schema.sql`
-- seeds demo users, trip participants, budget, expenses, and expense shares
+- seeds demo users, an Alex/Sam friendship, the Alex/Sam San Diego trip, Sam's
+  public Yosemite trip, budget, expenses, and expense shares
 
 Seeded PostgreSQL demo accounts:
 
 | Email | Password | Role |
 | --- | --- | --- |
 | `alex@example.com` | `demo-password` | Trip organizer |
-| `sam@example.com` | `demo-password` | Trip participant |
-| `jordan@example.com` | `demo-password` | Trip participant |
+| `sam@example.com` | `demo-password` | Trip participant and public trip organizer |
+| `jordan@example.com` | `demo-password` | Non-friend social demo account |
 
 The PostgreSQL seed password differs from the in-memory demo password in the
 main README. Use `demo-password` when `DATABASE_URL` is set by the database
 setup script.
+
+Seeded social state:
+
+- Alex and Sam are friends.
+- The seeded San Diego Weekend trip includes Alex and Sam only.
+- Sam owns a public Yosemite Weekend trip that Alex can discover in Trip Lobby.
+- Jordan starts as a non-friend with no seeded trip access so reviewers can
+  demonstrate Add friend, request, accept, and later invitation flows.
 
 You can test persistence by:
 

@@ -1,10 +1,12 @@
 import {
   addExpense,
   addParticipant,
+  createFriendRequest,
   createTrip,
   createUser,
   findUserByEmail,
   getTripById,
+  respondToFriendRequest,
   setBudget,
   startTrip
 } from "../store.js";
@@ -29,7 +31,7 @@ export async function seedStore() {
     email: "sam@example.com",
     passwordHash: hashPassword("Demo-password1!")
   });
-  const jordan = createUser({
+  createUser({
     name: "Jordan Budgeter",
     email: "jordan@example.com",
     passwordHash: hashPassword("Demo-password1!")
@@ -44,7 +46,6 @@ export async function seedStore() {
   });
 
   addParticipant(trip.id, { userId: sam.id });
-  addParticipant(trip.id, { userId: jordan.id });
 
   const hydratedTrip = getTripById(trip.id);
   setBudget(trip.id, { mode: "total", totalBudget: 900 });
@@ -68,5 +69,20 @@ export async function seedStore() {
     payerId: sam.id,
     splitRule: "equal",
     includedParticipantIds: hydratedTrip.participantIds
+  });
+
+  const friendRequest = createFriendRequest({
+    requesterId: organizer.id,
+    recipientId: sam.id
+  });
+  respondToFriendRequest(friendRequest.id, sam.id, "accepted");
+
+  createTrip({
+    name: "Yosemite Weekend",
+    destination: "Yosemite",
+    startDate: "2026-06-20",
+    endDate: "2026-06-22",
+    visibility: "public",
+    organizerId: sam.id
   });
 }

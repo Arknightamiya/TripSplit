@@ -48,7 +48,9 @@ TripSplit is a runnable Express app with a static browser frontend.
 The app has two data modes:
 
 - Without `DATABASE_URL`, TripSplit uses the in-memory store and seeds local demo
-  users/trips at startup.
+  users, an Alex/Sam friendship, the Alex/Sam San Diego Weekend trip, and Sam's
+  public Yosemite Weekend trip at startup. Jordan is seeded as a non-friend with
+  no seeded trip access for social workflow demos.
 - With `DATABASE_URL`, TripSplit uses PostgreSQL repositories and expects the
   schema to be applied before use. The local Docker setup script handles schema
   application and seed data for reviewer demos.
