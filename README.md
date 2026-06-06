@@ -90,6 +90,12 @@ Use `alex@example.com` to review the organizer workflow and the seeded San Diego
 Weekend trip. If a reviewer registers a new account without email settings, the
 verification code is printed in the terminal running the server.
 
+Example terminal output:
+
+```text
+[TripSplit] Verification code for someone@example.com: 123456
+```
+
 When `DATABASE_URL` is set, the app uses PostgreSQL repositories and does not seed the in-memory demo data. Apply the schema before using a new database:
 
 ```bash
