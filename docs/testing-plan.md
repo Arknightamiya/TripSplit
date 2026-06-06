@@ -2,28 +2,63 @@
 
 ## Current Test Setup
 
-The project currently uses Node's built-in test runner:
+The project uses Node's built-in test runner. Run the default suite with:
 
 ```bash
 npm test
 ```
 
-The default test script is defined in `package.json` as:
+The default script is defined in `package.json` as:
 
 ```bash
-node --test
+NODE_ENV=test node --test
 ```
 
-Current automated coverage includes:
+The default suite runs against the in-memory data path and intentionally skips
+the real PostgreSQL smoke test unless database testing is explicitly enabled.
 
-- settlement unit tests in `tests/settlement.test.js`
-- Express API workflow tests in `tests/api.test.js`
-- real-world API smoke scenarios in `tests/real-world-scenarios.test.js`
-- balance rendering and transfer helper tests in `tests/render-balances.test.js`
-- currency display and conversion tests in `tests/currency-display.test.js`
-- auth storage scoping tests in `tests/session-storage.test.js`
-- currency refresh scheduler tests in `tests/currency-refresh-scheduler.test.js`
-- a shared API test harness in `tests/helpers/api.js`
+## Current Automated Coverage
+
+Automated coverage currently includes:
+
+- auth, registration, verification-code resend, login by email or User ID, JWT
+  session errors, password policy, and duplicate registration handling
+- profile update validation for display names and avatar data URLs
+- per-window and named-session auth storage behavior
+- friend requests, friend search, bidirectional friend removal, public trip
+  lobby visibility, trip join requests, and trip invitations
+- trip create, detail, update, delete, public/private visibility, date
+  validation, organizer-only permissions, participant management, and pending
+  invitation behavior
+- trip lifecycle behavior: start trip, end trip, metadata locks, participant
+  locks, budget locks, and expense locks
+- total and per-person budgets, budget validation, increasing started-trip
+  budgets, and mixed-currency budget-payment conversion
+- expense creation for `budget_payment` and `personal_advance`, equal shares,
+  cent rounding, split participant validation, payer validation, duplicate split
+  participant normalization, soft-delete, restore, and permission checks
+- balance and settlement calculations, including separation of shared-budget
+  spending from personal reimbursement balances
+- rendered balance transfer helpers and display-currency conversion behavior
+- currency selector display helpers and fallback currency conversion
+- currency refresh scheduler behavior, including disabled/no-database cases and
+  logged refresh failures
+- real-world API smoke scenarios covering invitations, public join flows,
+  budgets, expenses, balances, outsider rejection, and participant expense
+  deletion
+
+Primary test files:
+
+- `tests/api.test.js`
+- `tests/real-world-scenarios.test.js`
+- `tests/settlement.test.js`
+- `tests/render-balances.test.js`
+- `tests/currency-display.test.js`
+- `tests/session-storage.test.js`
+- `tests/currency-refresh-scheduler.test.js`
+- `tests/helpers/api.js`
+
+## PostgreSQL Smoke Test
 
 The PostgreSQL repository path is covered by an explicit opt-in smoke test:
 
@@ -32,87 +67,51 @@ npm run test:db
 ```
 
 `test:db` loads `.env`, sets `TRIPSPLIT_DATABASE_SMOKE=1`, and runs
-`tests/database-smoke.test.js`. Use a disposable test database with
-`database/schema.sql` already applied. The default `npm test` run skips this smoke
-test so ordinary local tests do not write to a real database by accident.
+`tests/database-smoke.test.js`. Use a disposable PostgreSQL database with
+`database/schema.sql` already applied. A successful real DB run should report
+`pass 1` and `skipped 0`.
 
----
+The smoke test verifies that the PostgreSQL-backed API path can perform the
+core user, trip, budget, expense, and balance workflow against the real schema.
 
-## Priority Tests
+## Manual Verification
 
-### Settlement Logic Tests
+The primary reviewer-facing manual workflow is now in the README under
+`Reviewer/Verification Guide`. Use that section for TA/professor demos because
+it includes:
 
-- Equal split among all participants
-- Partial split among selected participants
-- Empty expense list
-- Decimal rounding to 2 places
-- Delete expense and recalculate balances
-- Reject or ignore expenses whose payer is not a trip participant
-- Reject or ignore split participants who are not trip participants
+- choosing in-memory mode or PostgreSQL mode
+- macOS Docker PostgreSQL setup
+- seeded demo accounts for both modes
+- persistence verification
+- automated test commands
+- quick UI demo steps
+- multi-account social demo steps
+- trip lifecycle lock checks
 
----
+Condensed manual smoke checklist:
 
-### Budget Tests
+1. Start the app in the intended data mode.
+2. Log in with the appropriate seeded demo password for that mode.
+3. Open or create a trip.
+4. Verify friend request, public trip lobby, invitation, and join-request flows.
+5. Set a budget and confirm total/per-person behavior.
+6. Start the trip and confirm expenses can now be recorded.
+7. Add a `personal_advance` expense and confirm personal balances change.
+8. Add a `budget_payment` expense and confirm budget spending changes while
+   personal reimbursement balances stay separate.
+9. Delete and restore an expense and confirm budget/balances recalculate.
+10. End the trip and confirm budget and expense changes are locked.
 
-- Total budget summary
-- Per-person budget summary
-- Remaining budget while under budget
-- Over-budget amount after expenses exceed the budget
-- Budget recalculation after deleting an expense
+## Remaining Risk Areas
 
----
+The current automated suite is broad, but these areas still benefit from manual
+or future browser-level checks:
 
-### API Workflow Tests
-
-- Register user
-- Login user
-- Create trip
-- Add participant
-- Set budget
-- Add expense
-- Get balances
-- Delete expense
-- Re-check balances after deletion
-- Reject missing or invalid auth token on private trip APIs
-- Reject access by a user who is not an approved trip participant
-- Reject organizer-only actions from regular participants
-
----
-
-### Real-World Smoke Tests
-
-- Keep one complete invitation and public-trip join flow
-- Verify a trip can move from planning to started
-- Verify a budget payment affects budget spending but not personal reimbursement balances
-- Verify a personal advance produces conserved reimbursement balances
-- Verify a participant can record and delete their own trip expense
-- Avoid duplicating every validation and permission matrix already covered in API tests
-
----
-
-### Schema / Data Integrity Tests
-
-- Expense payer must belong to the trip
-- Expense share participant must belong to the trip
-- Expense share trip must match the expense trip
-- Budget mode must match the required budget fields
-- Expense category and expense type must be from shared constants
-
-The in-memory API tests cover these rules at the service/API contract level. The
-opt-in PostgreSQL smoke test verifies the repository-backed path can perform the
-same core workflow against a real database schema.
-
----
-
-## Manual Demo Workflow
-
-1. Start the app.
-2. Open the local app in browser.
-3. Create a trip.
-4. Add participants.
-5. Set a budget.
-6. Add expenses.
-7. View final balances.
-8. Delete an expense.
-9. Confirm budget and balances update.
-10. Try accessing a trip as a non-participant and confirm the request is rejected.
+- complete visual QA across desktop and narrow mobile viewports
+- browser interaction around modal focus, date segmented inputs, avatar upload,
+  and multi-tab named sessions
+- long-running PostgreSQL persistence beyond the smoke workflow
+- real email delivery through Gmail SMTP, since local review usually relies on
+  terminal-printed verification codes
+- live exchange-rate provider failures outside the mocked scheduler tests

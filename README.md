@@ -51,6 +51,11 @@ cp .env.example .env
 
 Configure `.env` when you want PostgreSQL persistence, email verification delivery, currency refresh scheduling, or a custom port. Do not commit real secrets.
 
+For the fastest local review, you can skip `.env` entirely. If you copy
+`.env.example`, remove or comment out `DATABASE_URL` unless you are also
+starting PostgreSQL. When `DATABASE_URL` is present, TripSplit expects a real
+database connection and does not use the in-memory demo seed.
+
 Important environment variables:
 
 - `PORT`: server port, defaults to `3000`
@@ -96,7 +101,157 @@ Example terminal output:
 [TripSplit] Verification code for someone@example.com: 123456
 ```
 
-When `DATABASE_URL` is set, the app uses PostgreSQL repositories and does not seed the in-memory demo data. Apply the schema before using a new database:
+## Reviewer/Verification Guide
+
+### Choose A Data Mode
+
+| Mode | How to configure | Expected result | Best use |
+| --- | --- | --- | --- |
+| In-memory mode | Do not set `DATABASE_URL`. Skip `.env`, or remove/comment the `DATABASE_URL` line after copying `.env.example`. | The server logs `Database layer: noop`. Demo users and the seeded San Diego Weekend trip are created at startup. Data resets when the server restarts. | Fast UI review, default automated tests, and demos that do not need persistence. |
+| PostgreSQL mode | Set `DATABASE_URL` to a running PostgreSQL database. On macOS, use `./database/start_db_macos.sh` to start Docker PostgreSQL, write `.env`, apply the schema, and seed demo data. The seeded PostgreSQL demo password is `demo-password`. | The server logs `Database layer: connected`. Data is read from and written to PostgreSQL and persists across app restarts. | Persistence review, PostgreSQL repository smoke testing, and currency refresh/convert scripts. |
+
+If `DATABASE_URL` is set manually for a new database, apply the schema before
+starting the app:
+
+```bash
+npm run db:schema
+```
+
+The macOS Docker setup script does this automatically.
+
+### macOS PostgreSQL Demo
+
+This path verifies that TripSplit works against a real PostgreSQL database and
+that data persists across app restarts.
+
+Prerequisites:
+
+- Docker Desktop is installed and running.
+- Project dependencies are installed with `npm install`.
+
+If Docker is installed but not running, start it:
+
+```bash
+docker desktop start
+```
+
+From the repo root:
+
+```bash
+./database/start_db_macos.sh
+npm start
+```
+
+The setup script:
+
+- starts a PostgreSQL Docker container on `localhost:5433`
+- writes `.env` with a local `DATABASE_URL`
+- applies `database/schema.sql`
+- seeds demo users, trip participants, budget, expenses, and expense shares
+
+Seeded PostgreSQL demo accounts:
+
+| Email | Password | Role |
+| --- | --- | --- |
+| `alex@example.com` | `demo-password` | Trip organizer |
+| `sam@example.com` | `demo-password` | Trip participant |
+| `jordan@example.com` | `demo-password` | Trip participant |
+
+Open `http://localhost:3000`, log in with one of the PostgreSQL demo accounts,
+and confirm that the server logs `Database layer: connected`.
+
+To verify persistence:
+
+1. Add a trip or expense on the website.
+2. Stop `npm start`.
+3. Run `npm start` again.
+4. Reopen the website and confirm the DB-backed data is still there.
+
+To stop the DB container while keeping its data:
+
+```bash
+./database/end_db_macos.sh
+```
+
+To remove the container and delete all local DB data:
+
+```bash
+PURGE_TRIPSPLIT_DB=1 ./database/end_db_macos.sh
+```
+
+Additional Linux/SSH database-hosting notes are in
+`database/db_setup_readme.md`.
+
+### Automated Checks
+
+Run:
+
+```bash
+npm test
+```
+
+The default suite should pass locally. The PostgreSQL smoke test is skipped by
+default unless database testing is explicitly enabled.
+
+To verify the PostgreSQL-backed path, start a disposable local database first,
+then run:
+
+```bash
+npm run test:db
+```
+
+### Quick UI Demo With Seeded Data
+
+1. Start the app in in-memory mode:
+
+```bash
+npm start
+```
+
+2. Open `http://localhost:3000`.
+3. Log in as `alex@example.com` with password `Demo-password1!`.
+4. Open the seeded San Diego Weekend trip.
+5. Confirm that the Budget, Expenses, and Balances panels are visible.
+6. Add a `personal_advance` expense. Confirm that personal reimbursement
+   balances change.
+7. Add a `budget_payment` expense as the organizer. Confirm that budget spending
+   changes while personal reimbursement balances stay separate.
+8. Delete an expense. Confirm that budget and balances recalculate. As the
+   organizer, restore the deleted expense and confirm they update again.
+9. Use the Balances panel to end the trip. Confirm that the final bill appears
+   and budget/expense changes are locked.
+
+### Multi-Account Social Demo
+
+Use named sessions so one browser can keep several users logged in at once:
+
+```text
+http://localhost:3000/?session=alex
+http://localhost:3000/?session=sam
+http://localhost:3000/?session=jordan
+```
+
+Suggested flow:
+
+1. Log in as Alex, Sam, and Jordan in separate named-session tabs.
+2. From Alex, send a friend request to Sam using the Friends sidebar.
+3. From Sam, open Requests and accept the friend request.
+4. From Alex, create a public trip. From Sam, open Trip Lobby, request to join
+   the public trip, then accept the join request from Alex's Requests dialog.
+5. From Alex, invite Sam to a trip. To invite Jordan, send and accept a friend
+   request with Jordan first. From the invited user's Requests dialog, accept or
+   decline the invitation.
+6. Create a new trip as Alex and verify lifecycle controls:
+   - Before starting, the organizer can edit trip details, set budget, and manage
+     participants.
+   - Expenses cannot be recorded until the trip starts.
+   - After starting, trip details and participants are locked, and budget can
+     only be increased.
+   - After ending, budget and expenses are locked and the final bill is shown.
+
+When `DATABASE_URL` is set, the app uses PostgreSQL repositories and does not
+seed the in-memory demo data. If you did not use the local database setup script,
+apply the schema before using a new database:
 
 ```bash
 npm run db:schema
@@ -247,4 +402,5 @@ These files provide deeper implementation and coordination context:
 - `docs/reference-architecture-notes.md`: architecture guidance and conventions
 - `docs/branch-plan.md`: historical branch planning notes
 - `docs/cloud-db-verification.md`: prior hosted PostgreSQL verification notes
+- `database/db_setup_readme.md`: local Docker PostgreSQL setup and persistence checks
 - `database/schema.sql`: PostgreSQL schema source of truth

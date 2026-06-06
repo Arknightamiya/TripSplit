@@ -40,6 +40,18 @@ The script:
 - applies `database/schema.sql`
 - seeds demo users, trip participants, budget, expenses, and expense shares
 
+Seeded PostgreSQL demo accounts:
+
+| Email | Password | Role |
+| --- | --- | --- |
+| `alex@example.com` | `demo-password` | Trip organizer |
+| `sam@example.com` | `demo-password` | Trip participant |
+| `jordan@example.com` | `demo-password` | Trip participant |
+
+The PostgreSQL seed password differs from the in-memory demo password in the
+main README. Use `demo-password` when `DATABASE_URL` is set by the database
+setup script.
+
 You can test persistence by:
 
 1. Add a trip or expense on the website.
