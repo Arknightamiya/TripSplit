@@ -78,11 +78,17 @@ Open:
 http://localhost:3000
 ```
 
-When `DATABASE_URL` is not set, TripSplit uses the in-memory store and seeds demo users/trips for local development. The seeded demo password is:
+When `DATABASE_URL` is not set, TripSplit uses the in-memory store and seeds demo users/trips for local development. Use one of these accounts to log in:
 
-```text
-Demo-password1!
-```
+| Email | Password | Role |
+| --- | --- | --- |
+| `alex@example.com` | `Demo-password1!` | Trip organizer |
+| `sam@example.com` | `Demo-password1!` | Trip participant |
+| `jordan@example.com` | `Demo-password1!` | Trip participant |
+
+Use `alex@example.com` to review the organizer workflow and the seeded San Diego
+Weekend trip. If a reviewer registers a new account without email settings, the
+verification code is printed in the terminal running the server.
 
 When `DATABASE_URL` is set, the app uses PostgreSQL repositories and does not seed the in-memory demo data. Apply the schema before using a new database:
 
