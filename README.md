@@ -8,6 +8,10 @@ The app is designed for small travel groups such as friends, roommates, student 
 
 Team Name: XZWSD
 
+## Demo Video
+
+[TripSplit YouTube Demo](https://youtu.be/4QMfIBZ-JB8)
+
 ## Current Product
 
 TripSplit currently supports these workflows:
