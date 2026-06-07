@@ -56,7 +56,10 @@ test("startCurrencyRefreshScheduler refreshes on start and on the interval", asy
   assert.equal(timers.length, 1);
   assert.equal(timers[0].intervalMs, 2 * 60 * 60 * 1000);
   assert.equal(timers[0].unrefCalled, true);
-  assert.match(logs[0], /Exchange rates refreshed/);
+  assert.match(logs[0], /Currency refresh scheduler: enabled/);
+  assert.match(logs[0], /refresh on start: enabled/);
+  assert.match(logs[0], /interval: 2 hours/);
+  assert.match(logs[1], /Exchange rates refreshed/);
 
   await timers[0].callback();
   assert.equal(refreshCount, 2);
@@ -67,10 +70,17 @@ test("startCurrencyRefreshScheduler refreshes on start and on the interval", asy
 
 test("startCurrencyRefreshScheduler can be disabled and ignores missing databases", () => {
   const activeTimers = [];
+  const logs = [];
+  const logger = {
+    info(message) {
+      logs.push(message);
+    }
+  };
 
   const disabledScheduler = startCurrencyRefreshScheduler({
     database: { enabled: true },
     env: { CURRENCY_REFRESH_ENABLED: "false" },
+    logger,
     refresh() {
       throw new Error("should not refresh");
     },
@@ -81,6 +91,7 @@ test("startCurrencyRefreshScheduler can be disabled and ignores missing database
   const noDatabaseScheduler = startCurrencyRefreshScheduler({
     database: { enabled: false },
     env: {},
+    logger,
     refresh() {
       throw new Error("should not refresh");
     },
@@ -90,6 +101,8 @@ test("startCurrencyRefreshScheduler can be disabled and ignores missing database
   });
 
   assert.equal(activeTimers.length, 0);
+  assert.match(logs[0], /disabled by CURRENCY_REFRESH_ENABLED/);
+  assert.match(logs[1], /disabled because DATABASE_URL is not set/);
   disabledScheduler.stop();
   noDatabaseScheduler.stop();
 });

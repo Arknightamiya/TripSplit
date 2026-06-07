@@ -11,13 +11,26 @@ export function startCurrencyRefreshScheduler({
   setTimer = setInterval,
   clearTimer = clearInterval
 } = {}) {
-  if (!database?.enabled || !isEnabled(env.CURRENCY_REFRESH_ENABLED, true)) {
+  if (!database?.enabled) {
+    logger.info?.(
+      "Currency refresh scheduler: disabled because DATABASE_URL is not set or the database layer is not connected."
+    );
+    return createStoppedScheduler();
+  }
+
+  if (!isEnabled(env.CURRENCY_REFRESH_ENABLED, true)) {
+    logger.info?.("Currency refresh scheduler: disabled by CURRENCY_REFRESH_ENABLED.");
     return createStoppedScheduler();
   }
 
   const intervalMs = getRefreshIntervalMs(env.CURRENCY_REFRESH_INTERVAL_HOURS);
+  const refreshOnStart = isEnabled(env.CURRENCY_REFRESH_ON_START, true);
   let isStopped = false;
   let isRefreshing = false;
+
+  logger.info?.(
+    `Currency refresh scheduler: enabled; refresh on start: ${refreshOnStart ? "enabled" : "disabled"}; interval: ${formatRefreshInterval(intervalMs)}.`
+  );
 
   const refreshOnce = async () => {
     if (isStopped || isRefreshing) {
@@ -39,7 +52,7 @@ export function startCurrencyRefreshScheduler({
     }
   };
 
-  if (isEnabled(env.CURRENCY_REFRESH_ON_START, true)) {
+  if (refreshOnStart) {
     void refreshOnce();
   }
 
@@ -70,6 +83,12 @@ function isEnabled(value, defaultValue) {
   }
 
   return !["0", "false", "no", "off"].includes(String(value).trim().toLowerCase());
+}
+
+function formatRefreshInterval(intervalMs) {
+  const hours = intervalMs / HOURS_TO_MS;
+  const displayHours = Number.isInteger(hours) ? hours : Number(hours.toFixed(2));
+  return `${displayHours} hour${displayHours === 1 ? "" : "s"}`;
 }
 
 function createStoppedScheduler() {

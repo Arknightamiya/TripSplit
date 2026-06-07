@@ -165,6 +165,20 @@ Seeded PostgreSQL demo accounts:
 Open `http://localhost:3000`, log in with one of the PostgreSQL demo accounts,
 and confirm that the server logs `Database layer: connected`.
 
+The terminal also reports currency refresh scheduler status on startup:
+
+```text
+Currency refresh scheduler: enabled; refresh on start: enabled; interval: 24 hours.
+Exchange rates refreshed: stored ... USD rates from open.er-api.com; fetched at ...
+```
+
+If the app is started without `DATABASE_URL`, the scheduler does not refresh or
+persist rates. Reviewers should instead see:
+
+```text
+Currency refresh scheduler: disabled because DATABASE_URL is not set or the database layer is not connected.
+```
+
 To verify persistence:
 
 1. Add a trip or expense on the website.

@@ -61,6 +61,21 @@ Seeded social state:
 - Jordan starts as a non-friend with no seeded trip access so reviewers can
   demonstrate Add friend, request, accept, and later invitation flows.
 
+When `npm start` runs with this PostgreSQL `.env`, the terminal should also show
+the currency refresh scheduler status:
+
+```text
+Currency refresh scheduler: enabled; refresh on start: enabled; interval: 24 hours.
+Exchange rates refreshed: stored ... USD rates from open.er-api.com; fetched at ...
+```
+
+Without `DATABASE_URL`, the scheduler is disabled because exchange rates cannot
+be persisted:
+
+```text
+Currency refresh scheduler: disabled because DATABASE_URL is not set or the database layer is not connected.
+```
+
 You can test persistence by:
 
 1. Add a trip or expense on the website.
