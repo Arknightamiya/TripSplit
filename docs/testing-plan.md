@@ -76,7 +76,7 @@ core user, trip, budget, expense, and balance workflow against the real schema.
 
 ## Manual Verification
 
-The primary reviewer-facing manual workflow is now in the README under
+The primary reviewer-facing manual workflow is now in the [setup and demo guide](setup-and-demo.md) under
 `Reviewer/Verification Guide`. Use that section for TA/professor demos because
 it includes:
 
